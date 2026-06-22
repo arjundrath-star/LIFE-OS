@@ -4,7 +4,7 @@ import { Panel } from "@/components/Panel";
 import { Badge } from "@/components/ui";
 import { GraduationCap } from "lucide-react";
 
-const START = new Date("2026-08-29T00:00:00");
+const START = new Date("2026-09-02T00:00:00");
 
 export function SchoolPanel({ onExpand }: { onExpand?: () => void }) {
   const [days, setDays] = useState<number | null>(null);
@@ -22,14 +22,14 @@ export function SchoolPanel({ onExpand }: { onExpand?: () => void }) {
           <>
             <div className="font-mono text-4xl font-semibold text-txt-primary tabular">{days ?? "—"}</div>
             <div className="text-xs text-txt-muted">days until classes start</div>
-            <div className="text-[11px] text-txt-faint">NYU · Aug 29, 2026</div>
+            <div className="text-[11px] text-txt-faint">NYU · Sep 2, 2026</div>
           </>
         ) : (
           <div className="text-sm text-txt-muted">Classes are in session. School calendar layers into Calendar.</div>
         )}
       </div>
       <p className="text-[11px] leading-relaxed text-txt-faint/70">
-        Placeholder until 2026-08-29. The NYU calendar (student@example.edu) layers into the
+        Placeholder until 2026-09-02. The NYU calendar (student@example.edu) layers into the
         Calendar module when the term begins.
       </p>
     </Panel>
