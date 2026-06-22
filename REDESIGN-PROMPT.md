@@ -47,7 +47,14 @@ Each existing panel becomes a full page. Reuse the existing data/API/WS wiring; 
 - **No backend rebuild, no regressions.** Every data source that works today (agents/Hermes, Telegram, connections health, Google email/calendar, files, terminal, projects-from-vault, todos) must keep working. Reuse the server, scheduler, WebSocket, SQLite, and API routes.
 - Secrets stay server-side in `~/.config/rathworkspace/secrets.env`; ttyd/filebrowser stay bound to localhost behind the gate; the Google allowlist gate stays enforced on every route (including the new ones — protect the whole `(dash)` group).
 - Mobile/responsive floor: the rail collapses to a drawer on small screens; keyboard focus visible; reduced-motion respected.
-- Commit as you go. When done or blocked, email Arjun: `gws gmail +send --to operator@example.com --subject "RATHWORKSPACE v2 — done" --body "<summary>"` (default gws account dev@ is authed). Plain founder voice, no em dashes, no hype words.
+- Commit as you go.
+
+## When you finish or get blocked (REQUIRED)
+When you reach the definition of done, OR you hit a blocker you cannot resolve, email Arjun a status summary before you stop:
+```
+gws gmail +send --to operator@example.com --subject "RATHWORKSPACE v2 — done" --body "<summary>"
+```
+The default `gws` account (ops@example.com) is already authed. Summary covers: what got restructured and verified, anything that regressed or is still stubbed (Whoop, Mercury), any blockers, and the live URL https://rathworkspace.cloud. Plain founder voice, no em dashes, no hype words. This is mandatory — Arjun detaches from the session and will not be watching; the email is how he knows it finished.
 
 ## Definition of done
 rathworkspace.cloud serves the new routed app behind the Google gate. A collapsible flat nav rail with live per-item status is always present. Home is the decluttered daily-flow screen (big centerpiece + live agents + today's calendar + today's todos + recent-emails display + Whoop + clickable project glance) with a true cinematic ambient mode. Vending, Ad Agency, and School each have their own full page with live metrics per the sketches. ⌘K jumps anywhere. Terminal and Files render full-size. Nothing that worked in v1 regressed. It looks deliberate and high-end on a wall, with clear hierarchy, not a field of equal boxes.
