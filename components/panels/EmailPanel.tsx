@@ -70,7 +70,9 @@ export function EmailPanel({ onExpand, expanded = false }: { onExpand?: () => vo
                 </div>
               ) : a.latest_subject ? (
                 <div className="mt-1 truncate text-xs text-txt-muted">
-                  {a.important_count > 0 && <span className="mr-1 text-warn">★{a.important_count}</span>}
+                  {a.important_count > 0 && a.important_count < a.unread_count && (
+                    <span className="mr-1 text-warn">★{a.important_count}</span>
+                  )}
                   {a.latest_from ? `${a.latest_from.replace(/<.*>/, "").trim()} — ` : ""}
                   {a.latest_subject}
                 </div>

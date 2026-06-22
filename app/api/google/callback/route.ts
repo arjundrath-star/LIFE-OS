@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleCallback } from "@/lib/sources/google";
-import { refreshAll } from "@/lib/connections";
+import { refreshAll, setEnabled } from "@/lib/connections";
 import { getHub } from "@/server/live";
 import { requireUser } from "@/lib/guard";
 import { pushEvent } from "@/db";
@@ -26,6 +26,9 @@ export async function GET(req: Request) {
   try {
     const { email } = await handleCallback(code);
     pushEvent("email", `Connected Google account ${email}`, "success");
+    // connecting an account IS the user enabling the Google reader — flip it on so the
+    // Connections panel shows healthy (not a misleading "off") now that mail is flowing.
+    setEnabled("google", "dashboard", true);
     // refresh connection states + email immediately
     const states = await refreshAll();
     getHub().broadcast("connections", states);

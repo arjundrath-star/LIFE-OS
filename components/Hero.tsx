@@ -47,7 +47,9 @@ function EmailGlance() {
         <span className="text-xs text-txt-faint">unread</span>
       </div>
       <div className="mt-0.5 text-xs text-txt-muted">
-        {email.totalImportant > 0 ? `${email.totalImportant} important · ` : ""}
+        {email.totalImportant > 0 && email.totalImportant < email.totalUnread
+          ? `${email.totalImportant} important · `
+          : ""}
         {email.connected} account{email.connected > 1 ? "s" : ""}
       </div>
     </Glance>
