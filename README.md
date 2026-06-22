@@ -54,8 +54,10 @@ Migrations in `db/migrations/`, applied on boot.
   Email + Calendar (no Google reader accounts connected yet).
 
 ## Arjun-only setup steps (each unlocks a module)
-1. **Email + Calendar reader** — in the Google Cloud console for the `gcp-project`
-   OAuth client, add the redirect URI
+1. **Email + Calendar reader** — DONE 2026-06-22 (operator@example.com connected, 201
+   unread + calendar live). The OAuth client lives in Arjun's PERSONAL Google project
+   (project number GCP_PROJECT_NUMBER), NOT gcp-project. To add more accounts later, in that
+   project's Google Cloud console OAuth client, ensure the redirect URI is present:
    `https://rathworkspace.cloud/api/google/callback` (and
    `http://localhost:3000/api/google/callback` for local). Then click "+ Add Google
    account" in the Email panel and approve. While the app is in Testing mode each
