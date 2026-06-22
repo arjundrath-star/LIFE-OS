@@ -29,8 +29,13 @@ export function Centerpiece({ mode, size = 340 }: { mode: "working" | "ambient";
   const hermesOnline = pulse?.hermesOnline ?? false;
   const activityRate = pulse?.activityRate ?? 0;
 
-  // heartbeat: faster when busy; calm cinematic breathing in ambient mode
-  const beat = mode === "ambient" ? 5.5 : Math.max(1.4, 3.2 - Math.min(activityRate, 12) * 0.15);
+  // heartbeat: faster when busy; calm cinematic breathing in ambient mode;
+  // nearly flat when the system is offline so it never reads "lively" while down
+  const beat = !hermesOnline
+    ? 7
+    : mode === "ambient"
+    ? 5.5
+    : Math.max(1.4, 3.2 - Math.min(activityRate, 12) * 0.15);
 
   const cx = size / 2;
   const cy = size / 2;

@@ -137,15 +137,15 @@ async function tickProjects() {
 
 async function tickEmail() {
   const hub = getHub();
+  const mod = await import("@/lib/sources/google");
   try {
-    const mod = await import("@/lib/sources/google");
     await mod.pollEmailAccounts();
-    hub.broadcast("email", mod.emailSnapshots());
   } catch (e) {
-    // honest empty payload if the email layer errors or no accounts exist
-    const rows = all<any>("SELECT * FROM email_state ORDER BY unread_count DESC");
-    hub.broadcast("email", { accounts: rows, connected: 0, totalUnread: 0 });
+    // a transient Gmail API error must NOT erase the known accounts — fall through
+    // and still broadcast the last-known snapshot from the DB.
+    console.error("[scheduler] email poll failed:", (e as Error).message);
   }
+  hub.broadcast("email", mod.emailSnapshots());
 }
 
 async function tickCalendar() {
@@ -191,11 +191,14 @@ export function startScheduler() {
   email();
   calendar();
 
-  setInterval(agents, 6000);
-  setInterval(connections, 30000);
-  setInterval(projects, 60000);
-  setInterval(email, 60000);
-  setInterval(calendar, 120000);
+  // retain handles so the scheduler can be stopped/reset cleanly
+  g.__rw_timers = [
+    setInterval(agents, 6000),
+    setInterval(connections, 30000),
+    setInterval(projects, 60000),
+    setInterval(email, 60000),
+    setInterval(calendar, 120000),
+  ];
 
   console.log("[scheduler] started");
 }

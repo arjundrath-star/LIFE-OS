@@ -126,7 +126,12 @@ async function main() {
     }
 
     if (pathname !== "/ws") {
-      // let Next handle HMR upgrades in dev
+      // In dev, let Next handle HMR upgrades; in prod, reject stray upgrades so
+      // sockets to arbitrary paths don't sit open on the internet-facing origin.
+      if (!dev) {
+        socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+        socket.destroy();
+      }
       return;
     }
     const ok = await authorizeUpgrade(req.headers.cookie);

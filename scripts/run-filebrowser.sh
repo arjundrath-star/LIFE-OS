@@ -15,5 +15,6 @@ if [ ! -f "$DB" ]; then
   # noauth needs a default admin user to assume
   "$FB" users add admin "$(head -c16 /dev/urandom | base64)" --perm.admin -d "$DB" 2>/dev/null || true
 fi
+chmod 600 "$DB" 2>/dev/null || true
 
 exec "$FB" -d "$DB" -a 127.0.0.1 -p 8088 --baseURL /files --root /home/Arjun

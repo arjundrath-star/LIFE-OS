@@ -11,19 +11,30 @@ const ALLOWED = (process.env.GOOGLE_ALLOWED_EMAILS || "")
   .filter(Boolean);
 
 // Paths that must stay open for the gate itself to function.
+// Tree prefixes match on SEGMENT boundaries only (never bare startsWith, which
+// would make any path beginning with the string public — a gate-bypass landmine).
 const PUBLIC_PREFIXES = [
   "/signin",
   "/api/auth", // NextAuth endpoints
   "/_next",
-  "/favicon",
-  "/icon",
-  "/robots",
 ];
+// Single public files (not trees).
+const PUBLIC_EXACT = new Set([
+  "/favicon.ico",
+  "/robots.txt",
+  "/icon.png",
+  "/icon.svg",
+  "/apple-icon.png",
+  "/manifest.json",
+]);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p))) {
+  if (
+    PUBLIC_EXACT.has(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
+  ) {
     return NextResponse.next();
   }
 

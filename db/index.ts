@@ -14,11 +14,19 @@ const MIGRATIONS_DIR = path.join(process.cwd(), "db", "migrations");
 let _db: Database.Database | null = null;
 
 function open(): Database.Database {
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true, mode: 0o700 });
   const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.pragma("busy_timeout = 5000");
+  // The DB holds encrypted refresh tokens — lock it down to match the 0600 secret store.
+  for (const f of [DB_PATH, `${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
+    try {
+      if (fs.existsSync(f)) fs.chmodSync(f, 0o600);
+    } catch {
+      /* best effort */
+    }
+  }
   return db;
 }
 

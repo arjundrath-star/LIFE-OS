@@ -121,6 +121,10 @@ async function accessTokenFor(email: string): Promise<string | null> {
     return null;
   }
   const j = await res.json();
+  if (!j.access_token) {
+    run("UPDATE google_accounts SET last_error='refresh returned no access_token' WHERE email=?", email);
+    return null;
+  }
   const exp = Date.now() + (j.expires_in ?? 3600) * 1000;
   cache.set(email, { token: j.access_token, exp });
   return j.access_token;
@@ -140,8 +144,15 @@ async function pollOne(email: string) {
     return;
   }
   try {
-    const inbox = await gapi(token, "https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX");
-    const unread = inbox.messagesUnread ?? 0;
+    // Count unread the SAME way the latest-message lookup queries, so the headline
+    // number matches the inbox view (labels/INBOX.messagesUnread overcounts: it
+    // includes category-tabbed mail and counts messages, not the inbox-view threads).
+    const unreadList = await gapi(
+      token,
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=" +
+        encodeURIComponent("is:unread in:inbox")
+    );
+    const unread = unreadList.resultSizeEstimate ?? 0;
     let importantCount = 0;
     let latestSubject: string | null = null;
     let latestFrom: string | null = null;
@@ -153,12 +164,7 @@ async function pollOne(email: string) {
           encodeURIComponent("is:unread is:important in:inbox")
       );
       importantCount = imp.resultSizeEstimate ?? 0;
-      const list = await gapi(
-        token,
-        "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=" +
-          encodeURIComponent("is:unread in:inbox")
-      );
-      const id = list.messages?.[0]?.id;
+      const id = unreadList.messages?.[0]?.id;
       if (id) {
         const msg = await gapi(
           token,

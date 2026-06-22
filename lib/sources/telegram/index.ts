@@ -73,7 +73,7 @@ export function readTelegramActivity(): TelegramActivity {
       (p) =>
         p.ts &&
         !isPollError(p.message) &&
-        /saved|task|sprint|status|reply|claude|message|received|routed|processed|/i.test(
+        /saved|task|sprint|status|reply|claude|message|received|routed|processed/i.test(
           p.message
         ) &&
         p.message.length > 0

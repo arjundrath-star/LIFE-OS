@@ -31,6 +31,7 @@ function snapshot() {
 }
 
 export async function GET() {
+  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   return NextResponse.json(snapshot());
 }
 

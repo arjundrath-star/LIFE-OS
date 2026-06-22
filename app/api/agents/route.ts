@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
 import { all, get } from "@/db";
+import { requireUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const hermes = await fetchHermesStatus();
   const telegram = readTelegramActivity();
   const claudeRow = get<any>(

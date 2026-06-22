@@ -7,7 +7,7 @@ import { Clapperboard, ExternalLink, Sparkles, Globe } from "lucide-react";
 // no fabricated metrics. Real artifacts live on example.com and in Higgsfield.
 export function AdAgencyPanel({ onExpand }: { onExpand?: () => void }) {
   return (
-    <Panel title="Klade Ad Agency" icon={<Clapperboard size={13} />} onExpand={onExpand} state="healthy" bodyClassName="space-y-3">
+    <Panel title="Klade Ad Agency" icon={<Clapperboard size={13} />} onExpand={onExpand} bodyClassName="space-y-3">
       <p className="text-xs leading-relaxed text-txt-muted">
         AI motion-design ad studio. Short product videos generated with Higgsfield, portfolio
         showcased on the live site.

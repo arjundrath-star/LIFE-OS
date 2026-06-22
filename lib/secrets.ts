@@ -86,6 +86,11 @@ export function hasSecret(key: string): boolean {
  * Server-only. Keeps the file chmod 600. Never logs the value.
  */
 export function setSecret(key: string, value: string): void {
+  // Reject control characters / newlines so a malformed paste can't inject another
+  // KEY=VALUE line into the store.
+  if (/[\r\n\x00]/.test(value)) {
+    throw new Error("secret value contains control characters");
+  }
   let lines: string[] = [];
   try {
     lines = fs.readFileSync(SECRETS_PATH, "utf8").split("\n");
