@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { NavRail } from "@/components/shell/NavRail";
@@ -24,6 +24,12 @@ export function DashShell({ user, children }: { user: User; children: React.Reac
   const [manualAmbient, setManualAmbient] = useState(false);
   const [idle] = useIdle(180000); // 3 min → cinematic
   const ambient = manualAmbient || idle;
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  // move focus into the mobile drawer when it opens (so keyboard/AT users land in it)
+  useEffect(() => {
+    if (mobileOpen) drawerRef.current?.focus();
+  }, [mobileOpen]);
 
   // restore rail state after mount (avoids SSR/CSR width mismatch)
   useEffect(() => {
@@ -78,12 +84,13 @@ export function DashShell({ user, children }: { user: User; children: React.Reac
 
       {/* mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-[80] lg:hidden">
+        <div className="fixed inset-0 z-[80] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 h-full animate-fade-in">
+          <div ref={drawerRef} tabIndex={-1} className="absolute left-0 top-0 h-full animate-fade-in outline-none">
             <NavRail
               collapsed={false}
               onToggle={() => setMobileOpen(false)}
+              toggleLabel="Close navigation"
               onNavigate={() => setMobileOpen(false)}
               onOpenPalette={() => {
                 setMobileOpen(false);
@@ -95,7 +102,7 @@ export function DashShell({ user, children }: { user: User; children: React.Reac
       )}
 
       {/* content column */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col" aria-hidden={mobileOpen || undefined}>
         <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-base/80 px-4 backdrop-blur-sm">
           <div className="flex min-w-0 items-center gap-2">
             <button

@@ -9,6 +9,26 @@ Next.js (App Router) + TypeScript + Tailwind + a custom Node server that owns on
 gated WebSocket and the source scheduler. better-sqlite3 for data. NextAuth Google
 gate restricted to an email allowlist. ttyd + filebrowser embedded behind the gate.
 
+## Layout (v2)
+A routed app, not one scrolling page. A persistent collapsible left nav rail (flat,
+all top-level, state in localStorage) is itself a live instrument: each item carries
+a status indicator off the WebSocket (Agents dot, Email unread count, School
+countdown, Connections amber-if-broken). Routes live under the `app/(dash)/` group
+behind a shared server-auth layout (`components/shell/DashShell`):
+- **Home** (`/`) — the decluttered daily glance: a large living centerpiece, live
+  agents, today's calendar, today's to-dos, a scannable recent-email feed, Whoop,
+  and a clickable project glance.
+- One full page per section (`/vending`, `/ad-agency`, `/school`, `/agents`,
+  `/email`, `/calendar`, `/health`, `/connections`, `/projects`, `/terminal`,
+  `/files`, `/accounts`) built on a shared `ProjectPage` template (hero metric band
+  over stacked sections). `/terminal` and `/files` render the embeds full-height.
+- **Command palette** (⌘K / Ctrl-K) — fuzzy jump to any section/project plus actions
+  (toggle ambient, recheck connections, connect Google, generate, sign out).
+- **Ambient mode** — after 3 min idle or via the toggle, a cinematic full-bleed
+  screensaver (breathing centerpiece + calm metrics); the rail hides.
+The embedded ttyd/filebrowser stay at `/terminal/` and `/files/` (the custom server
+proxies only those trailing-slash subpaths; the bare paths are the Next pages).
+
 ## How it runs (production, on the VPS)
 Three systemd services:
 
@@ -48,10 +68,13 @@ Migrations in `db/migrations/`, applied on boot.
 ## What is live vs stubbed
 - **Live now:** Agents (Hermes gateway + Telegram listener + Claude self-reports),
   Connections control plane (real health checks: Hermes, Tailscale, Cloudflare tunnel,
-  Higgsfield, Telegram), Projects (vault), Terminal, Files, Accounts hub, the
-  centerpiece + ticker.
-- **Honest "connect me" until set up:** Whoop (Health), Mercury (Vending revenue),
-  Email + Calendar (no Google reader accounts connected yet).
+  Higgsfield, Telegram), Email + Calendar (per-account Google readers, with a
+  scannable recent-email feed), Ad Agency (live Higgsfield credit balance + the
+  generated-video portfolio via the `higgsfield` CLI, cached), Projects (vault),
+  Terminal, Files, Accounts hub, the centerpiece + ticker.
+- **Honest "connect me" until set up:** Whoop (Health), Mercury (Vending revenue —
+  the pipeline, machines, and outreach are live from SQLite; only the $ figures wait
+  on Mercury), the Ad-Agency outreach pipeline (runs in `~/ad-engine`, not yet wired).
 
 ## Arjun-only setup steps (each unlocks a module)
 1. **Email + Calendar reader** — DONE 2026-06-22 (operator@example.com connected, 201

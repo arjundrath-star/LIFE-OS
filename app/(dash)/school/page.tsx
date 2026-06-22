@@ -104,7 +104,7 @@ export default function SchoolPage() {
           >
             <div className="mb-2 flex items-center gap-2">
               <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="add a setup task" className="flex-1 rounded-inner border border-border bg-base px-2 py-1.5 text-xs text-txt-primary outline-none focus:border-accent/50" />
-              <Button size="sm" variant="accent" onClick={add}><Plus size={12} /></Button>
+              <Button size="sm" variant="accent" onClick={add} aria-label="Add setup task"><Plus size={12} /></Button>
             </div>
             {checklist.length === 0 ? (
               <div className="py-3 text-center text-xs text-txt-faint/70">loading…</div>
@@ -112,7 +112,7 @@ export default function SchoolPage() {
               <div className="space-y-0.5">
                 {checklist.map((i: any) => (
                   <div key={i.id} className="group/ci flex items-start gap-2 rounded-inner px-1 py-1 hover:bg-white/5">
-                    <button onClick={() => post({ action: "toggle", id: i.id })} className={cn("mt-0.5", i.done ? "text-healthy" : "text-txt-faint hover:text-accent")}>
+                    <button onClick={() => post({ action: "toggle", id: i.id })} aria-label={i.done ? "Mark not done" : "Mark done"} className={cn("mt-0.5", i.done ? "text-healthy" : "text-txt-faint hover:text-accent")}>
                       {i.done ? <CheckSquare size={14} /> : <Square size={14} />}
                     </button>
                     <span className={cn("min-w-0 flex-1 text-xs", i.done ? "text-txt-faint line-through" : "text-txt-muted")}>{i.text}</span>

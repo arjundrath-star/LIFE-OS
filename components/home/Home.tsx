@@ -224,7 +224,7 @@ function TodayTodos() {
           placeholder="add a task"
           className="flex-1 rounded-inner border border-border bg-base px-2 py-1.5 text-xs text-txt-primary outline-none focus:border-accent/50"
         />
-        <Button size="sm" variant="accent" onClick={add}><Plus size={12} /></Button>
+        <Button size="sm" variant="accent" onClick={add} aria-label="Add task"><Plus size={12} /></Button>
       </div>
       {todos.length === 0 ? (
         <div className="py-3 text-center text-xs text-txt-faint/70">all clear</div>
@@ -232,7 +232,7 @@ function TodayTodos() {
         <div className="space-y-0.5">
           {todos.map((t: any) => (
             <div key={t.id} className="flex items-start gap-2 rounded-inner px-1 py-1 hover:bg-white/5">
-              <button onClick={() => toggle(t.id)} className="mt-0.5 text-txt-faint hover:text-accent"><Square size={14} /></button>
+              <button onClick={() => toggle(t.id)} aria-label="Mark task done" className="mt-0.5 text-txt-faint hover:text-accent"><Square size={14} /></button>
               <span className="min-w-0 flex-1 text-xs text-txt-muted">
                 {t.text}
                 {t.due && <span className="ml-1 font-mono text-[10px] text-warn">· {t.due}</span>}

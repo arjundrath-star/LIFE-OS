@@ -29,6 +29,7 @@ function score(query: string, text: string): number | null {
   let gaps = 0;
   for (let qi = 0; qi < q.length; qi++) {
     const c = q[qi];
+    const start = ti;
     let found = -1;
     for (; ti < t.length; ti++) {
       if (t[ti] === c) {
@@ -38,7 +39,7 @@ function score(query: string, text: string): number | null {
     }
     if (found === -1) return null;
     if (firstHit === -1) firstHit = found;
-    if (qi > 0) gaps += 1;
+    if (qi > 0) gaps += found - start; // distance skipped since the last match
     ti = found + 1;
   }
   return firstHit + gaps; // earlier + tighter match ranks first

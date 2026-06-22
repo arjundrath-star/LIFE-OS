@@ -136,7 +136,7 @@ export default function VendingPage() {
                 <div className="flex items-center gap-1.5">
                   <input value={machineName} onChange={(e) => setMachineName(e.target.value)} placeholder="name" className="w-24 rounded-inner border border-border bg-base px-2 py-1 text-xs text-txt-primary outline-none focus:border-accent/50" />
                   <input value={machineLoc} onChange={(e) => setMachineLoc(e.target.value)} placeholder="location" className="w-28 rounded-inner border border-border bg-base px-2 py-1 text-xs text-txt-primary outline-none focus:border-accent/50" />
-                  <Button size="sm" variant="accent" onClick={addMachine}><Plus size={12} /></Button>
+                  <Button size="sm" variant="accent" onClick={addMachine} aria-label="Add machine"><Plus size={12} /></Button>
                 </div>
               }
             >

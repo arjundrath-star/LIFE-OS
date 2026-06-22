@@ -59,11 +59,14 @@ export function NavRail({
   onToggle,
   onNavigate,
   onOpenPalette,
+  toggleLabel,
 }: {
   collapsed: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
   onOpenPalette?: () => void;
+  /** overrides the collapse-button label (the mobile drawer uses "Close navigation") */
+  toggleLabel?: string;
 }) {
   const pathname = usePathname();
   const pulse = useLiveData<any>("pulse");
@@ -102,8 +105,8 @@ export function NavRail({
         <button
           onClick={onToggle}
           className="flex h-8 w-8 items-center justify-center rounded-inner text-txt-faint transition-colors hover:bg-white/5 hover:text-accent"
-          aria-label={collapsed ? "Expand nav" : "Collapse nav"}
-          title={collapsed ? "Expand" : "Collapse"}
+          aria-label={toggleLabel ?? (collapsed ? "Expand nav" : "Collapse nav")}
+          title={toggleLabel ?? (collapsed ? "Expand" : "Collapse")}
         >
           {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
         </button>

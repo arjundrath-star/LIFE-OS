@@ -79,6 +79,19 @@ body::before {
   text-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
 }
 
+/* Keyboard focus: a consistent cyan ring on every interactive element. Element-level
+   selectors (0,1,1) beat the Tailwind `outline-none` utility (0,1,0), so controls that
+   suppress the UA outline still get a visible ring on keyboard focus (not on click). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.75);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
