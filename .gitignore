@@ -28,3 +28,6 @@ npm-install.log
 shots/
 build.log
 server-test.log
+
+# TS incremental build cache
+tsconfig.tsbuildinfo
