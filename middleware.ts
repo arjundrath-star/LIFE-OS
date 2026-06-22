@@ -1,0 +1,62 @@
+// Gate: every route requires a valid NextAuth session whose email is on the allowlist.
+// The allowlist itself is enforced in the signIn callback (lib/auth.ts); this layer
+// blocks unauthenticated access and re-checks the email claim on every request.
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+
+const ALLOWED = (process.env.GOOGLE_ALLOWED_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+// Paths that must stay open for the gate itself to function.
+const PUBLIC_PREFIXES = [
+  "/signin",
+  "/api/auth", // NextAuth endpoints
+  "/_next",
+  "/favicon",
+  "/icon",
+  "/robots",
+];
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Behind the TLS-terminating Cloudflare tunnel the origin sees http, but the
+  // session cookie is `__Secure-`-prefixed (set because NEXTAUTH_URL is https).
+  // Force secureCookie so getToken reads the right cookie name, else the gate loops.
+  const useSecure = (process.env.NEXTAUTH_URL || "").startsWith("https://");
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: useSecure,
+  });
+  const email = (token?.email as string | undefined)?.toLowerCase();
+  const ok = !!email && ALLOWED.includes(email);
+
+  if (!ok) {
+    // API routes get a clean 401; pages redirect to the sign-in screen.
+    if (pathname.startsWith("/api/")) {
+      return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/signin";
+    url.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  // Run on everything except Next internals and static files.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};

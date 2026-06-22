@@ -1,0 +1,30 @@
+# deps
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# data (sqlite lives on the box, never in git)
+data/*.db
+data/*.db-*
+data/*.sqlite*
+
+# secrets — the real store is ~/.config/rathworkspace/secrets.env, never here
+.env
+.env.local
+.env*.local
+*.secret
+
+# logs / os
+npm-install.log
+*.log
+.DS_Store
+
+# screenshots / build artifacts
+shots/
+build.log
+server-test.log
