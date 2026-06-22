@@ -37,8 +37,11 @@ filesProxy.on("error", onProxyError("files (filebrowser)"));
 
 function proxyFor(pathname: string | null) {
   if (!pathname) return null;
-  if (pathname === "/terminal" || pathname.startsWith("/terminal/")) return ttydProxy;
-  if (pathname === "/files" || pathname.startsWith("/files/")) return filesProxy;
+  // Only the trailing-slash subpaths reach the embedded services (the iframes always
+  // request "/terminal/" and "/files/"). The bare "/terminal" and "/files" are real
+  // Next pages now (the full-size embed views), so they must NOT be proxied.
+  if (pathname.startsWith("/terminal/")) return ttydProxy;
+  if (pathname.startsWith("/files/")) return filesProxy;
   return null;
 }
 

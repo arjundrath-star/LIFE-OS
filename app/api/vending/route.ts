@@ -13,6 +13,17 @@ function snapshot() {
   const last7 = all<any>(
     "SELECT COALESCE(SUM(amount_cents),0) c FROM revenue_daily WHERE day >= date('now','-7 day')"
   )[0]?.c ?? 0;
+  const today = all<any>(
+    "SELECT COALESCE(SUM(amount_cents),0) c FROM revenue_daily WHERE day = date('now')"
+  )[0]?.c ?? 0;
+  const mtd = all<any>(
+    "SELECT COALESCE(SUM(amount_cents),0) c FROM revenue_daily WHERE day >= date('now','start of month')"
+  )[0]?.c ?? 0;
+  // Real, derived outreach signal: deals opened in the last 7 days and how many have replied (advanced past lead).
+  const outreachThisWeek = deals.filter(
+    (d: any) => d.created_at && Date.parse(d.created_at) >= Date.now() - 7 * 86400000
+  ).length;
+  const replies = deals.filter((d: any) => ["verbal_yes", "placing", "live"].includes(d.stage)).length;
   return {
     revenueConnected: hasSecret("MERCURY_API_TOKEN"),
     machines,
@@ -25,7 +36,12 @@ function snapshot() {
       live: deals.filter((d: any) => d.stage === "live").length,
     },
     needsRefill: machines.filter((m: any) => m.needs_refill).length,
+    liveMachines: machines.filter((m: any) => m.status === "live").length,
+    revenueTodayCents: today,
     revenueLast7Cents: last7,
+    revenueMtdCents: mtd,
+    outreachThisWeek,
+    replies,
     revenueHistory: revenueRows.reverse(),
   };
 }

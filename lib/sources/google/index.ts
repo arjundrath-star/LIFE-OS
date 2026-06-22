@@ -136,6 +136,60 @@ async function gapi(token: string, url: string): Promise<any> {
   return res.json();
 }
 
+// "Arjun Rath <arjun@x.com>" -> "Arjun Rath"; "bob@x.com" -> "bob@x.com"
+function senderName(from: string | null): string {
+  if (!from) return "";
+  const m = from.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
+  const name = m?.[1]?.trim();
+  return name && name.length ? name : from.replace(/[<>]/g, "").trim();
+}
+
+type RecentMsg = {
+  id: string;
+  subject: string;
+  from: string;
+  fromName: string;
+  ts: string | null;
+  unread: boolean;
+  important: boolean;
+};
+
+// Pull the latest few inbox messages with metadata so the UI can show a real
+// scannable feed (sender · subject · time · unread). Read-only.
+async function recentInbox(token: string, limit = 6): Promise<RecentMsg[]> {
+  const list = await gapi(
+    token,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${limit}&q=` +
+      encodeURIComponent("in:inbox")
+  );
+  const ids: string[] = (list.messages ?? []).map((m: any) => m.id).filter(Boolean);
+  const out: RecentMsg[] = [];
+  for (const id of ids) {
+    try {
+      const msg = await gapi(
+        token,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`
+      );
+      const headers: any[] = msg.payload?.headers ?? [];
+      const subject = headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
+      const from = headers.find((h) => h.name === "From")?.value ?? null;
+      const labels: string[] = msg.labelIds ?? [];
+      out.push({
+        id,
+        subject,
+        from: from ?? "",
+        fromName: senderName(from),
+        ts: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : null,
+        unread: labels.includes("UNREAD"),
+        important: labels.includes("IMPORTANT"),
+      });
+    } catch {
+      /* skip one bad message */
+    }
+  }
+  return out;
+}
+
 // ---- Gmail unread radar ----
 async function pollOne(email: string) {
   const token = await accessTokenFor(email);
@@ -176,20 +230,31 @@ async function pollOne(email: string) {
         latestTs = msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : null;
       }
     }
+    // Recent inbox feed (independent of unread) — drives the scannable cross-inbox list.
+    let recentJson: string | null = null;
+    try {
+      const recent = await recentInbox(token, 6);
+      recentJson = JSON.stringify(recent);
+    } catch {
+      /* keep last-known recent on a transient error */
+      recentJson = get<any>("SELECT recent_json FROM email_state WHERE email=?", email)?.recent_json ?? null;
+    }
     run(
-      `INSERT INTO email_state (email, unread_count, important_count, latest_subject, latest_from, latest_ts, last_checked)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO email_state (email, unread_count, important_count, latest_subject, latest_from, latest_ts, last_checked, recent_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(email) DO UPDATE SET
          unread_count=excluded.unread_count, important_count=excluded.important_count,
          latest_subject=excluded.latest_subject, latest_from=excluded.latest_from,
-         latest_ts=excluded.latest_ts, last_checked=excluded.last_checked`,
+         latest_ts=excluded.latest_ts, last_checked=excluded.last_checked,
+         recent_json=excluded.recent_json`,
       email,
       unread,
       importantCount,
       latestSubject,
       latestFrom,
       latestTs,
-      nowIso()
+      nowIso(),
+      recentJson
     );
     run("UPDATE google_accounts SET last_sync=?, last_error=NULL WHERE email=?", nowIso(), email);
   } catch (e: any) {
@@ -206,15 +271,34 @@ export function emailSnapshots() {
   const accounts = all<any>(
     `SELECT g.email, g.name, g.picture, g.last_error, g.last_sync,
             COALESCE(e.unread_count,0) unread_count, COALESCE(e.important_count,0) important_count,
-            e.latest_subject, e.latest_from, e.latest_ts, e.last_checked
+            e.latest_subject, e.latest_from, e.latest_ts, e.last_checked, e.recent_json
      FROM google_accounts g LEFT JOIN email_state e ON e.email=g.email
      WHERE g.enabled=1 ORDER BY unread_count DESC`
   );
+  // Build one merged, time-sorted feed across all inboxes (unread + important first).
+  const recent: any[] = [];
+  for (const a of accounts) {
+    let parsed: any[] = [];
+    try {
+      parsed = a.recent_json ? JSON.parse(a.recent_json) : [];
+    } catch {
+      parsed = [];
+    }
+    a.recent = parsed;
+    delete a.recent_json;
+    for (const m of parsed) recent.push({ ...m, account: a.email });
+  }
+  recent.sort((x, y) => {
+    // unread floats up, then most recent
+    if (!!y.unread !== !!x.unread) return y.unread ? 1 : -1;
+    return (y.ts || "").localeCompare(x.ts || "");
+  });
   return {
     connected: accounts.length,
     totalUnread: accounts.reduce((s, a) => s + (a.unread_count || 0), 0),
     totalImportant: accounts.reduce((s, a) => s + (a.important_count || 0), 0),
     accounts,
+    recent: recent.slice(0, 14),
   };
 }
 
