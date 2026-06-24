@@ -130,7 +130,7 @@
         "email summarizes agents, dashboard surfaces, scripts/hooks, how to trigger a test run, verification results, remaining work",
         "sent via gws-arjun OR body written to AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt with the failure noted"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

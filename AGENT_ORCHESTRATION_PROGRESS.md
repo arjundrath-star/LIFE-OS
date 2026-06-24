@@ -11,8 +11,13 @@ Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-featur
 - [x] Verified: migrate (idempotent), CLI smoke + negatives, read model, build, deploy, demo, auth 401/401/200, WS channels, screenshot.
 - [x] Adversarial review workflow (4 lenses × verify pass, 26 agents, 22 findings) — 5 fix-now
   + cheap hardening applied and re-verified. Auth / SQL-injection / XSS / atomicity confirmed clean.
-- [ ] Hermes advisory checkpoint 2 (before email).
-- [ ] Commit + push, completion email.
+- [x] Hermes advisory checkpoint 2 (log: `.agent-orchestration/hermes-checkpoint2.log`) — clean
+  pass, no blockers; polish notes (don't claim lint passed; demo review-packet is simulated)
+  honored in the email.
+- [x] Committed + pushed to `origin/main` (`c4d5a04`); completion email sent from
+  operator@example.com to operator@example.com (Gmail message/thread id `MESSAGE_ID`).
+
+## DONE — all 12 feature gates pass (agent-orchestration-features.json).
 
 ## Review fixes applied (all re-verified)
 1. **Snapshot showed OLDEST 40 events, not latest** — for a run >40 events the live tail was
