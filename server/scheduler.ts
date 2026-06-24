@@ -158,6 +158,36 @@ async function tickCalendar() {
   }
 }
 
+async function tickVending() {
+  const hub = getHub();
+  const google = await import("@/lib/sources/google");
+  try {
+    await google.pollVendingOutreach();
+  } catch (e) {
+    // a transient Gmail error must not erase the cached counts — fall through and
+    // broadcast the last-known snapshot from the DB.
+    console.error("[scheduler] vending outreach poll failed:", (e as Error).message);
+  }
+  const { vendingSnapshot } = await import("@/lib/vending");
+  const snap = vendingSnapshot();
+
+  // Pulse only on change: announce new outreach / new replies on the ticker.
+  const o = snap.outreach;
+  if (o.connected) {
+    const last = hub.last;
+    if (last.vendReached !== undefined && o.reachedTotal > last.vendReached) {
+      pushEvent("vending", `Reached out to ${o.reachedTotal - last.vendReached} new venue(s) — ${o.reachedTotal} total`, "info");
+    }
+    if (last.vendReplied !== undefined && o.respondedTotal > last.vendReplied) {
+      pushEvent("vending", `${o.respondedTotal - last.vendReplied} new venue reply — ${o.respondedTotal} replied`, "success");
+    }
+    last.vendReached = o.reachedTotal;
+    last.vendReplied = o.respondedTotal;
+  }
+
+  hub.broadcast("vending", snap);
+}
+
 async function tickHealth() {
   const hub = getHub();
   const mod = await import("@/lib/sources/whoop");
@@ -198,6 +228,7 @@ export function startScheduler() {
   const email = guarded("email", tickEmail);
   const calendar = guarded("calendar", tickCalendar);
   const health = guarded("health", tickHealth);
+  const vending = guarded("vending", tickVending);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -207,6 +238,7 @@ export function startScheduler() {
   email();
   calendar();
   health();
+  vending();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -216,6 +248,7 @@ export function startScheduler() {
     setInterval(email, 60000),
     setInterval(calendar, 120000),
     setInterval(health, 15 * 60 * 1000), // WHOOP data updates ~once/day; 15 min is ample
+    setInterval(vending, 10 * 60 * 1000), // outreach moves slowly; 10 min keeps Gmail load tiny
   ];
 
   console.log("[scheduler] started");

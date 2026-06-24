@@ -174,11 +174,58 @@ export default function VendingPage() {
             {/* outreach + placements */}
             <div className="flex flex-col gap-5">
               <Section title="Outreach" icon={<Send size={13} />}>
-                <div className="grid grid-cols-2 gap-3">
-                  <HeroStat label="Opened (7d)" value={v.outreachThisWeek ?? 0} tone="accent" sub="new leads" />
-                  <HeroStat label="Replied" value={v.replies ?? 0} tone="healthy" sub="advanced past lead" />
-                </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-txt-faint/70">Derived from the deal log. Wire a dedicated outreach inbox later to count sends and replies directly.</p>
+                {(() => {
+                  const o = v.outreach;
+                  if (!o || !o.connected) {
+                    return (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <HeroStat label="Reached out" value="—" tone="muted" sub="venues emailed" />
+                          <HeroStat label="Replied" value="—" tone="muted" sub="of those" />
+                        </div>
+                        <div className="flex items-start gap-2 rounded-inner border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] leading-relaxed text-warn">
+                          <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                          <span>
+                            Connect {o?.inbox ? <span className="font-mono">{o.inbox}</span> : "your outreach inbox"} to read outreach.{" "}
+                            <a href="/connections" className="underline hover:text-accent">add the account</a>.
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <HeroStat label="Reached out" value={o.reachedTotal ?? 0} tone="accent" sub={`${o.reached7d ?? 0} this week`} />
+                        <HeroStat label="Replied" value={o.respondedTotal ?? 0} tone="healthy" sub={`${o.responseRate ?? 0}% of venues`} />
+                      </div>
+                      {Array.isArray(o.recent) && o.recent.length > 0 && (
+                        <div className="space-y-1.5">
+                          {o.recent.slice(0, 4).map((r: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between gap-2 rounded-inner border border-border/60 bg-panel-2/30 px-2.5 py-1.5">
+                              <span className="truncate font-mono text-[10px] text-txt-muted">{r.to}</span>
+                              {r.replied ? (
+                                <Badge tone="healthy" className="shrink-0 !normal-case">replied</Badge>
+                              ) : (
+                                <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-txt-faint/70">sent</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[11px] leading-relaxed text-txt-faint/70">
+                        Live from <span className="font-mono text-txt-faint">{o.inbox}</span> · venues emailed where the subject matches{" "}
+                        <span className="font-mono text-txt-faint">{o.query}</span>, and how many wrote back.
+                        {o.lastChecked && <> Checked {timeAgo(o.lastChecked)}.</>}
+                      </p>
+                      {o.lastError && (
+                        <div className="flex items-start gap-2 rounded-inner border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] text-warn">
+                          <AlertCircle size={13} className="mt-0.5 shrink-0" /> <span>Last read failed: {o.lastError}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </Section>
 
               <Section title="Placements" icon={<MapPin size={13} />}>

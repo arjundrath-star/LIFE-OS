@@ -3,7 +3,7 @@
 // ENCRYPTED in SQLite. Read-only: Gmail unread radar + today's calendar. Server-only.
 import { requireSecret } from "@/lib/secrets";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { all, get, run, nowIso } from "@/db";
+import { all, get, run, nowIso, kvGet } from "@/db";
 
 const SCOPES = [
   "openid",
@@ -340,6 +340,224 @@ export async function todaysEvents() {
   }
   events.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   return { connected: accts.length, events };
+}
+
+// ---- Vending / venue outreach (one identifiable outreach inbox) ----
+// Arjun runs his physical-venue outreach (vending machines / portable charging stations /
+// vape vending — one business in his model) from a single outreach inbox. The Vending tab's
+// "reached out / responded" numbers come straight from that mailbox, read-only, scoped by a
+// configurable subject query so this never conflates with Klade's financial cold outreach.
+const DEFAULT_OUTREACH_QUERY = "subject:(charging OR vending)";
+
+/** Which inbox + scope query the vending outreach counts come from. kv overrides win. */
+export function outreachConfig(): { inbox: string | null; query: string } {
+  const query = (kvGet<string>("vending.outreach_query") || DEFAULT_OUTREACH_QUERY).trim();
+  let inbox = (kvGet<string>("vending.outreach_inbox") || "").trim().toLowerCase() || null;
+  if (!inbox) {
+    // Default to the connected outreach address, preferring arjun@ (the outreach mailbox).
+    const row = get<any>(
+      `SELECT email FROM google_accounts
+       WHERE enabled=1 AND email LIKE '%@example.com'
+       ORDER BY (email='operator@example.com') DESC, added_at LIMIT 1`
+    );
+    inbox = row?.email ?? null;
+  }
+  return { inbox, query };
+}
+
+// "Name <a@b.com>" / "<a@b.com>" / "a@b.com" -> "a@b.com"
+function emailAddr(v: string | null | undefined): string {
+  if (!v) return "";
+  const m = v.match(/<([^>]+)>/);
+  return (m ? m[1] : v).trim().toLowerCase();
+}
+
+async function listMatching(token: string, q: string, cap = 400): Promise<string[]> {
+  const out: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({ q, maxResults: "100" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const j = await gapi(
+      token,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params.toString()}`
+    );
+    for (const m of j.messages ?? []) if (m.id) out.push(m.id);
+    pageToken = j.nextPageToken;
+  } while (pageToken && out.length < cap);
+  return out.slice(0, cap);
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const res: R[] = new Array(items.length);
+  let i = 0;
+  const n = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(
+    Array.from({ length: n }, async () => {
+      for (;;) {
+        const idx = i++;
+        if (idx >= items.length) break;
+        res[idx] = await fn(items[idx]);
+      }
+    })
+  );
+  return res;
+}
+
+/**
+ * Recompute the vending/venue outreach snapshot from the configured outreach inbox.
+ * Distinct recipient venues we emailed (subject-scoped) = "reached out"; venues that
+ * sent anything back = "responded". Resilient: a Gmail error keeps the last snapshot.
+ */
+export async function pollVendingOutreach(): Promise<void> {
+  const { inbox, query } = outreachConfig();
+  if (!inbox) return; // nothing connected — vendingOutreachSnapshot() reports not-connected
+  const me = inbox.toLowerCase();
+  const recordError = (msg: string) =>
+    run(
+      `INSERT INTO vending_outreach (inbox, query, last_checked, last_error)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(inbox) DO UPDATE SET query=excluded.query, last_checked=excluded.last_checked, last_error=excluded.last_error`,
+      inbox,
+      query,
+      nowIso(),
+      msg.slice(0, 200)
+    );
+
+  const token = await accessTokenFor(me);
+  if (!token) {
+    recordError("inbox not authorized");
+    return;
+  }
+  try {
+    // One scoped pass over the mailbox: sent items reveal who we reached; everything
+    // else matching the same subject is an inbound reply (Re: keeps the keyword).
+    const ids = await listMatching(token, query, 400);
+    const metas = await mapLimit(ids, 8, async (id) => {
+      try {
+        return await gapi(
+          token,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}` +
+            `?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject`
+        );
+      } catch {
+        return null;
+      }
+    });
+
+    const sentRecip = new Map<string, { ts: number; subject: string }>();
+    const replyFrom = new Set<string>();
+    for (const msg of metas) {
+      if (!msg) continue;
+      const headers: any[] = msg.payload?.headers ?? [];
+      const hv = (n: string) => headers.find((h) => h.name?.toLowerCase() === n)?.value ?? "";
+      const labels: string[] = msg.labelIds ?? [];
+      const ts = Number(msg.internalDate ?? 0);
+      if (labels.includes("SENT")) {
+        const to = emailAddr(hv("to"));
+        if (to && to !== me) {
+          const prev = sentRecip.get(to);
+          if (!prev || ts > prev.ts) sentRecip.set(to, { ts, subject: hv("subject") });
+        }
+      } else {
+        const fr = emailAddr(hv("from"));
+        if (fr && fr !== me) replyFrom.add(fr);
+      }
+    }
+
+    const weekAgo = Date.now() - 7 * 86400000;
+    let reached7d = 0;
+    let respondedTotal = 0;
+    const recent: Array<{ to: string; subject: string; ts: string; replied: boolean }> = [];
+    for (const [addr, info] of sentRecip) {
+      if (info.ts >= weekAgo) reached7d++;
+      const replied = replyFrom.has(addr);
+      if (replied) respondedTotal++;
+      recent.push({
+        to: addr,
+        subject: info.subject || "(no subject)",
+        ts: info.ts ? new Date(info.ts).toISOString() : "",
+        replied,
+      });
+    }
+    // Replied venues float to the top (so they survive the slice + show first), then newest.
+    recent.sort((a, b) => {
+      if (a.replied !== b.replied) return a.replied ? -1 : 1;
+      return (b.ts || "").localeCompare(a.ts || "");
+    });
+
+    run(
+      `INSERT INTO vending_outreach
+         (inbox, query, reached_total, reached_7d, responded_total, recent_json, last_checked, last_error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+       ON CONFLICT(inbox) DO UPDATE SET
+         query=excluded.query, reached_total=excluded.reached_total, reached_7d=excluded.reached_7d,
+         responded_total=excluded.responded_total, recent_json=excluded.recent_json,
+         last_checked=excluded.last_checked, last_error=NULL`,
+      inbox,
+      query,
+      sentRecip.size,
+      reached7d,
+      respondedTotal,
+      JSON.stringify(recent.slice(0, 12)),
+      nowIso()
+    );
+  } catch (e: any) {
+    recordError(String(e?.message || e));
+  }
+}
+
+export type VendingOutreach = {
+  connected: boolean;
+  inbox: string | null;
+  query: string;
+  reachedTotal: number;
+  reached7d: number;
+  respondedTotal: number;
+  responseRate: number; // %
+  recent: Array<{ to: string; subject: string; ts: string; replied: boolean }>;
+  lastChecked: string | null;
+  lastError: string | null;
+};
+
+/** Read-only view of the cached vending outreach numbers for the API/scheduler. */
+export function vendingOutreachSnapshot(): VendingOutreach {
+  const { inbox, query } = outreachConfig();
+  const base: VendingOutreach = {
+    connected: false,
+    inbox,
+    query,
+    reachedTotal: 0,
+    reached7d: 0,
+    respondedTotal: 0,
+    responseRate: 0,
+    recent: [],
+    lastChecked: null,
+    lastError: null,
+  };
+  if (!inbox) return base;
+  const connected = !!get<any>("SELECT 1 FROM google_accounts WHERE email=? AND enabled=1", inbox);
+  const row = get<any>("SELECT * FROM vending_outreach WHERE inbox=?", inbox);
+  let recent: VendingOutreach["recent"] = [];
+  try {
+    recent = row?.recent_json ? JSON.parse(row.recent_json) : [];
+  } catch {
+    recent = [];
+  }
+  const reachedTotal = row?.reached_total ?? 0;
+  const respondedTotal = row?.responded_total ?? 0;
+  return {
+    ...base,
+    connected,
+    query: row?.query || query,
+    reachedTotal,
+    reached7d: row?.reached_7d ?? 0,
+    respondedTotal,
+    responseRate: reachedTotal ? Math.round((respondedTotal / reachedTotal) * 100) : 0,
+    recent,
+    lastChecked: row?.last_checked ?? null,
+    lastError: row?.last_error ?? null,
+  };
 }
 
 // ---- management ----
