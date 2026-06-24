@@ -32,19 +32,29 @@ function parseEnvFile(text: string): Record<string, string> {
   return out;
 }
 
-let cache: Record<string, string> | null = null;
+// Cache the PARSED FILE only — never a frozen merge with process.env. In a custom-server
+// Next app this module is instantiated multiple times (once in the tsx server/scheduler,
+// once per route bundle), and process.env is the ONE store all instances share. Caching
+// the merged object froze a stale snapshot in the scheduler instance, so a credential
+// pasted via a route's setSecret (which updates global process.env) stayed invisible to
+// the health checks until a restart. Reading process.env live on every call fixes that.
+let fileCache: Record<string, string> | null = null;
 
-export function loadSecrets(): Record<string, string> {
-  if (cache) return cache;
-  let fileVals: Record<string, string> = {};
+function fileVals(): Record<string, string> {
+  if (fileCache) return fileCache;
   try {
-    fileVals = parseEnvFile(fs.readFileSync(SECRETS_PATH, "utf8"));
+    fileCache = parseEnvFile(fs.readFileSync(SECRETS_PATH, "utf8"));
   } catch (err) {
     console.warn(`[secrets] could not read ${SECRETS_PATH}:`, (err as Error).message);
+    fileCache = {};
   }
-  // process.env wins over the file so systemd/CLI overrides work (e.g. local dev NEXTAUTH_URL).
-  cache = { ...fileVals, ...process.env } as Record<string, string>;
-  return cache;
+  return fileCache;
+}
+
+export function loadSecrets(): Record<string, string> {
+  // process.env wins over the file (systemd/CLI overrides + runtime setSecret) and is read
+  // LIVE every call, so a setSecret in any module instance is immediately visible here.
+  return { ...fileVals(), ...process.env } as Record<string, string>;
 }
 
 /**
@@ -62,7 +72,7 @@ export function applySecretsToEnv(): void {
   for (const [k, v] of Object.entries(fileVals)) {
     if (process.env[k] === undefined && v) process.env[k] = v;
   }
-  cache = null; // force re-merge on next read
+  fileCache = null; // re-read the file on next access
 }
 
 export function secret(key: string): string | undefined {
@@ -112,8 +122,8 @@ export function setSecret(key: string, value: string): void {
   fs.mkdirSync(path.dirname(SECRETS_PATH), { recursive: true });
   fs.writeFileSync(SECRETS_PATH, out.join("\n"), { mode: 0o600 });
   fs.chmodSync(SECRETS_PATH, 0o600);
-  process.env[key] = value;
-  cache = null;
+  process.env[key] = value; // global + live: visible to every module instance immediately
+  fileCache = null;
 }
 
 /** Allowlist of emails permitted past the Google gate. */

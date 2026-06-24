@@ -136,6 +136,25 @@ async function accessToken(): Promise<string | null> {
   const c = cache();
   const hit = c.get("token");
   if (hit && hit.exp > Date.now() + 30000) return hit.token;
+  // Single-flight: WHOOP rotates (invalidates) the refresh token on every use, so two
+  // concurrent refreshes — e.g. the 15-min health tick and the 30-sec connections tick
+  // firing in the same instant after a restart — would consume the same token and one
+  // would spuriously report "token expired", flickering the panel to broken. Coalesce all
+  // concurrent callers onto one shared promise (on globalThis so every module instance,
+  // tsx server + each route bundle, shares it).
+  if (g.__rw_whoop_refreshing) return g.__rw_whoop_refreshing as Promise<string | null>;
+  const p = refreshToken().finally(() => {
+    g.__rw_whoop_refreshing = null;
+  });
+  g.__rw_whoop_refreshing = p;
+  return p;
+}
+
+async function refreshToken(): Promise<string | null> {
+  const c = cache();
+  // A refresh that completed while we were queued may already have populated the cache.
+  const hit = c.get("token");
+  if (hit && hit.exp > Date.now() + 30000) return hit.token;
 
   const acct = account();
   if (!acct?.refresh_token_enc) return null;
