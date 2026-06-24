@@ -1,11 +1,11 @@
 # Agent Orchestration — how named agents report into rathworkspace
 
-The dashboard is the **control tower**. Cron is just the alarm clock; Hermes is the
-orchestrator; named agents do the work and **emit events** into rathworkspace so every run,
+The dashboard is the **control tower**. Cron is just the alarm clock; **Hermes is the
+orchestrator**; named specialist agents do the work and **emit events** into rathworkspace so every run,
 sub-step, and artifact is visible on `/agents`.
 
 ```
-cron (alarm)  ──▶  Hermes (orchestrator)  ──▶  named agents (lead scout, sender, …)
+cron/user request  ──▶  Hermes Orchestrator (this assistant/runtime)  ──▶  named specialist agents (lead scout, sender, …)
                                                      │ emit events
                                                      ▼
                                    scripts/agent-event.ts  ──writes──▶  SQLite

@@ -16,6 +16,9 @@ Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-featur
   honored in the email.
 - [x] Committed + pushed to `origin/main` (`c4d5a04`); completion email sent from
   operator@example.com to operator@example.com (Gmail message/thread id `MESSAGE_ID`).
+- [x] Post-review semantic correction: renamed the top-level registry row from `daily-orchestrator`
+  to `hermes-orchestrator` so the dashboard represents Hermes/this assistant as the orchestrator,
+  not a separate fictional agent. Build re-verified after the rename.
 
 ## DONE — all 12 feature gates pass (agent-orchestration-features.json).
 

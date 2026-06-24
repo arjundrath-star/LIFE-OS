@@ -48,8 +48,8 @@ Tables (additive, `IF NOT EXISTS`), matching the mission's suggested schema:
    title, uri, metadata, created_at)`
 - Indexes: runs(agent_slug, started_at), run_events(run_id, id), artifacts(run_id).
 - Seed 4 named agents via `INSERT OR IGNORE`:
-  `daily-orchestrator`, `portable-charging-lead-scout`,
-  `portable-charging-outreach-sender` (idle), `deliverability-monitor` (idle).
+  `hermes-orchestrator`, `portable-charging-lead-scout`,
+    `portable-charging-outreach-sender`, `deliverability-monitor`.
 
 Status enum (runs + registry.current_status):
 `idle | queued | running | waiting_for_review | blocked | completed | failed`.

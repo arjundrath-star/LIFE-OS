@@ -76,9 +76,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_artifacts_run ON agent_artifacts(run_id);
 -- (guarded by _migrations), and OR IGNORE keeps it safe if the file is ever re-applied
 -- against a partially-seeded DB. These rows are system-owned, never user-renamed.
 INSERT OR IGNORE INTO agent_registry (slug, display_name, description, enabled, schedule_label, current_status) VALUES
-  ('daily-orchestrator',
-   'Daily Orchestrator',
-   'Top-level agent the cron alarm clock wakes. Decides what runs today and dispatches the named sub-agents below.',
+  ('hermes-orchestrator',
+   'Hermes Orchestrator',
+   'This Hermes assistant/runtime: the top-level orchestrator that cron alarms or user requests wake. It decides what runs and dispatches named specialist agents below.',
    1, 'cron: daily', 'idle'),
   ('portable-charging-lead-scout',
    'Portable Charging Lead Scout',

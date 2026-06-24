@@ -67,7 +67,7 @@ Cron should become only the **alarm clock**. Hermes should become the **orchestr
 Example desired flow:
 
 ```text
-Daily Orchestrator
+Hermes Orchestrator
   ↓
 Portable Charging Lead Scout
   ✓ pulled spreadsheets
@@ -99,7 +99,7 @@ Build the first production-quality slice of agent orchestration visibility.
 
 1. **Named agent registry**
    - Store/display named agents, at minimum:
-     - `daily-orchestrator`
+     - `hermes-orchestrator`
      - `portable-charging-lead-scout`
      - `portable-charging-outreach-sender` (can be idle/not fully wired)
      - `deliverability-monitor` (can be idle/not fully wired)

@@ -5,10 +5,10 @@
     {
       "id": "agent-registry-schema",
       "category": "backend",
-      "description": "Named agents are persisted with slug, display name, description, enabled, status, last run; 4 starter agents seeded",
+      "description": "Named agents are persisted with slug, display name, description, enabled, status, last run; Hermes Orchestrator plus 3 starter specialist agents seeded",
       "acceptance": [
         "migration 0006 creates agent_registry",
-        "daily-orchestrator, portable-charging-lead-scout, portable-charging-outreach-sender, deliverability-monitor seeded",
+        "hermes-orchestrator, portable-charging-lead-scout, portable-charging-outreach-sender, deliverability-monitor seeded",
         "current_status defaults to idle"
       ],
       "passes": true

@@ -313,7 +313,7 @@ export function agentsOrchestrationSnapshot() {
     `SELECT slug, display_name, description, enabled, schedule_label, current_status, last_run_id, last_run_at, updated_at
        FROM agent_registry
       ORDER BY CASE slug
-                 WHEN 'daily-orchestrator' THEN 0
+                 WHEN 'hermes-orchestrator' THEN 0
                  WHEN 'portable-charging-lead-scout' THEN 1
                  WHEN 'portable-charging-outreach-sender' THEN 2
                  WHEN 'deliverability-monitor' THEN 3
