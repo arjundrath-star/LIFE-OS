@@ -88,12 +88,33 @@ This emits `started → spreadsheet_pull → dedupe → found → qualified → 
 review_packet → waiting_for_review` under a `pc-demo-<ts>` run id, and the cards + timeline
 appear on `/agents` within ~5 s.
 
-## Wiring Hermes (NOT done automatically)
+## Live Hermes cron wiring
 
-Hermes cron config is **not** modified by this change. To make the live Hermes lead-finder
-report in, add the `emit` calls above into that cron's prompt/script. The single safety
-invariant: the emitter only writes SQLite; the actual "send" step stays in the human-approved
-sender path, never in the scout.
+The live Hermes Portable Charging lead-finder cron is wired through a prelude script:
+
+```text
+/home/Arjun/.hermes/scripts/portable_charging_agent_prelude.sh
+```
+
+The prelude records a Hermes dispatch event, creates a unique
+`portable-charging-lead-scout/<run-id>` dashboard run, then injects the run id and helper command
+into the cron session. The cron prompt requires the agent to emit each milestone with:
+
+```text
+/home/Arjun/command-center/Portable Charging/agent_event.sh
+```
+
+The single safety invariant: the lead scout only finds/dedupes/drafts and sends the internal
+review packet. The actual venue "send" step stays in the human-approved sender path, never in
+the scout.
+
+## Platform developer agent
+
+Software/build sessions for this repo should report as `rathworkspace-platform-developer`.
+Use the root `AGENTS.md`, the per-agent manifest at
+`agents/rathworkspace-platform-developer/AGENTS.md`, and the Hermes skill
+`rathworkspace-platform-developer`. This agent is normally idle and exists so build sessions are
+visible without confusing them with Hermes orchestration or business-domain workers.
 
 ## Reading the data
 

@@ -317,6 +317,7 @@ export function agentsOrchestrationSnapshot() {
                  WHEN 'portable-charging-lead-scout' THEN 1
                  WHEN 'portable-charging-outreach-sender' THEN 2
                  WHEN 'deliverability-monitor' THEN 3
+                 WHEN 'rathworkspace-platform-developer' THEN 4
                  ELSE 9 END,
                display_name ASC`
   );

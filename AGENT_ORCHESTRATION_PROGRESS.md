@@ -19,8 +19,12 @@ Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-featur
 - [x] Post-review semantic correction: renamed the top-level registry row from `daily-orchestrator`
   to `hermes-orchestrator` so the dashboard represents Hermes/this assistant as the orchestrator,
   not a separate fictional agent. Build re-verified after the rename.
+- [x] Live wiring pass: added real agent manifests/context under `agents/<slug>/`, root
+  `AGENTS.md`, the durable Hermes skill `rathworkspace-platform-developer`, a platform-developer
+  dashboard registry row, and a Portable Charging cron prelude/helper so real daily runs emit
+  to `/agents` instead of only demo runs.
 
-## DONE — all 12 feature gates pass (agent-orchestration-features.json).
+## DONE — all feature gates pass (agent-orchestration-features.json).
 
 ## Review fixes applied (all re-verified)
 1. **Snapshot showed OLDEST 40 events, not latest** — for a run >40 events the live tail was
