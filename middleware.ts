@@ -26,6 +26,9 @@ const PUBLIC_EXACT = new Set([
   "/icon.svg",
   "/apple-icon.png",
   "/manifest.json",
+  // Public privacy policy — required as the OAuth privacy-policy URL for connected
+  // apps (e.g. WHOOP shows it during consent). Static text only, no data exposed.
+  "/privacy",
 ]);
 
 export async function middleware(req: NextRequest) {
