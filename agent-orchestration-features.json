@@ -1,0 +1,136 @@
+{
+  "mission": "rathworkspace named-agent orchestration + dashboard hooks",
+  "updated_at": "2026-06-24",
+  "features": [
+    {
+      "id": "agent-registry-schema",
+      "category": "backend",
+      "description": "Named agents are persisted with slug, display name, description, enabled, status, last run; 4 starter agents seeded",
+      "acceptance": [
+        "migration 0006 creates agent_registry",
+        "daily-orchestrator, portable-charging-lead-scout, portable-charging-outreach-sender, deliverability-monitor seeded",
+        "current_status defaults to idle"
+      ],
+      "passes": true
+    },
+    {
+      "id": "agent-runs-schema",
+      "category": "backend",
+      "description": "Agent runs are persisted with status, trigger, timestamps, and summary",
+      "acceptance": [
+        "agent_runs table exists with status/trigger/started_at/finished_at/summary",
+        "rows can be inserted via the CLI",
+        "finished_at is set when status is completed or failed"
+      ],
+      "passes": true
+    },
+    {
+      "id": "agent-events-schema",
+      "category": "backend",
+      "description": "Per-run timeline events are persisted (ts, kind, status, level, summary, detail)",
+      "acceptance": [
+        "agent_run_events table exists",
+        "events insert under a run and are queryable in time order"
+      ],
+      "passes": true
+    },
+    {
+      "id": "agent-artifacts-schema",
+      "category": "backend",
+      "description": "Artifacts (spreadsheet, review email id, draft packet, run log, blockers) are persisted per run",
+      "acceptance": [
+        "agent_artifacts table exists",
+        "an artifact row can be attached via the CLI and read back"
+      ],
+      "passes": true
+    },
+    {
+      "id": "shared-snapshot-lib",
+      "category": "backend",
+      "description": "lib/agents.ts provides one write path (recordAgentEvent) and one read model (agentsOrchestrationSnapshot) shared by the CLI, API, and scheduler",
+      "acceptance": [
+        "recordAgentEvent upserts registry+run, inserts event, updates status, mirrors meaningful events to the ticker",
+        "agentsOrchestrationSnapshot returns agents + activeRuns + recentRuns + recentEvents",
+        "API route and scheduler both call the shared builder"
+      ],
+      "passes": true
+    },
+    {
+      "id": "event-cli",
+      "category": "tooling",
+      "description": "scripts/agent-event.ts emits a run/event/artifact from bash, SQLite-only, no internet or browser",
+      "acceptance": [
+        "the mission example command shape runs and inserts a row",
+        "invalid input (missing required flag or bad status) exits non-zero",
+        "writes the same DB the app reads"
+      ],
+      "passes": true
+    },
+    {
+      "id": "api-read-model",
+      "category": "backend",
+      "description": "GET /api/agents/runs returns the orchestration snapshot behind the auth gate",
+      "acceptance": [
+        "returns 401 without an allowlisted session",
+        "returns named agents + runs + events when authenticated",
+        "existing /api/agents is unchanged"
+      ],
+      "passes": true
+    },
+    {
+      "id": "scheduler-broadcast",
+      "category": "backend",
+      "description": "The scheduler (the only poller) reads the orchestration tables and broadcasts the agent_runs channel + mirrors new ticker events",
+      "acceptance": [
+        "tickAgentRuns broadcasts agent_runs on an interval",
+        "new run events appear on the bottom ticker",
+        "the existing agents channel payload is unchanged"
+      ],
+      "passes": true
+    },
+    {
+      "id": "dashboard-ui",
+      "category": "frontend",
+      "description": "/agents shows named agent flows (status, latest summary, last run, timeline, artifacts) while preserving the Hermes/Telegram/Claude rows",
+      "acceptance": [
+        "AgentRunsPanel renders a card per named agent with status + latest summary + last run time",
+        "a run timeline and artifacts are viewable",
+        "existing Hermes/Telegram/Claude rows and activity feed remain",
+        "responsive shell not broken (single column on mobile)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "pc-integration",
+      "category": "docs",
+      "description": "Portable Charging lead-scout can emit lifecycle events via a documented wrapper; no emails sent, no Hermes cron mutated",
+      "acceptance": [
+        "scripts/pc-lead-scout.sh emits the full lifecycle (started -> spreadsheet -> leads -> drafts -> review packet -> waiting -> completed/failed)",
+        "a --demo run populates the dashboard without sending email",
+        "docs/agent-orchestration.md documents the exact event calls for Hermes cron"
+      ],
+      "passes": true
+    },
+    {
+      "id": "hermes-advisory-hook",
+      "category": "process",
+      "description": "A Claude Code run can ask Hermes for mid-session advisory feedback, used at the two required checkpoints (max 2 calls)",
+      "acceptance": [
+        "scripts/hermes-advisory.sh wraps hermes chat -q with a fallback",
+        "checkpoint 1 (after plan) and checkpoint 2 (before email) ran and were logged",
+        "no recursion beyond two calls"
+      ],
+      "passes": true
+    },
+    {
+      "id": "completion-email",
+      "category": "process",
+      "description": "A completion email is sent to operator@example.com from operator@example.com (or a fallback file is written)",
+      "acceptance": [
+        "email summarizes agents, dashboard surfaces, scripts/hooks, how to trigger a test run, verification results, remaining work",
+        "sent via gws-arjun OR body written to AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt with the failure noted"
+      ],
+      "passes": false
+    }
+  ]
+}

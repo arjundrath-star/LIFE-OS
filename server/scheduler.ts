@@ -5,6 +5,7 @@ import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
 import { listProjects } from "@/lib/sources/vault";
 import { refreshAll, getStates } from "@/lib/connections";
+import { agentsOrchestrationSnapshot } from "@/lib/agents";
 import { all, get, run, pushEvent, recentEvents, nowIso } from "@/db";
 
 const g = globalThis as any;
@@ -203,6 +204,16 @@ async function tickHealth() {
   hub.broadcast("health", mod.healthSnapshot());
 }
 
+async function tickAgentRuns() {
+  // Named-agent orchestration. The "source" is the SQLite orchestration tables, written by
+  // scripts/agent-event.ts (Hermes/cron/Claude/shell) in a separate process. We only READ
+  // and broadcast the snapshot here. Meaningful run events were already mirrored to the
+  // `events` ticker by the writer (recordAgentEvent -> pushEvent), and tickAgents broadcasts
+  // that `ticker` channel — so there is a single ticker path, no double-push here.
+  const hub = getHub();
+  hub.broadcast("agent_runs", agentsOrchestrationSnapshot());
+}
+
 function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -229,6 +240,7 @@ export function startScheduler() {
   const calendar = guarded("calendar", tickCalendar);
   const health = guarded("health", tickHealth);
   const vending = guarded("vending", tickVending);
+  const agentRuns = guarded("agentRuns", tickAgentRuns);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -239,6 +251,7 @@ export function startScheduler() {
   calendar();
   health();
   vending();
+  agentRuns();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -249,6 +262,7 @@ export function startScheduler() {
     setInterval(calendar, 120000),
     setInterval(health, 15 * 60 * 1000), // WHOOP data updates ~once/day; 15 min is ample
     setInterval(vending, 10 * 60 * 1000), // outreach moves slowly; 10 min keeps Gmail load tiny
+    setInterval(agentRuns, 5000), // named-agent runs: read SQLite + broadcast, cheap and bounded
   ];
 
   console.log("[scheduler] started");
