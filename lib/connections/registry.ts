@@ -150,8 +150,8 @@ export const REGISTRY: ConnectionDef[] = [
     configured: () => hasSecret("WHOOP_CLIENT_ID") && hasSecret("WHOOP_CLIENT_SECRET"),
     note: "Recovery / sleep / strain (v2). Needs developer app + OAuth.",
     check: async () => {
-      if (!hasSecret("WHOOP_CLIENT_ID")) return { ok: false, detail: "developer app not created" };
-      return { ok: false, detail: "configured, not yet authorized" };
+      const mod = await import("@/lib/sources/whoop");
+      return mod.healthCheck();
     },
   },
   {

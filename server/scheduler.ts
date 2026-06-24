@@ -158,6 +158,21 @@ async function tickCalendar() {
   }
 }
 
+async function tickHealth() {
+  const hub = getHub();
+  const mod = await import("@/lib/sources/whoop");
+  // Only hit the WHOOP API when actually connected; otherwise just broadcast the
+  // honest "not connected" snapshot so the Health panel shows connect-me, never fake vitals.
+  if (mod.isConnected()) {
+    try {
+      await mod.pollWhoop();
+    } catch (e) {
+      console.error("[scheduler] whoop poll failed:", (e as Error).message);
+    }
+  }
+  hub.broadcast("health", mod.healthSnapshot());
+}
+
 function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -182,6 +197,7 @@ export function startScheduler() {
   const projects = guarded("projects", tickProjects);
   const email = guarded("email", tickEmail);
   const calendar = guarded("calendar", tickCalendar);
+  const health = guarded("health", tickHealth);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -190,6 +206,7 @@ export function startScheduler() {
   projects();
   email();
   calendar();
+  health();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -198,6 +215,7 @@ export function startScheduler() {
     setInterval(projects, 60000),
     setInterval(email, 60000),
     setInterval(calendar, 120000),
+    setInterval(health, 15 * 60 * 1000), // WHOOP data updates ~once/day; 15 min is ample
   ];
 
   console.log("[scheduler] started");

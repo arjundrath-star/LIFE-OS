@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel, EmptyState } from "@/components/Panel";
 import { StatusDot, type DotState } from "@/components/StatusDot";
 import { Switch, Button, Badge } from "@/components/ui";
@@ -39,6 +39,23 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
   const [busy, setBusy] = useState(false);
   const [keyFor, setKeyFor] = useState<string | null>(null);
   const [keyVal, setKeyVal] = useState("");
+  // Whoop developer-app credential entry (two fields, then OAuth redirect)
+  const [whoopForm, setWhoopForm] = useState(false);
+  const [wId, setWId] = useState("");
+  const [wSecret, setWSecret] = useState("");
+  const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [callbackUri, setCallbackUri] = useState("/api/whoop/callback");
+
+  // Surface the OAuth round-trip result (callback redirects back with a query flag).
+  useEffect(() => {
+    setCallbackUri(`${window.location.origin}/api/whoop/callback`);
+    const p = new URLSearchParams(window.location.search);
+    const ok = p.get("whoop_connected");
+    const err = p.get("whoop_error");
+    if (ok) setNotice({ tone: "ok", text: `Whoop connected (${ok}). Vitals will fill in shortly.` });
+    else if (err) setNotice({ tone: "err", text: `Whoop connect failed: ${err.replace(/_/g, " ")}` });
+    if (ok || err) window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   const recheck = async () => {
     setBusy(true);
@@ -68,6 +85,22 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
     setBusy(false);
   };
 
+  // Save the WHOOP developer-app credentials, then bounce straight into the OAuth consent.
+  const saveWhoopCreds = async () => {
+    if (wId.trim().length < 8 || wSecret.trim().length < 8) return;
+    setBusy(true);
+    const r = await post("/api/whoop/credentials", { clientId: wId.trim(), clientSecret: wSecret.trim() });
+    setBusy(false);
+    if (r?.error) {
+      setNotice({ tone: "err", text: r.error });
+      return;
+    }
+    setWId("");
+    setWSecret("");
+    setWhoopForm(false);
+    window.location.href = "/api/whoop/connect"; // start the WHOOP authorize flow
+  };
+
   return (
     <Panel
       title="Connections"
@@ -82,6 +115,16 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
       }
       bodyClassName={cn("space-y-2 overflow-auto", expanded ? "max-h-[70vh]" : "max-h-[340px]")}
     >
+      {notice && (
+        <div
+          className={cn(
+            "rounded-inner border px-3 py-2 text-[11px]",
+            notice.tone === "ok" ? "border-healthy/40 bg-healthy/5 text-healthy" : "border-error/40 bg-error/5 text-error"
+          )}
+        >
+          {notice.text}
+        </div>
+      )}
       {conns.length === 0 ? (
         <EmptyState title="loading control plane" />
       ) : (
@@ -94,7 +137,11 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
                   <div className="text-sm font-medium text-txt-primary">{first.label}</div>
                   {first.note && <div className="truncate text-[11px] text-txt-faint">{first.note}</div>}
                 </div>
-                <ReconnectAction conn={first} onKey={() => setKeyFor(keyFor === service ? null : service)} />
+                <ReconnectAction
+                  conn={first}
+                  onKey={() => setKeyFor(keyFor === service ? null : service)}
+                  onWhoopSetup={() => setWhoopForm((v) => !v)}
+                />
               </div>
 
               {/* per-surface states */}
@@ -140,6 +187,39 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
                   </Button>
                 </div>
               )}
+
+              {/* whoop developer-app credential entry → then OAuth */}
+              {service === "whoop" && whoopForm && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] leading-relaxed text-txt-faint">
+                    Create an app at developer.whoop.com (v2), add redirect URI{" "}
+                    <span className="font-mono text-txt-muted">{callbackUri}</span>, enable the recovery/sleep/cycles/profile
+                    scopes + offline, then paste the Client ID and Secret here.
+                  </p>
+                  <input
+                    type="text"
+                    value={wId}
+                    onChange={(e) => setWId(e.target.value)}
+                    placeholder="WHOOP Client ID"
+                    className="w-full rounded-inner border border-border bg-base px-2 py-1.5 font-mono text-xs text-txt-primary outline-none focus:border-accent/50"
+                  />
+                  <input
+                    type="password"
+                    value={wSecret}
+                    onChange={(e) => setWSecret(e.target.value)}
+                    placeholder="WHOOP Client Secret"
+                    className="w-full rounded-inner border border-border bg-base px-2 py-1.5 font-mono text-xs text-txt-primary outline-none focus:border-accent/50"
+                  />
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    disabled={busy || wId.trim().length < 8 || wSecret.trim().length < 8}
+                    onClick={saveWhoopCreds}
+                  >
+                    <ExternalLink size={12} /> save &amp; connect
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })
@@ -148,12 +228,30 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
   );
 }
 
-function ReconnectAction({ conn, onKey }: { conn: Conn; onKey: () => void }) {
+function ReconnectAction({ conn, onKey, onWhoopSetup }: { conn: Conn; onKey: () => void; onWhoopSetup: () => void }) {
   if (conn.reconnect === "api_key") {
     return (
       <Button variant="outline" size="sm" onClick={onKey}>
         <KeyRound size={12} /> {conn.configured ? "update key" : "add key"}
       </Button>
+    );
+  }
+  if (conn.reconnect === "oauth" && conn.service === "whoop") {
+    // Need the developer-app creds first → reveal the two-field form. Once configured,
+    // the same button kicks off (or repairs) the OAuth authorize flow.
+    if (!conn.configured) {
+      return (
+        <Button variant="accent" size="sm" onClick={onWhoopSetup}>
+          <ExternalLink size={12} /> set up
+        </Button>
+      );
+    }
+    return (
+      <a href="/api/whoop/connect">
+        <Button variant={conn.state === "on_broken" ? "outline" : "accent"} size="sm">
+          <ExternalLink size={12} /> {conn.state === "on_healthy" ? "reconnect" : "connect"}
+        </Button>
+      </a>
     );
   }
   if (conn.reconnect === "oauth" && conn.service === "google") {

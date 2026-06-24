@@ -245,25 +245,56 @@ function TodayTodos() {
   );
 }
 
-// ---------------------------------------------------------------- whoop (honest connect-me)
+// ---------------------------------------------------------------- whoop
 function WhoopSnapshot() {
-  const SLOTS = [
-    { label: "Recovery", unit: "%" },
-    { label: "Sleep", unit: "h" },
-    { label: "Strain", unit: "" },
-    { label: "HRV", unit: "" },
+  const snap = useLiveData<any>("health");
+  const connected = !!snap?.connected;
+  const fmt = (v: number | null | undefined, d = 0) => (v == null ? "—" : v.toFixed(d));
+
+  if (!connected) {
+    const SLOTS = [
+      { label: "Recovery", unit: "%" },
+      { label: "Sleep", unit: "h" },
+      { label: "Strain", unit: "" },
+      { label: "HRV", unit: "" },
+    ];
+    return (
+      <Section title="Whoop" icon={<Activity size={13} />} right={<span className="font-mono text-[10px] uppercase tracking-wider text-off">connect me</span>}>
+        <div className="grid grid-cols-4 gap-2">
+          {SLOTS.map((s) => (
+            <div key={s.label} className="rounded-inner border border-dashed border-border bg-panel-2/20 p-2 text-center">
+              <div className="font-mono text-xl text-off">—{s.unit}</div>
+              <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-txt-faint">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-txt-faint/70">Whoop not connected. Create the app at developer.whoop.com (v2, offline scope), then authorize from Connections.</p>
+      </Section>
+    );
+  }
+
+  const recTone = snap.recovery == null ? "text-off" : snap.recovery >= 67 ? "text-healthy" : snap.recovery >= 34 ? "text-warn" : "text-error";
+  const STATS = [
+    { label: "Recovery", value: `${fmt(snap.recovery)}%`, tone: recTone },
+    { label: "Sleep", value: `${fmt(snap.sleepHours, 1)}h`, tone: "text-txt-primary" },
+    { label: "Strain", value: fmt(snap.strain, 1), tone: "text-accent" },
+    { label: "HRV", value: `${fmt(snap.hrv)}`, tone: "text-txt-primary" },
   ];
   return (
-    <Section title="Whoop" icon={<Activity size={13} />} right={<span className="font-mono text-[10px] uppercase tracking-wider text-off">connect me</span>}>
+    <Section
+      title="Whoop"
+      icon={<Activity size={13} />}
+      right={<span className="font-mono text-[10px] uppercase tracking-wider text-healthy">{snap.athlete ?? "connected"}</span>}
+    >
       <div className="grid grid-cols-4 gap-2">
-        {SLOTS.map((s) => (
-          <div key={s.label} className="rounded-inner border border-dashed border-border bg-panel-2/20 p-2 text-center">
-            <div className="font-mono text-xl text-off">—{s.unit}</div>
+        {STATS.map((s) => (
+          <div key={s.label} className="rounded-inner border border-border bg-panel-2/20 p-2 text-center">
+            <div className={cn("font-mono text-xl", s.tone)}>{s.value}</div>
             <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-txt-faint">{s.label}</div>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-txt-faint/70">Whoop not connected. Create the app at developer.whoop.com (v2, offline scope), then authorize from Connections.</p>
+      {snap.asOf && <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-txt-faint">latest cycle {snap.asOf}</p>}
     </Section>
   );
 }
