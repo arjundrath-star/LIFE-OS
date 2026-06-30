@@ -31,6 +31,32 @@ if [[ "${POKEMON_SCOUT_SMOKE:-}" == "1" ]]; then
     --query "Smoke test only. Do not edit files, contact businesses, create leads, commit, push, or schedule anything. Reply in one sentence with your profile name, project dir $PROJECT_DIR, run id $RUN_ID, and the Pokemon location-fit doctrine."
 fi
 
+if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
+  EVENT="$PROJECT_DIR/agent_event.sh"
+  SCRAPER="$PROJECT_DIR/scripts/pokemon_lead_system.py"
+  SYNC="$PROJECT_DIR/scripts/sync_pokemon_vending_drive.py"
+  GOOGLE_PY="/home/Arjun/.hermes/google-venv/bin/python"
+  "$EVENT" started running "Pokemon vending lead scraper started" success >/dev/null
+  "$EVENT" context_loaded running "Loaded owner-first Pokemon context and initial prospect sheet" success >/dev/null
+  python3 "$SCRAPER" >/tmp/pokemon_lead_system_${RUN_ID}.json
+  "$EVENT" sheet_build running "Built Pokemon vending MAIN and Active sheets" success >/dev/null
+  "$EVENT" found running "Migrated initial leads and scraped at least 100 additional candidates" success >/dev/null
+  "$GOOGLE_PY" "$SYNC" >/tmp/pokemon_drive_sync_${RUN_ID}.json
+  "$EVENT" drive_sync running "Updated Drive copies in pokemon vending folder" success >/dev/null
+  SUMMARY=$(python3 - <<PY
+import csv, json
+from pathlib import Path
+root=Path('$PROJECT_DIR')
+rows=list(csv.DictReader((root/'pokemon vending/Pokemon_Vending_Lead_Pipeline.csv').open(encoding='utf-8')))
+manifest=json.loads((root/'pokemon_vending_drive_manifest.json').read_text())
+print(f"Pokemon vending lead system refreshed: {len(rows)} MAIN rows, {sum(r['Source']=='Initial Claude prospect sheet' for r in rows)} seed, {sum(r['Source']!='Initial Claude prospect sheet' for r in rows)} scraped, Drive {manifest['pokemon_vending_folder']['id']}")
+PY
+)
+  "$EVENT" completed completed "$SUMMARY" success >/dev/null
+  printf 'VPS: %s\n' "$SUMMARY"
+  exit 0
+fi
+
 USER_PROMPT="$(cat <<EOF
 Run id: $RUN_ID
 Project dir: $PROJECT_DIR
