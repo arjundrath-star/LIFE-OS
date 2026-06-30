@@ -56,6 +56,34 @@ Secondary tests:
 
 - Smoke shops, liquor stores, barbershops, and laundromats only when traffic, buyer fit, and owner access justify them.
 
+## Owner-first lead system
+
+The Pokemon lead system mirrors the Portable Charging structure with two live sheets in both local command-center and Drive.
+
+Local files:
+
+- `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.xlsx`
+- `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv`
+- `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.xlsx`
+- `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.csv`
+
+Drive folder:
+
+- `PORTABLE CHARGING/pokemon machines/pokemon vending`
+
+Scripts:
+
+- `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py`
+- `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py`
+
+Owner-first rules:
+
+- The owner, franchisee, or operator must approve. The manager answering the phone, the generic Google phone, or an `info@` inbox is not approval.
+- Convenience stores, gas/convenience stores, 7-Elevens, marts, arcades, malls/tenants, kid areas, and high-traffic impulse retail are strong if the actual owner/franchisee can be identified.
+- Use a people-search service only when a real owner/person name candidate exists. Store the URL and verification status. Do not invent phone numbers or emails.
+- If no owner is known, mark `Owner lookup status = Needs owner lookup` and keep the lead in MAIN until the owner/franchisee is found.
+- For Lexington/Cambridge nearby leads, mark easy walk-ins and walk-in priority. Arjun prefers close locations he can pitch in person.
+
 ## Live event requirements
 
 Every real run must emit dashboard events using one run id. The profile worker exports `POKEMON_AGENT_RUN_ID`; if running manually, create one:

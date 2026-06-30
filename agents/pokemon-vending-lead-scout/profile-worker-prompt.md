@@ -13,6 +13,24 @@ Find and prepare review-only Pokemon / trading-card vending machine leads for Ar
 - `/home/Arjun/command-center/Pokemon Machines/drive_manifest.json`
 - Skill: `pokemon-vending-lead-scout`
 
+## Current sheet task
+
+Use the owner-first lead system:
+
+- MAIN: `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.xlsx`
+- Active: `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.xlsx`
+- Build/scrape script: `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py`
+- Drive sync script: `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py`
+
+The initial Cambridge/Lexington prospects should live in MAIN as migrated seed rows, not active rows. New scraper finds should also go to MAIN first. Active Leads are for user-selected leads or leads ready for outreach.
+
+Owner focus:
+
+- Find the owner, franchisee, or operator. A manager, generic Google phone, or `info@` inbox is not enough.
+- Convenience stores and 7-Elevens are good targets if owner/franchisee access can be found.
+- Use a people-search service only when a real person candidate exists. Record lookup URL/status, never invented contacts.
+- Mark nearby Lexington/Cambridge leads for easy walk-in if Arjun can pitch them in person.
+
 ## Dashboard events
 
 Use the run id in `POKEMON_AGENT_RUN_ID`. Emit progress through:
@@ -23,10 +41,23 @@ Minimum milestones for a real run:
 
 1. `started running`
 2. `context_loaded running`
-3. `dedupe running`
-4. `found running`
-5. `qualified running`
-6. `review_packet waiting_for_review` or `completed completed`
+3. `sheet_build running`
+4. `dedupe running`
+5. `found running`
+6. `qualified running`
+7. `drive_sync running`
+8. `review_packet waiting_for_review` or `completed completed`
+
+## Required run sequence
+
+For a standard run:
+
+1. Read the required context and emit `context_loaded`.
+2. Run `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py` from the project root to rebuild MAIN and Active local sheets.
+3. Verify MAIN has at least 139 rows: 39 initial seed rows plus at least 100 scraped rows.
+4. Run `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py` with `/home/Arjun/.hermes/google-venv/bin/python` to push/update Drive copies.
+5. Summarize row counts, source counts, owner-lookup status counts, walk-in priority counts, and Drive file IDs.
+6. Do not move any lead to Active unless Arjun explicitly selected it.
 
 ## Safety rules
 
