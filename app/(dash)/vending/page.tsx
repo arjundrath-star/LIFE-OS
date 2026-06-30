@@ -55,6 +55,7 @@ export default function VendingPage() {
   const connected = !!v?.revenueConnected;
   const machines: any[] = v?.machines ?? [];
   const deals: any[] = v?.deals ?? [];
+  const inConversation: any[] = v?.inConversation ?? [];
 
   // group machines by location for the placement view
   const byLocation = new Map<string, any[]>();
@@ -73,9 +74,9 @@ export default function VendingPage() {
       actions={!connected ? <a href="/connections"><Button size="sm" variant="accent"><Plus size={12} /> connect Mercury</Button></a> : undefined}
       hero={
         <div className="grid gap-3 sm:grid-cols-3">
-          <HeroStat label="Revenue today" value={connected ? money(v?.revenueTodayCents) : "$—"} tone={connected ? "accent" : "muted"} sub={connected ? "via Mercury" : "Mercury not connected"} />
-          <HeroStat label="This week" value={connected ? money(v?.revenueLast7Cents) : "$—"} tone={connected ? "primary" : "muted"} sub="last 7 days" />
-          <HeroStat label="Month to date" value={connected ? money(v?.revenueMtdCents) : "$—"} tone={connected ? "primary" : "muted"} sub="since the 1st" />
+          <HeroStat label="Revenue today" value={connected ? money(v?.revenueTodayCents) : "n/a"} tone={connected ? "accent" : "muted"} sub={connected ? "via Mercury" : "Mercury not connected"} />
+          <HeroStat label="This week" value={connected ? money(v?.revenueLast7Cents) : "n/a"} tone={connected ? "primary" : "muted"} sub="last 7 days" />
+          <HeroStat label="Month to date" value={connected ? money(v?.revenueMtdCents) : "n/a"} tone={connected ? "primary" : "muted"} sub="since the 1st" />
         </div>
       }
     >
@@ -83,6 +84,30 @@ export default function VendingPage() {
         <Section><EmptyState title="loading" /></Section>
       ) : (
         <>
+          <Section title="In conversation" icon={<Send size={13} />}>
+            {inConversation.length === 0 ? (
+              <EmptyState title="no active conversations" hint="Warm leads and scheduled meetings will show here." icon={<Send size={20} />} />
+            ) : (
+              <div className="grid gap-2.5 md:grid-cols-2">
+                {inConversation.map((item, i) => (
+                  <div key={`${item.venue}-${i}`} className="rounded-inner border border-accent/30 bg-accent/5 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-txt-primary">{item.venue}</div>
+                        <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-txt-faint">contact</div>
+                        <div className="text-xs text-txt-muted">{item.contact || "not listed"}</div>
+                      </div>
+                      <Badge tone="healthy" className="shrink-0 !normal-case">warm</Badge>
+                    </div>
+                    <div className="mt-3 rounded-inner border border-border/60 bg-panel-2/40 px-2.5 py-1.5 text-xs text-txt-primary">
+                      {item.activity}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
           {/* deal pipeline */}
           <Section
             title="Deal pipeline"
@@ -180,8 +205,8 @@ export default function VendingPage() {
                     return (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
-                          <HeroStat label="Reached out" value="—" tone="muted" sub="venues emailed" />
-                          <HeroStat label="Replied" value="—" tone="muted" sub="of those" />
+                          <HeroStat label="Reached out" value="n/a" tone="muted" sub="venues emailed" />
+                          <HeroStat label="Replied" value="n/a" tone="muted" sub="of those" />
                         </div>
                         <div className="flex items-start gap-2 rounded-inner border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] leading-relaxed text-warn">
                           <AlertCircle size={13} className="mt-0.5 shrink-0" />

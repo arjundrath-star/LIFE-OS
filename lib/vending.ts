@@ -7,6 +7,18 @@ import { vendingOutreachSnapshot } from "@/lib/sources/google";
 export function vendingSnapshot() {
   const machines = all<any>("SELECT * FROM machines ORDER BY created_at DESC");
   const deals = all<any>("SELECT * FROM deals ORDER BY updated_at DESC");
+  const inConversation = [
+    {
+      venue: "Lexington Visitors Center / Town Tourism",
+      contact: "Sandhya Iyer",
+      activity: "Scheduled meeting 11:30 Monday",
+    },
+    {
+      venue: "a partner venue",
+      contact: "Scott Fusco",
+      activity: "Location tour Friday 6/26",
+    },
+  ];
   const revenueRows = all<any>(
     "SELECT day, amount_cents FROM revenue_daily ORDER BY day DESC LIMIT 30"
   );
@@ -30,6 +42,7 @@ export function vendingSnapshot() {
     revenueConnected: hasSecret("MERCURY_API_TOKEN"),
     machines,
     deals,
+    inConversation,
     stages: {
       lead: deals.filter((d: any) => d.stage === "lead").length,
       contacted: deals.filter((d: any) => d.stage === "contacted").length,
