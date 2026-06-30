@@ -38,7 +38,7 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
   GOOGLE_PY="/home/Arjun/.hermes/google-venv/bin/python"
   "$EVENT" started running "Pokemon vending lead scraper started" success >/dev/null
   "$EVENT" context_loaded running "Loaded owner-first Pokemon context and initial prospect sheet" success >/dev/null
-  python3 "$SCRAPER" >/tmp/pokemon_lead_system_${RUN_ID}.json
+  POKEMON_USE_OSM_CACHE=1 python3 "$SCRAPER" >/tmp/pokemon_lead_system_${RUN_ID}.json
   "$EVENT" sheet_build running "Built Pokemon vending MAIN and Active sheets" success >/dev/null
   "$EVENT" found running "Migrated initial leads and scraped at least 100 additional candidates" success >/dev/null
   "$GOOGLE_PY" "$SYNC" >/tmp/pokemon_drive_sync_${RUN_ID}.json
