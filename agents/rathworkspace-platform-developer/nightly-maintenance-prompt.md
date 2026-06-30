@@ -78,6 +78,7 @@ Vault: `/home/Arjun/command-center`.
 - Check for obvious loose Markdown/log files in vault root and domain roots.
 - Move only files whose destination is unambiguous.
 - Append/update domain notes for meaningful completed workflows.
+- Cultivate the vault as an active second brain, not just an archive: promote durable lessons into the right compiled/index notes, add backlinks or pointers when helpful, retire/supersede stale/conflicting notes, and make sure future Hermes/Claude Code sessions can find the context quickly.
 - Never create noisy micro-notes when a compiled/index/log file exists.
 - Write nightly memo note: `Hermes/daily-memo-inputs/YYYY-MM-DD-nightly-dev-review.md`.
 - Append one short pointer to `Hermes/activity-log.md`.
