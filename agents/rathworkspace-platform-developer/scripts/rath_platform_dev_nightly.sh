@@ -28,7 +28,7 @@ if [[ "${RATH_PLATFORM_DEV_SMOKE:-}" == "1" ]]; then
     --quiet \
     --source smoke-test \
     --toolsets file,terminal,skills \
-    --skills rathworkspace-platform-developer,software-development-workflows,rathworkspace-nightly-maintainer,google-workspace,placement-business-lead-finder-fit-scorer \
+    --skills rathworkspace-platform-developer,software-development-workflows,rathworkspace-nightly-maintainer,google-workspace,placement-business-lead-finder-fit-scorer,pokemon-vending-lead-scout \
     --max-turns 6 \
     --query "Smoke test only. Do not edit files, commit, push, restart services, or clean anything. Reply in one sentence with your profile, repo cwd, run id $RUN_ID, and nightly safety posture."
 fi
@@ -59,7 +59,7 @@ OUTPUT="$(hermes -p rath-platform-dev chat \
   --quiet \
   --source cron-nightly-maintenance \
   --toolsets web,file,terminal,skills,session_search,todo,delegation \
-  --skills rathworkspace-platform-developer,software-development-workflows,github-operations,obsidian,rathworkspace-nightly-maintainer,google-workspace,placement-business-lead-finder-fit-scorer \
+  --skills rathworkspace-platform-developer,software-development-workflows,github-operations,obsidian,rathworkspace-nightly-maintainer,google-workspace,placement-business-lead-finder-fit-scorer,pokemon-vending-lead-scout \
   --max-turns 120 \
   --query "$USER_PROMPT" 2>&1)"
 STATUS=$?

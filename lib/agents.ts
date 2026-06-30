@@ -1,7 +1,7 @@
 // Named-agent orchestration: the ONE write path (recordAgentEvent) and the ONE read model
 // (agentsOrchestrationSnapshot), shared by scripts/agent-event.ts (the local CLI writer),
 // the /api/agents/runs route, and the scheduler tick. Server-only: touches SQLite (+ the
-// events ticker, also SQLite). No network, no hub, no secrets — so the CLI can import it
+// events ticker, also SQLite). No network, no hub, no secrets, so the CLI can import it
 // safely as a trusted local writer. Mirrors the lib/vending.ts "shared snapshot" pattern.
 import { getDb, all, get, nowIso, pushEvent } from "@/db";
 
@@ -87,7 +87,7 @@ export interface RecordEventInput {
   run: string; // run id
   summary: string;
   kind?: string; // event kind (free-form), default 'event'
-  status?: string; // run status (validated against the enum) — optional; keeps run status if omitted
+  status?: string; // run status (validated against the enum); optional, keeps run status if omitted
   level?: string; // info|success|warn|error, default 'info'
   detail?: string; // JSON text, optional
   triggerType?: string;
@@ -110,7 +110,7 @@ export interface RecordEventResult {
 /**
  * The single, validated write path for an agent run event. Atomic: upserts the registry
  * row, upserts the run, inserts the timeline event, updates registry status/last-run, and
- * (optionally) inserts an artifact — all in one transaction. Mirrors meaningful events to
+ * (optionally) inserts an artifact, all in one transaction. Mirrors meaningful events to
  * the bottom `events` ticker (a SQLite insert; the scheduler broadcasts that channel).
  * Throws AgentEventError on any invalid input or illegal state transition.
  */
@@ -281,7 +281,7 @@ const SNAP = { recentRuns: 30, recentEvents: 60, timelinePerRun: 40, artifactsPe
 
 function runDetailRows(runId: string, eventLimit: number, artifactLimit: number, latest = false) {
   // For the bounded live snapshot (latest=true) take the MOST RECENT N then reverse to
-  // chronological order for display — otherwise a run with > N events would freeze the card
+  // chronological order for display. Otherwise a run with > N events would freeze the card
   // on its first N events and hide the live tail. runDetail() passes latest=false (full
   // chronological history up to a high cap), so it keeps ASC.
   const evSql = latest
@@ -307,7 +307,7 @@ export function runDetail(runId: string) {
   return { run, timeline, artifacts };
 }
 
-/** The orchestration snapshot — one object the API route and the scheduler both broadcast. */
+/** The orchestration snapshot: one object the API route and the scheduler both broadcast. */
 export function agentsOrchestrationSnapshot() {
   const agents = all<any>(
     `SELECT slug, display_name, description, enabled, schedule_label, current_status, last_run_id, last_run_at, updated_at
@@ -315,9 +315,10 @@ export function agentsOrchestrationSnapshot() {
       ORDER BY CASE slug
                  WHEN 'hermes-orchestrator' THEN 0
                  WHEN 'portable-charging-lead-scout' THEN 1
-                 WHEN 'portable-charging-outreach-sender' THEN 2
-                 WHEN 'deliverability-monitor' THEN 3
-                 WHEN 'rathworkspace-platform-developer' THEN 4
+                 WHEN 'pokemon-vending-lead-scout' THEN 2
+                 WHEN 'portable-charging-outreach-sender' THEN 3
+                 WHEN 'deliverability-monitor' THEN 4
+                 WHEN 'rathworkspace-platform-developer' THEN 5
                  ELSE 9 END,
                display_name ASC`
   );

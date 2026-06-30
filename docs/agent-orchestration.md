@@ -1,4 +1,4 @@
-# Agent Orchestration — how named agents report into rathworkspace
+# Agent Orchestration - how named agents report into rathworkspace
 
 The dashboard is the **control tower**. Cron is just the alarm clock; **Hermes is the
 orchestrator**; named specialist agents do the work and **emit events** into rathworkspace so every run,
@@ -15,8 +15,8 @@ cron/user request  ──▶  Hermes Orchestrator (this assistant/runtime)  ─�
 
 ## The event CLI
 
-One trusted local writer. It touches **only SQLite** — no network, no email, no auth, no
-browser — so cron / Hermes / Claude Code / any shell task can call it safely.
+One trusted local writer. It touches **only SQLite**: no network, no email, no
+browser. Cron / Hermes / Claude Code / any shell task can call it safely.
 
 ```bash
 # from the repo root (/home/Arjun/rathworkspace)
@@ -54,7 +54,7 @@ Rules enforced by the writer (exit non-zero on violation):
 - `finished_at` is set automatically on `completed`/`failed`, never otherwise;
 - `--detail` / `--artifact-metadata` must be valid JSON within the size cap.
 
-## Portable Charging lead scout — exact event calls
+## Portable Charging lead scout - exact event calls
 
 `scripts/pc-lead-scout.sh` is the email-free emitter. The real lead-finder should `source`
 it and call `emit` at each lifecycle stage:
@@ -107,6 +107,31 @@ into the cron session. The cron prompt requires the agent to emit each milestone
 The single safety invariant: the lead scout only finds/dedupes/drafts and sends the internal
 review packet. The actual venue "send" step stays in the human-approved sender path, never in
 the scout.
+
+## Pokemon vending lead scout
+
+The Pokemon vending lead-scout profile is registered as `pokemon-vending-lead-scout` and runs through:
+
+```text
+/home/Arjun/.hermes/scripts/pokemon_machines_profile_worker.sh
+```
+
+The durable Rathworkspace manifest and prompt live at:
+
+```text
+/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/AGENTS.md
+/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/profile-worker-prompt.md
+```
+
+Its project context lives in `/home/Arjun/command-center/Pokemon Machines`. The scout is review-only: it finds, dedupes, and scores high-traffic impulse locations for Pokemon / trading-card machines, then prepares packets for Arjun. It must not contact venues or modify the initial `Pokemon_Machine_Prospects` sheet without explicit approval.
+
+The event helper is:
+
+```text
+/home/Arjun/command-center/Pokemon Machines/agent_event.sh
+```
+
+Minimum milestone sequence: `started -> context_loaded -> dedupe -> found -> qualified -> review_packet`.
 
 ## Platform developer agent
 

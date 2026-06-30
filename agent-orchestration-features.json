@@ -1,14 +1,14 @@
 {
   "mission": "rathworkspace named-agent orchestration + dashboard hooks",
-  "updated_at": "2026-06-24",
+  "updated_at": "2026-06-30",
   "features": [
     {
       "id": "agent-registry-schema",
       "category": "backend",
-      "description": "Named agents are persisted with slug, display name, description, enabled, status, last run; Hermes Orchestrator plus 4 starter specialist agents seeded",
+      "description": "Named agents are persisted with slug, display name, description, enabled, status, last run; Hermes Orchestrator plus starter specialist agents seeded, including Pokemon Vending Lead Scout",
       "acceptance": [
         "migration 0006 creates agent_registry",
-        "hermes-orchestrator, portable-charging-lead-scout, portable-charging-outreach-sender, deliverability-monitor, rathworkspace-platform-developer seeded",
+        "hermes-orchestrator, portable-charging-lead-scout, pokemon-vending-lead-scout, portable-charging-outreach-sender, deliverability-monitor, rathworkspace-platform-developer seeded",
         "current_status defaults to idle"
       ],
       "passes": true
@@ -123,13 +123,26 @@
       "passes": true
     },
     {
+      "id": "pokemon-scout-integration",
+      "category": "docs",
+      "description": "Pokemon Vending Lead Scout is registered, documented, and wired to emit dashboard events from the pokemon-scout Hermes profile",
+      "acceptance": [
+        "migration 0008 registers pokemon-vending-lead-scout",
+        "agents/pokemon-vending-lead-scout/AGENTS.md documents scope, safety rules, and event milestones",
+        "profile worker prompt and dispatcher point to the dedicated pokemon-scout profile",
+        "agent_event.sh can emit a smoke event to the dashboard without contacting venues"
+      ],
+      "passes": true
+    },
+    {
       "id": "agent-manifests-and-skills",
       "category": "process",
-      "description": "Each named agent has a real AGENTS.md manifest/context, and the platform developer has a durable Hermes skill for build sessions",
+      "description": "Each named agent has a real AGENTS.md manifest/context, and the platform developer plus business scouts have durable Hermes skills/profile prompts",
       "acceptance": [
         "repo root AGENTS.md exists",
         "agents/<slug>/AGENTS.md exists for every registered named agent",
-        "Hermes skill rathworkspace-platform-developer exists and references the platform developer manifest"
+        "Hermes skill rathworkspace-platform-developer exists and references the platform developer manifest",
+        "Pokemon Vending Lead Scout manifest and profile prompt exist under agents/pokemon-vending-lead-scout"
       ],
       "passes": true
     },

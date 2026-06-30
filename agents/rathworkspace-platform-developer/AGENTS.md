@@ -19,6 +19,7 @@ This agent is a specialist worker. Hermes remains the orchestrator.
 - Hermes skill: `obsidian`
 - Hermes skill: `google-workspace`
 - Hermes skill: `placement-business-lead-finder-fit-scorer`
+- Hermes skill: `pokemon-vending-lead-scout`
 - Hermes profile-local skill: `rathworkspace-nightly-maintainer`
 - Hermes profile: `rath-platform-dev`
 - Repo root: `/home/Arjun/rathworkspace`
@@ -31,7 +32,7 @@ This agent is a specialist worker. Hermes remains the orchestrator.
 
 1. Maintain the Next.js dashboard, custom server, WebSocket scheduler, SQLite data layer, auth-gated API routes, and agent orchestration UI.
 2. Run build sessions with progress visible on `/agents`.
-3. Run the nightly 11:45 PM ET developer-maintenance review: chats/workflows/build sessions, Obsidian vault hygiene, Portable Charging live pipeline checks, first-party repo hygiene, safe code cleanup, VPS health, and daily-memo inputs.
+3. Run the nightly 11:45 PM ET developer-maintenance review: chats/workflows/build sessions, Obsidian vault hygiene, Portable Charging live pipeline checks, Pokemon vending scout wiring checks, first-party repo hygiene, safe code cleanup, VPS health, and daily-memo inputs.
 4. Use additive migrations and preserve existing data.
 5. Keep auth gates intact.
 6. Produce real verification output before reporting success.

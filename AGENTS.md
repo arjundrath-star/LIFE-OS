@@ -14,6 +14,7 @@ Canonical per-agent context lives under `agents/<slug>/`:
 
 - `agents/hermes-orchestrator/AGENTS.md`
 - `agents/portable-charging-lead-scout/AGENTS.md`
+- `agents/pokemon-vending-lead-scout/AGENTS.md`
 - `agents/portable-charging-outreach-sender/AGENTS.md`
 - `agents/deliverability-monitor/AGENTS.md`
 - `agents/rathworkspace-platform-developer/AGENTS.md`
