@@ -26,6 +26,8 @@ Dashboard agent slug: `rathworkspace-platform-developer`.
 - Skill: `software-development-workflows`
 - Skill: `github-operations`
 - Skill: `obsidian`
+- Skill: `google-workspace`
+- Skill: `placement-business-lead-finder-fit-scorer`
 
 ## Required dashboard events
 
@@ -83,7 +85,22 @@ Vault: `/home/Arjun/command-center`.
 - Write nightly memo note: `Hermes/daily-memo-inputs/YYYY-MM-DD-nightly-dev-review.md`.
 - Append one short pointer to `Hermes/activity-log.md`.
 
-### 4. Git repo hygiene
+### 4. Portable Charging live pipeline maintenance
+
+Project root: `/home/Arjun/command-center/Portable Charging`.
+
+This check is required every nightly run because the Portable Charging lead sheets should stay live after sent email, replies, bounces, and scraper runs.
+
+- Authenticate/check Google Workspace with `/home/Arjun/.hermes/google-venv/bin/python /home/Arjun/.hermes/skills/productivity/google-workspace/scripts/setup.py --check`.
+- Pull canonical Drive spreadsheets before inspection: `/home/Arjun/.hermes/google-venv/bin/python sync_drive_spreadsheets.py pull` from the Portable Charging project root.
+- Audit Klade Gmail sent mail and inbound responses for Portable Charging outreach from `operator@example.com`. Prefer existing project scripts when present, especially `audit_gmail_outreach_threads_20260630.py`, `scan_klade_outreach_responses_errors.py`, and cleanup/update scripts under the project root. If scripts need updates, patch them safely rather than hand-editing many rows.
+- Update `Leads/Active Leads.csv` and `Leads/Active Leads.xlsx` so they reflect real Gmail state: sent status, sent timestamp, Gmail message/thread IDs, reply or bounce state, last touch, next action, and owner notes. Do not mark a touch as complete unless Gmail actually shows it happened.
+- Check the lead scraper / `portable-scout` outputs and the latest daily lead scout packets/logs. Confirm every newly scraped qualified lead has landed in the global MAIN lead spreadsheet, `Leads/RVH_Charging_Lead_Pipeline.csv` and `.xlsx`. Do not add scraper-only leads to Active Leads unless they were selected for outreach or Gmail shows outreach was sent.
+- Deduplicate by venue name, website/domain, phone, and address before appending scraper leads to MAIN. If a scraper output cannot be safely reconciled, write a blocker in the nightly memo instead of guessing.
+- Regenerate any markdown/dashboard mirrors the project normally maintains, apply visual formatting, push both Drive spreadsheets with `sync_drive_spreadsheets.py push`, and record Drive push result and row counts in the nightly memo.
+- Keep the no-em-dash outreach rule active for any Portable Charging drafts or external-facing copy.
+
+### 5. Git repo hygiene
 
 Find relevant first-party repos under `/home/Arjun` and inspect them. Known repos include:
 
@@ -107,7 +124,7 @@ For each dirty repo:
 5. commit/push if and only if gates pass
 6. otherwise list blocker and next action
 
-### 5. VPS health
+### 6. VPS health
 
 Check:
 
