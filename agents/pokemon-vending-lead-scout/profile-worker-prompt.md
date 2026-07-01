@@ -27,7 +27,7 @@ The initial Cambridge/Lexington prospects should live in MAIN as migrated seed r
 Owner focus:
 
 - Find the owner, franchisee, or operator. A manager, generic Google phone, or `info@` inbox is not enough.
-- Convenience stores and 7-Elevens are good targets if owner/franchisee access can be found.
+- Convenience stores and 7-Elevens are good targets even if owner/franchisee access is not found yet. Add qualified venues to MAIN; mark missing ownership as `Needs owner lookup` rather than skipping them.
 - Use a people-search service only when a real person candidate exists. Record lookup URL/status, never invented contacts.
 - Mark nearby Lexington/Cambridge leads for easy walk-in if Arjun can pitch them in person.
 

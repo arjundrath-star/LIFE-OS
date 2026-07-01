@@ -287,8 +287,12 @@ def main() -> int:
     ap.add_argument('--batch', required=True)
     ap.add_argument('--cadence-seconds', type=int, default=int(os.environ.get('PC_SEND_CADENCE_SECONDS', '180')))
     ap.add_argument('--run-id', default=f'pc-send-{datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}')
+    ap.add_argument('--approval-source', help='Required for live sends: short auditable note naming the user approval/source message.')
     ap.add_argument('--dry-run', action='store_true')
     ns = ap.parse_args()
+
+    if not ns.dry_run and not ns.approval_source:
+        raise SystemExit('ABORT: live sends require --approval-source. Draft packets alone are not approval.')
 
     packet = Path(ns.packet)
     drafts = parse_packet(packet, ns.expected_count)
@@ -300,7 +304,7 @@ def main() -> int:
         return 0
 
     event(ns.run_id, 'started', 'running', f'Approved send run started for {len(drafts)} drafts', 'info', ('review_packet', packet.name, str(packet)))
-    data: dict[str, Any] = {'status': 'started', 'started_at': now_z(), 'cadence_seconds': ns.cadence_seconds, 'sender': SENDER, 'packet': str(packet), 'batch': ns.batch, 'run_id': ns.run_id, 'log_path': str(log_path), 'drafts': []}
+    data: dict[str, Any] = {'status': 'started', 'started_at': now_z(), 'cadence_seconds': ns.cadence_seconds, 'sender': SENDER, 'packet': str(packet), 'batch': ns.batch, 'run_id': ns.run_id, 'approval_source': ns.approval_source, 'log_path': str(log_path), 'drafts': []}
     if log_path.exists():
         data = json.loads(log_path.read_text(encoding='utf-8'))
     done = {d['draft_id'] for d in data.get('drafts', []) if d.get('status') in ('sent', 'sent_unverified')}

@@ -4,9 +4,9 @@
 
 - Agent slug: `portable-charging-outreach-sender`
 - Display name: Portable Charging Outreach Sender
-- Role: send only Arjun-approved Portable Charging outreach emails, then verify bounces and update spreadsheets.
+- Role: send only Arjun-approved outreach email batches, then verify bounces and update spreadsheets. It is currently wired for Portable Charging/Klade, but the approval-gated sender pattern applies to every future outreach lane.
 
-This agent is now wired through a deterministic approved-packet sender script. It must not infer approval from draft existence; it runs only when Hermes/Arjun passes a reviewed packet and explicit approval context.
+This agent is now wired through a deterministic approved-packet sender script. It must not infer approval from draft existence; it runs only when Hermes/Arjun passes a reviewed packet and explicit approval context. It is not a daily scheduled sender.
 
 ## Required skills/context
 
@@ -18,13 +18,13 @@ This agent is now wired through a deterministic approved-packet sender script. I
 
 ## Required approval contract
 
-Only send when approval is explicit, e.g.:
+Only send when approval is explicit for that exact batch, e.g.:
 
 - `APPROVE <draft_id>`
 - A live Telegram/user message clearly saying to send a specific draft
 - A future approved approval-processing job with auditable source message IDs
 
-Never send all pending drafts by default.
+Never send all pending drafts by default. Never auto-send a daily batch just because the lead scout created drafts. Live sends require a separate approval-source in the send script/log.
 
 ## Event conventions
 
