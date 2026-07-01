@@ -6,7 +6,7 @@
 - Display name: Portable Charging Outreach Sender
 - Role: send only Arjun-approved Portable Charging outreach emails, then verify bounces and update spreadsheets.
 
-This agent is idle until an explicit approval-processing workflow exists. It must not infer approval from draft existence.
+This agent is now wired through a deterministic approved-packet sender script. It must not infer approval from draft existence; it runs only when Hermes/Arjun passes a reviewed packet and explicit approval context.
 
 ## Required skills/context
 
@@ -14,6 +14,7 @@ This agent is idle until an explicit approval-processing workflow exists. It mus
 - Hermes skill: `google-workspace`
 - Workdir: `/home/Arjun/command-center/Portable Charging`
 - Source of truth for approvals: live user instruction or a future explicit approval inbox parser.
+- Approved packet sender: `agents/portable-charging-outreach-sender/scripts/send_approved_packet.py`.
 
 ## Required approval contract
 
