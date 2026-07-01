@@ -45,10 +45,11 @@ Prioritize:
 
 Strong categories:
 
+- Locally owned grocery, convenience, specialty-market, and corner-store locations. Treat these as the current #1 target category when owner access is reachable.
 - Independent convenience stores and gas/convenience stores.
-- Arcades, claw-machine arcades, family entertainment centers, and indoor playgrounds.
-- Toy stores, comic shops, card shops, hobby shops, and game stores.
-- Ice cream, froyo, candy, bubble tea, pizza/slice shops, and dessert shops.
+- Arcades, claw-machine arcades, family entertainment centers, indoor playgrounds.
+- Toy stores, comic/card/hobby shops, game stores.
+- Ice cream, froyo, candy, bubble tea, pizza/slice shops, and dessert shops, but do not over-index on more ice cream prospects once a few have been tested.
 - Movie theaters and entertainment tenants where approval is local enough.
 - Mall tenants with direct control of their space.
 

@@ -71,7 +71,7 @@ For a standard run:
 
 Pokemon machines need short-stop impulse traffic and buyer fit:
 
-- High traffic convenience/gas, dessert, pizza, candy, bubble tea, toy, comic/card/hobby, arcade, FEC, indoor playground, movie, mall-tenant locations.
+- Prioritize locally owned grocery, convenience, specialty-market, and corner-store locations first when owner access is reachable. Also include high-traffic gas/convenience, pizza, candy, bubble tea, toy, comic/card/hobby, arcade, FEC, indoor playground, movie, and mall-tenant locations. Do not over-index on more ice cream prospects once a few have been tested.
 - Strong buyer mix: kids, parents, students, young adults, collectors, adult nostalgia buyers, resellers.
 - Local owner/operator or franchisee access matters heavily.
 - Penalize corporate approval walls.
