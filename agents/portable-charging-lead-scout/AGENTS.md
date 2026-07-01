@@ -23,6 +23,7 @@ Default Hermes / `hermes-orchestrator` dispatches this worker; actual lead-scout
 - Canonical docs/files:
   - `/home/Arjun/command-center/Portable Charging/_Run Log.md`
   - `/home/Arjun/command-center/Portable Charging/Hermes — Project Memory.md`
+  - `/home/Arjun/command-center/Portable Charging/Strategy/2026-07-01 a competing operator operator call strategic pivot.md`
   - `/home/Arjun/command-center/Portable Charging/Dashboard.md`
   - `/home/Arjun/command-center/Portable Charging/Leads/Active Leads.xlsx`
   - `/home/Arjun/command-center/Portable Charging/Leads/RVH_Charging_Lead_Pipeline.xlsx`
