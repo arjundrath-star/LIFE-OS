@@ -42,7 +42,7 @@ Use `/home/Arjun/command-center/Portable Charging/agent_event.sh` with the `PC_A
 
 ## Lead strategy for current generation
 
-First internalize the 2026-07-01 a competing operator operator-call pivot. Boston portable-charging scale is now lower-confidence: keep the hardware supplier/The Edge as proof/credibility, but do not keep generating generic Boston charging leads on old assumptions. Treat Boston a competing operator/incumbent status and weak revenue signals as major factors. Prioritize either highly strategic/warm/low-cost Boston proof points or New York/NYU Stern charging opportunities that could work with a competing operator or another larger platform.
+First internalize the 2026-07-01 a competing operator operator-call pivot. Boston portable-charging scale is now lower-confidence: keep the hardware supplier/The Edge as proof/credibility, but do not keep generating generic Boston charging leads on old assumptions. Treat Boston a competing operator/incumbent status and weak revenue signals as major factors. For Boston, prioritize tourism-heavy areas and warm/strategic proof points over ordinary local bars. Prioritize New York/NYU Stern charging opportunities that could work with a competing operator or another larger platform.
 
 Think bigger and more economically. Do not overfill with small limited-calendar arts/theater/classroom venues. Recent no replies from places like a prospect venue / Berklee-type venues are evidence that these are weak economics: limited event calendars, low foot traffic, small audiences, and low machine utilization.
 
