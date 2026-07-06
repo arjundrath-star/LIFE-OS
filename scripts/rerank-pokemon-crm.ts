@@ -6,8 +6,13 @@ import { ownerAccessScore, pokemonFitScore } from "@/lib/pokemon-fit";
 const db = getDb();
 const rows = db
   .prepare(
-    `SELECT id, venue_name, category, vending_score, rating, reviews
-     FROM pokemon_leads`
+    `SELECT l.id, l.venue_name, l.category, l.vending_score, l.rating, l.reviews,
+            l.address, l.website,
+            EXISTS(SELECT 1 FROM pokemon_contacts c WHERE c.lead_id = l.id) AS has_owner_name,
+            EXISTS(SELECT 1 FROM pokemon_phone_numbers p WHERE p.lead_id = l.id AND p.phone_type = 'owner_candidate') AS has_owner_phone,
+            EXISTS(SELECT 1 FROM pokemon_phone_numbers p WHERE p.lead_id = l.id) AS has_phone,
+            EXISTS(SELECT 1 FROM pokemon_emails e WHERE e.lead_id = l.id) AS has_email
+       FROM pokemon_leads l`
   )
   .all() as Array<{
   id: number;
@@ -16,6 +21,12 @@ const rows = db
   vending_score: number | null;
   rating: number | null;
   reviews: number | null;
+  address: string | null;
+  website: string | null;
+  has_owner_name: number;
+  has_owner_phone: number;
+  has_phone: number;
+  has_email: number;
 }>;
 
 const update = db.prepare(
@@ -26,7 +37,16 @@ const update = db.prepare(
 
 const tx = db.transaction(() => {
   for (const row of rows) {
-    update.run(pokemonFitScore(row), ownerAccessScore(row), row.id);
+    const input = {
+      ...row,
+      has_owner_name: !!row.has_owner_name,
+      has_owner_phone: !!row.has_owner_phone,
+      has_phone: !!row.has_phone,
+      has_email: !!row.has_email,
+      has_address: !!row.address,
+      has_website: !!row.website,
+    };
+    update.run(pokemonFitScore(input), ownerAccessScore(input), row.id);
   }
 });
 

@@ -226,12 +226,23 @@ function importRows(abs: string, dryRun: boolean) {
       }
       const address = row["Address"] || "";
       const baseScore = pipelineBaseScore(row);
+      const ownerNameForScoring = row["Owner name candidate"] || row["Decision-maker name"] || "";
+      const ownerPhoneForScoring = normPhone(row["Owner phone"] || "");
+      const publicPhoneForScoring = normPhone(row["Public contact phone"] || row["Phone"] || "");
+      const ownerEmailForScoring = cleanEmail(row["Owner email"] || "");
+      const publicEmailForScoring = cleanEmail(row["Public contact email"] || "");
       const fitInput = {
         venue_name: venue,
         category: row["Category"] || null,
         vending_score: baseScore,
         rating: null,
         reviews: null,
+        has_owner_name: !!ownerNameForScoring,
+        has_owner_phone: !!ownerPhoneForScoring,
+        has_phone: !!(ownerPhoneForScoring || publicPhoneForScoring),
+        has_email: !!(ownerEmailForScoring || publicEmailForScoring),
+        has_address: !!address,
+        has_website: !!row["Website"],
       };
       const existing = findLead.get(venue, address) as { id: number } | undefined;
       upsertLead.run({
@@ -259,7 +270,7 @@ function importRows(abs: string, dryRun: boolean) {
       else counts.leads_created++;
 
       let contactId: number | null = null;
-      const ownerName = row["Owner name candidate"] || row["Decision-maker name"] || "";
+      const ownerName = ownerNameForScoring;
       if (ownerName) {
         const found = findContact.get(leadId, ownerName) as { id: number } | undefined;
         if (found) contactId = found.id;
@@ -278,8 +289,8 @@ function importRows(abs: string, dryRun: boolean) {
       }
 
       const phoneCandidates: Array<{ phone: string; type: string; contact: number | null; priority: number }> = [];
-      const ownerPhone = normPhone(row["Owner phone"] || "");
-      const publicPhone = normPhone(row["Public contact phone"] || row["Phone"] || "");
+      const ownerPhone = ownerPhoneForScoring;
+      const publicPhone = publicPhoneForScoring;
       if (ownerPhone) phoneCandidates.push({ phone: ownerPhone, type: "owner_candidate", contact: contactId, priority: 1 });
       if (publicPhone) phoneCandidates.push({ phone: publicPhone, type: "venue", contact: null, priority: 50 });
       for (const pc of phoneCandidates) {
@@ -290,8 +301,8 @@ function importRows(abs: string, dryRun: boolean) {
       }
 
       const emailCandidates: Array<{ email: string | null; contact: number | null; source: string }> = [
-        { email: cleanEmail(row["Owner email"] || ""), contact: contactId, source: "pokemon_pipeline_owner" },
-        { email: cleanEmail(row["Public contact email"] || ""), contact: null, source: "pokemon_pipeline_public" },
+        { email: ownerEmailForScoring, contact: contactId, source: "pokemon_pipeline_owner" },
+        { email: publicEmailForScoring, contact: null, source: "pokemon_pipeline_public" },
       ];
       for (const ec of emailCandidates) {
         if (ec.email && !findEmail.get(leadId, ec.email)) {

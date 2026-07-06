@@ -205,12 +205,23 @@ function main() {
       const cleanRating = Number.isFinite(rating) ? rating : null;
       const cleanReviews = Number.isFinite(reviews) ? reviews : null;
       const cleanVendingScore = Number.isFinite(vendingScore) ? vendingScore : null;
+      const peopleForScoring = splitDecisionMakers(col(r, "Decision-Makers (Name / Title / Phones)"));
+      const hasOwnerPhone = peopleForScoring.some((p) => p.phones.length > 0);
+      const venuePhone = normPhone(col(r, "Venue Phone"));
+      const hasEmail = EMAIL_RE.test(col(r, "Emails") || "");
+      EMAIL_RE.lastIndex = 0;
       const fitInput = {
         venue_name: venueName,
         category,
         vending_score: cleanVendingScore,
         rating: cleanRating,
         reviews: cleanReviews,
+        has_owner_name: peopleForScoring.length > 0,
+        has_owner_phone: hasOwnerPhone,
+        has_phone: hasOwnerPhone || !!venuePhone,
+        has_email: hasEmail,
+        has_address: !!address,
+        has_website: !!col(r, "Website"),
       };
 
       // address stays a plain string ('' when blank): NULL would defeat both the
@@ -223,7 +234,7 @@ function main() {
         city: cityParts[0] || null,
         state: cityParts[1] || null,
         website: col(r, "Website") || null,
-        venue_phone: normPhone(col(r, "Venue Phone")) || null,
+        venue_phone: venuePhone || null,
         rating: cleanRating,
         reviews: cleanReviews,
         vending_score: cleanVendingScore,

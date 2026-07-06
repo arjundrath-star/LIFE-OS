@@ -7,6 +7,12 @@ export type PokemonFitInput = {
   vending_score?: number | null;
   rating?: number | null;
   reviews?: number | null;
+  has_owner_name?: boolean;
+  has_owner_phone?: boolean;
+  has_phone?: boolean;
+  has_email?: boolean;
+  has_address?: boolean;
+  has_website?: boolean;
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -57,6 +63,20 @@ export function pokemonFitScore(input: PokemonFitInput): number {
     else if (reviews >= 250) score += 2;
   }
 
+  // Enrichment modifiers. Keep unenriched leads in the CRM, but push them down
+  // until they have enough contact/routing data to be actionable. Owner phone is
+  // gold; venue phone is still useful; no phone means this is mostly a research
+  // backlog item, not a call queue item.
+  if (input.has_owner_phone) score += 8;
+  else if (input.has_phone) score -= 6;
+  else score -= 26;
+
+  if (input.has_owner_name) score += 4;
+  else score -= 7;
+
+  if (input.has_address === false) score -= 9;
+  if (input.has_website === false) score -= 4;
+
   return clamp(score);
 }
 
@@ -68,5 +88,11 @@ export function ownerAccessScore(input: PokemonFitInput): number {
   if (includesAny(text, ["7-eleven", "7 eleven", "franchise", "hotel", "hilton"])) score -= 15;
   if (includesAny(text, ["market", "mart", "convenience", "deli", "arcade", "toy", "card", "hobby", "pizza", "ice cream"])) score += 12;
   if (includesAny(text, ["nightclub", "club", "lounge", "bar", "tattoo"])) score -= 10;
+  if (input.has_owner_phone) score += 20;
+  else if (input.has_phone) score += 5;
+  else score -= 25;
+  if (input.has_owner_name) score += 10;
+  else score -= 8;
+  if (input.has_address === false) score -= 8;
   return clamp(score);
 }
