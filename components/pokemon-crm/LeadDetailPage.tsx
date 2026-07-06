@@ -130,6 +130,9 @@ export function LeadDetailPage({
                 </Badge>
               )}
               <Badge tone={l.active ? "accent" : "off"}>{l.active ? "active" : "not active"}</Badge>
+              <Badge tone={l.source === "peoplefinder_csv" ? "healthy" : "warn"} className="!normal-case !tracking-normal">
+                {l.source === "peoplefinder_csv" ? "PeopleFinder enriched" : "not enriched"}
+              </Badge>
             </div>
             <div className="mt-1 text-[13px] text-txt-muted">{l.address || "no address on file"}</div>
             <div className="mt-2.5 flex flex-wrap gap-1.5">

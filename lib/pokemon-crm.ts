@@ -86,7 +86,7 @@ export function pokemonCrmSummary() {
 
 export function listLeads() {
   return all<any>(
-    `SELECT l.id, l.venue_name, l.category, l.stage, l.active, l.address, l.city, l.state,
+    `SELECT l.id, l.venue_name, l.category, l.stage, l.active, l.source, l.address, l.city, l.state,
             l.website, l.venue_phone, l.rating, l.reviews, l.vending_score,
             l.pokemon_fit_score, l.owner_access_score, l.route_cluster,
             l.best_visit_window, l.priority, l.next_action, l.next_action_due, l.notes,

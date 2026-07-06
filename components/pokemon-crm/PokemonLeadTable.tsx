@@ -74,6 +74,15 @@ export function PokemonLeadTable({
                 <Badge tone={l.active ? "accent" : "off"} className="shrink-0 !px-1.5 !text-[8.5px]">
                   {l.active ? "active" : "not active"}
                 </Badge>
+                {l.source === "peoplefinder_csv" ? (
+                  <Badge tone="healthy" className="shrink-0 !px-1.5 !text-[8.5px]">
+                    PF enriched
+                  </Badge>
+                ) : (
+                  <Badge tone="warn" className="shrink-0 !px-1.5 !text-[8.5px]">
+                    not enriched
+                  </Badge>
+                )}
               </span>
               <span className="mt-0.5 block truncate font-mono text-[9.5px] uppercase tracking-wider text-txt-faint">
                 {clusterLabel(l)}

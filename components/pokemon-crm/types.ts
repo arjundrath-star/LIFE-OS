@@ -37,6 +37,7 @@ export interface LeadRow {
   category: string | null;
   stage: Stage;
   active: 0 | 1;
+  source: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -113,7 +114,7 @@ export interface Touchpoint {
 }
 
 export interface LeadDetail {
-  lead: LeadRow & { source: string; raw_json: string | null };
+  lead: LeadRow & { raw_json: string | null };
   contacts: Contact[];
   leadPhones: Phone[];
   leadEmails: EmailAddr[];
