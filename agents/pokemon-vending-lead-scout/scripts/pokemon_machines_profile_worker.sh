@@ -5,6 +5,10 @@ set -euo pipefail
 PROJECT_DIR="/home/Arjun/command-center/Pokemon Machines"
 PROMPT_FILE="/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/profile-worker-prompt.md"
 RUN_ID="pokemon-leads-$(date -u +%Y%m%dT%H%M%SZ)"
+HERMES_BIN="${HERMES_BIN:-$(command -v hermes || true)}"
+if [[ -z "$HERMES_BIN" && -x /home/Arjun/.local/bin/hermes ]]; then
+  HERMES_BIN="/home/Arjun/.local/bin/hermes"
+fi
 export POKEMON_SCOUT_RUN_ID="$RUN_ID"
 export POKEMON_AGENT_RUN_ID="$RUN_ID"
 export POKEMON_AGENT_TRIGGER_TYPE="manual"
@@ -14,15 +18,15 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
   echo "Pokemon scout failed: missing prompt file: $PROMPT_FILE" >&2
   exit 1
 fi
-if ! command -v hermes >/dev/null 2>&1; then
-  echo "Pokemon scout failed: hermes CLI not on PATH" >&2
+if [[ -z "$HERMES_BIN" || ! -x "$HERMES_BIN" ]]; then
+  echo "Pokemon scout failed: hermes CLI not found; set HERMES_BIN or install at /home/Arjun/.local/bin/hermes" >&2
   exit 1
 fi
 
 cd "$PROJECT_DIR"
 
 if [[ "${POKEMON_SCOUT_SMOKE:-}" == "1" ]]; then
-  exec hermes -p pokemon-scout chat \
+  exec "$HERMES_BIN" -p pokemon-scout chat \
     --quiet \
     --source pokemon-scout-smoke \
     --toolsets file,terminal,skills \
@@ -68,7 +72,7 @@ $(cat "$PROMPT_FILE")
 EOF
 )"
 
-exec hermes -p pokemon-scout chat \
+exec "$HERMES_BIN" -p pokemon-scout chat \
   --quiet \
   --source pokemon-scout-profile-worker \
   --toolsets web,file,terminal,skills,session_search,todo \
