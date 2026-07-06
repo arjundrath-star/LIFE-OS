@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{height:100%;margin:0}
+  body{background:#0A0A0B;color:#E5E7EB;font-family:"Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;color-scheme:dark}
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(34,211,238,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,0.025) 1px,transparent 1px);background-size:48px 48px;-webkit-mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 35%,transparent 80%);mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 35%,transparent 80%)}
+  *{scrollbar-width:thin;scrollbar-color:#1E1E24 transparent}
+  *::-webkit-scrollbar{width:8px;height:8px}
+  *::-webkit-scrollbar-thumb{background:#1E1E24;border-radius:8px}
+  a{color:#06B6D4;text-decoration:none}
+  a:hover{color:#22D3EE}
+  input,select,textarea,button{font-family:inherit}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid rgba(34,211,238,0.75);outline-offset:2px}
+  @keyframes pulse-ring{0%{transform:scale(0.9);opacity:0.7}70%{transform:scale(1.7);opacity:0}100%{opacity:0}}
+  @keyframes fade-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</helmet>
+
+<div data-screen-label="Pokemon CRM" style="position:relative;z-index:1;display:flex;height:100vh;overflow:hidden">
+
+  <!-- ============ NAV RAIL (recreated from components/shell/NavRail.tsx) ============ -->
+  <nav style="display:flex;flex-direction:column;width:220px;flex-shrink:0;height:100%;border-right:1px solid #1E1E24;background:rgba(16,16,19,0.6);backdrop-filter:blur(4px)">
+    <div style="display:flex;height:56px;flex-shrink:0;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid rgba(30,30,36,0.7)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:8px;border:1px solid rgba(6,182,212,0.4);background:rgba(6,182,212,0.05);box-shadow:0 0 12px rgba(34,211,238,0.18)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#06B6D4;text-shadow:0 0 12px rgba(34,211,238,0.45)">R</span>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:-0.02em;color:#E5E7EB">rathworkspace</span>
+      </div>
+      <span style="color:#6B7280"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"></path><path d="m18 17-5-5 5-5"></path></svg></span>
+    </div>
+    <div style="display:flex;min-height:0;flex:1;flex-direction:column;gap:2px;overflow-y:auto;overflow-x:hidden;padding:12px 8px">
+      <sc-for list="{{ navItems }}" as="nv" hint-placeholder-count="8">
+        <div style="{{ nv.style }}">
+          <sc-if value="{{ nv.active }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:0;top:50%;height:20px;width:2px;transform:translateY(-50%);border-radius:99px;background:#06B6D4;box-shadow:0 0 12px rgba(34,211,238,0.18)"></span></sc-if>
+          <span style="flex-shrink:0;display:inline-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ nv.sw }}" stroke-linecap="round" stroke-linejoin="round"><path d="{{ nv.d }}"></path><path d="{{ nv.d2 }}"></path></svg></span>
+          <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px">{{ nv.label }}</span>
+          <sc-if value="{{ nv.badge }}" hint-placeholder-val="{{ false }}"><span style="border-radius:99px;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;line-height:1;background:rgba(6,182,212,0.15);color:#06B6D4">{{ nv.badge }}</span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex-shrink:0;border-top:1px solid rgba(30,30,36,0.7);padding:8px">
+      <div style="display:flex;width:100%;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:8px;color:#6B7280">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"></path></svg>
+        <span style="flex:1;display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px">Jump to…</span><kbd style="border-radius:4px;border:1px solid #1E1E24;background:#0A0A0B;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#6B7280">⌘K</kbd></span>
+      </div>
+      <div style="margin-top:4px;display:flex;align-items:center;gap:8px;padding:4px 12px">
+        <span style="position:relative;display:inline-flex;width:6px;height:6px"><span style="position:absolute;inset:0;border-radius:99px;background:#06B6D4;opacity:0.6;animation:pulse-ring 2.4s cubic-bezier(0.4,0,0.6,1) infinite"></span><span style="position:relative;width:6px;height:6px;border-radius:99px;background:#06B6D4;box-shadow:0 0 8px 1px #06B6D4"></span></span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.2em;color:#6B7280">live</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ CONTENT COLUMN ============ -->
+  <div style="display:flex;min-width:0;flex:1;flex-direction:column">
+
+    <!-- top bar (DashShell header) -->
+    <header style="display:flex;height:56px;flex-shrink:0;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(30,30,36,0.7);background:rgba(10,10,11,0.8);padding:0 16px;backdrop-filter:blur(4px)">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">{{ topBarLabel }}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;height:36px;align-items:center;gap:6px;border-radius:8px;border:1px solid #1E1E24;background:rgba(16,16,19,0.6);padding:0 10px;color:#9CA3AF">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px">ambient</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;border-radius:8px;border:1px solid #1E1E24;background:rgba(16,16,19,0.6);padding:4px 8px">
+          <div style="display:flex;height:24px;width:24px;align-items:center;justify-content:center;border-radius:99px;background:rgba(6,182,212,0.15);font-family:'JetBrains Mono',monospace;font-size:10px;color:#06B6D4">A</div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#9CA3AF"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="23425149564d475142574b63444e424a4f0d404c4e">[email&#160;protected]</a></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- main scroll -->
+    <main style="min-height:0;flex:1;overflow-y:auto;padding:24px 28px">
+      <div style="margin:0 auto;display:flex;max-width:1700px;flex-direction:column;gap:20px">
+
+        <!-- ================= LIST VIEW ================= -->
+        <sc-if value="{{ showList }}" hint-placeholder-val="{{ true }}">
+
+        <!-- ===== ProjectPage header band ===== -->
+        <header style="position:relative;overflow:hidden;border-radius:13px;border:1px solid #1E1E24;background:rgba(16,16,19,0.6);padding:24px" style-after="content:'';position:absolute;top:0;left:12px;right:12px;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,0.25),transparent);opacity:0.6">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px">
+            <div style="display:flex;align-items:flex-start;gap:12px">
+              <div style="margin-top:2px;display:flex;height:40px;width:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.05);color:#06B6D4">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h6m6 0h6"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </div>
+              <div style="min-width:0">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                  <h1 style="margin:0;font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;letter-spacing:-0.02em;color:#E5E7EB">Pokemon CRM</h1>
+                  <span style="position:relative;display:inline-flex;width:8px;height:8px"><span style="position:absolute;inset:0;border-radius:99px;background:{{ statusDotColor }};opacity:0.6;animation:pulse-ring 2.4s cubic-bezier(0.4,0,0.6,1) infinite"></span><span style="position:relative;width:8px;height:8px;border-radius:99px;background:{{ statusDotColor }}"></span></span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.2em;color:#6B7280">{{ statusLabel }}</span>
+                </div>
+                <p style="margin:4px 0 0;max-width:42rem;font-size:14px;color:#9CA3AF">Manual call and visit pipeline for Pokemon machine placements.</p>
+              </div>
+            </div>
+            <div style="display:flex;flex-shrink:0;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;gap:6px;height:36px;border-radius:8px;border:1px solid #1E1E24;background:#0A0A0B;padding:0 10px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                <input value="{{ query }}" onInput="{{ onQuery }}" placeholder="search venues, addresses…" style="width:210px;background:transparent;border:none;outline:none;font-size:12px;color:#E5E7EB" />
+              </div>
+              <button onClick="{{ onImport }}" style="display:inline-flex;height:36px;align-items:center;justify-content:center;gap:8px;border-radius:8px;border:1px solid rgba(6,182,212,0.4);background:rgba(6,182,212,0.15);padding:0 16px;font-size:13px;font-weight:500;color:#06B6D4;cursor:pointer" style-hover="background:rgba(6,182,212,0.25);box-shadow:0 0 12px rgba(34,211,238,0.18)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0-12 4 4m-4-4-4 4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+                Import CSV
+              </button>
+            </div>
+          </div>
+          <!-- hero stats -->
+          <div style="margin-top:24px;display:grid;gap:12px;grid-template-columns:repeat(4,1fr)">
+            <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(21,21,26,0.3);padding:14px 16px">
+              <div style="margin-bottom:4px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">All leads</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:#E5E7EB">{{ heroAll }}</div>
+              <div style="margin-top:6px;font-size:12px;color:#9CA3AF">{{ heroAllSub }}</div>
+            </div>
+            <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(21,21,26,0.3);padding:14px 16px">
+              <div style="margin-bottom:4px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">Active leads</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:#06B6D4;text-shadow:0 0 12px rgba(34,211,238,0.45)">{{ heroActive }}</div>
+              <div style="margin-top:6px;font-size:12px;color:#9CA3AF">touchpoint logged</div>
+            </div>
+            <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(21,21,26,0.3);padding:14px 16px">
+              <div style="margin-bottom:4px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">Untested numbers</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:#22C55E">{{ heroUntested }}</div>
+              <div style="margin-top:6px;font-size:12px;color:#9CA3AF">dials available</div>
+            </div>
+            <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(21,21,26,0.3);padding:14px 16px">
+              <div style="margin-bottom:4px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">Follow ups due</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:{{ heroFollowColor }}">{{ heroFollow }}</div>
+              <div style="margin-top:6px;font-size:12px;color:#9CA3AF">{{ heroFollowSub }}</div>
+            </div>
+          </div>
+        </header>
+
+        <!-- ===== EMPTY STATE ===== -->
+        <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+          <section style="overflow:hidden;border-radius:13px;border:1px solid #1E1E24;background:#101013;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+            <div style="display:flex;min-height:340px;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:40px">
+              <div style="color:rgba(107,114,128,0.6)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h6m6 0h6"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:#6B7280">no leads imported</div>
+              <p style="margin:0;max-width:34ch;font-size:12px;line-height:1.6;color:rgba(107,114,128,0.7)">Leads start inactive until you log a call, visit, email, or follow-up.</p>
+              <button onClick="{{ onImport }}" style="margin-top:8px;display:inline-flex;height:36px;align-items:center;gap:8px;border-radius:8px;border:1px solid rgba(6,182,212,0.4);background:rgba(6,182,212,0.15);padding:0 16px;font-size:13px;font-weight:500;color:#06B6D4;cursor:pointer" style-hover="background:rgba(6,182,212,0.25);box-shadow:0 0 12px rgba(34,211,238,0.18)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0-12 4 4m-4-4-4 4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+                Import PeopleFinder CSV
+              </button>
+            </div>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ notEmpty }}" hint-placeholder-val="{{ true }}">
+
+        <!-- ===== FILTERS ===== -->
+        <section style="overflow:hidden;border-radius:13px;border:1px solid #1E1E24;background:#101013;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+          <div style="display:flex;flex-direction:column;gap:10px;padding:12px 20px 14px">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;border-radius:8px">
+              <sc-for list="{{ filters }}" as="f" hint-placeholder-count="6">
+                <button onClick="{{ f.click }}" style="{{ f.style }}">{{ f.label }}<span style="{{ f.countStyle }}">{{ f.count }}</span></button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+              <span style="margin-right:2px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">category</span>
+              <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="8">
+                <button onClick="{{ cat.click }}" style="{{ cat.style }}">{{ cat.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== LEAD TABLE ===== -->
+        <section data-screen-label="Lead table" style="overflow:hidden;border-radius:13px;border:1px solid #1E1E24;background:#101013;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+          <header style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(30,30,36,0.7);padding:12px 20px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#6B7280"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg></span>
+              <h2 style="margin:0;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;color:#9CA3AF">Leads</h2>
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6B7280">{{ rowCountLabel }}</span>
+          </header>
+          <div style="overflow-x:auto">
+            <div style="min-width:1380px">
+              <!-- column header -->
+              <div style="display:grid;grid-template-columns:46px minmax(180px,1.5fr) 148px minmax(104px,0.9fr) minmax(150px,1.2fr) 118px 46px 50px 38px 42px 84px minmax(140px,1fr) 32px;gap:10px;align-items:center;border-bottom:1px solid rgba(30,30,36,0.7);background:rgba(21,21,26,0.4);padding:7px 20px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.14em;color:#6B7280">
+                <span>Score</span><span>Venue</span><span>Stage</span><span>Category</span><span>Address</span><span>Biz phone</span><span>Rtg</span><span>Revs</span><span>Web</span><span>Notes</span><span>Contacts</span><span>Next action</span><span></span>
+              </div>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                <div onClick="{{ r.open }}" style="display:grid;grid-template-columns:46px minmax(180px,1.5fr) 148px minmax(104px,0.9fr) minmax(150px,1.2fr) 118px 46px 50px 38px 42px 84px minmax(140px,1fr) 32px;gap:10px;align-items:center;border-bottom:1px solid rgba(30,30,36,0.5);padding:9px 20px;cursor:pointer;transition:background 0.12s" style-hover="background:rgba(255,255,255,0.03)">
+                  <span style="{{ r.scoreStyle }}">{{ r.score }}</span>
+                  <span style="min-width:0">
+                    <span style="display:flex;align-items:center;gap:6px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;color:#E5E7EB">{{ r.venue }}</span><span style="{{ r.activeStyle }}">{{ r.activeLabel }}</span></span>
+                    <span style="display:block;margin-top:2px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#6B7280">{{ r.cluster }}</span>
+                  </span>
+                  <span onClick="{{ stop }}"><select value="{{ r.stage }}" onChange="{{ r.onStage }}" style="{{ r.stageStyle }}">
+                    <sc-for list="{{ stages }}" as="sg"><option value="{{ sg.key }}">{{ sg.label }}</option></sc-for>
+                  </select></span>
+                  <span><span style="{{ r.catStyle }}">{{ r.catShort }}</span></span>
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:#6B7280">{{ r.address }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#9CA3AF">{{ r.phone }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-variant-numeric:tabular-nums;color:{{ r.ratingColor }}">{{ r.rating }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#6B7280">{{ r.reviews }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:{{ r.webColor }}">{{ r.webLabel }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6B7280">{{ r.notesLabel }}</span>
+                  <span style="display:flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10.5px"><span style="color:#9CA3AF">{{ r.contactLabel }}</span><span style="{{ r.untestedStyle }}">{{ r.untestedLabel }}</span></span>
+                  <span style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:#E5E7EB">{{ r.next }}</span><span style="display:block;margin-top:1px;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:{{ r.nextColor }}">{{ r.nextDue }}</span></span>
+                  <span style="display:flex;justify-content:flex-end;color:#6B7280"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:32px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#6B7280">no leads match the current filters</div>
+              </sc-if>
+            </div>
+          </div>
+        </section>
+
+        </sc-if>
+        </sc-if>
+
+        <!-- ================= FULL-SCREEN LEAD DETAIL ================= -->
+        <sc-if value="{{ hasDrawer }}" hint-placeholder-val="{{ false }}">
+          <div data-screen-label="Lead detail" style="display:flex;flex-direction:column;gap:16px;animation:fade-in 0.25s ease-out">
+
+            <!-- back bar -->
+            <div style="display:flex;align-items:center;gap:12px">
+              <button onClick="{{ close }}" style="display:inline-flex;height:32px;align-items:center;gap:8px;border-radius:8px;border:1px solid #1E1E24;background:rgba(21,21,26,0.6);padding:0 12px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9CA3AF;cursor:pointer" style-hover="border-color:rgba(6,182,212,0.5);color:#06B6D4">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7M5 12h14"></path></svg>
+                back to leads
+              </button>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;color:#6B7280">leads / <span style="color:#06B6D4">{{ d.venue }}</span></span>
+            </div>
+
+            <!-- summary band -->
+            <header style="position:relative;overflow:hidden;border-radius:13px;border:1px solid #1E1E24;background:rgba(16,16,19,0.6);padding:20px 24px" style-after="content:'';position:absolute;top:0;left:12px;right:12px;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,0.25),transparent);opacity:0.6">
+              <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px">
+                <div style="min-width:0">
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:#E5E7EB">{{ d.venue }}</h1>
+                    <span style="{{ d.scoreStyle }}">{{ d.score }}</span>
+                    <span style="{{ d.activeStyle }}">{{ d.activeLabel }}</span>
+                  </div>
+                  <div style="margin-top:5px;font-size:13px;color:#9CA3AF">{{ d.address }}</div>
+                  <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+                    <span style="{{ d.catStyle }}">{{ d.category }}</span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;border-radius:99px;border:1px solid #1E1E24;padding:1px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF">{{ d.cluster }}</span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;border-radius:99px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.1);padding:1px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#F59E0B">best visit {{ d.window }}</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-shrink:0;flex-wrap:wrap;align-items:center;gap:10px">
+                  <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(10,10,11,0.5);padding:8px 12px;min-width:130px"><div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">venue phone</div><div style="margin-top:2px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9CA3AF">{{ d.phone }}</div></div>
+                  <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(10,10,11,0.5);padding:8px 12px;min-width:130px;max-width:200px"><div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">website</div><div style="margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ d.webColor }}">{{ d.web }}</div></div>
+                  <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.7);background:rgba(10,10,11,0.5);padding:8px 12px"><div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.18em;color:#6B7280">stage</div><div style="margin-top:3px"><select value="{{ d.stage }}" onChange="{{ d.onStage }}" style="{{ d.stageStyle }}"><sc-for list="{{ stages }}" as="sg"><option value="{{ sg.key }}">{{ sg.label }}</option></sc-for></select></div></div>
+                </div>
+              </div>
+            </header>
+
+            <!-- two-column body -->
+            <div style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px;align-items:start">
+
+              <!-- LEFT: contacts + phone selector -->
+              <div style="min-width:0;border-radius:13px;border:1px solid #1E1E24;background:#101013;overflow:hidden;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(30,30,36,0.7);padding:10px 18px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.14em;color:#9CA3AF">01 · contacts &amp; phone selector</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#22C55E">{{ d.untestedSummary }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:14px;padding:16px 18px">
+                  <sc-if value="{{ d.noContacts }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:24px 0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.1em;color:rgba(107,114,128,0.7)">no contacts found — needs owner lookup</div>
+                  </sc-if>
+                  <sc-for list="{{ d.contacts }}" as="c" hint-placeholder-count="2">
+                    <div style="border-radius:8px;border:1px solid rgba(30,30,36,0.8);background:rgba(21,21,26,0.3);padding:14px">
+                      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                        <span style="font-size:14px;font-weight:600;color:#E5E7EB">{{ c.name }}</span>
+                        <span style="{{ c.titleStyle }}">{{ c.title }}</span>
+                        <span style="{{ c.confStyle }}">{{ c.conf }}</span>
+                      </div>
+                      <div style="margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#6B7280">{{ c.source }}</div>
+
+                      <!-- phones -->
+                      <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px">
+                        <sc-for list="{{ c.phones }}" as="p" hint-placeholder-count="2">
+                          <div style="{{ p.rowStyle }}">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                              <div style="display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap">
+                                <span style="{{ p.numStyle }}">{{ p.number }}</span>
+                                <sc-if value="{{ p.best }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;border-radius:4px;border:1px solid rgba(34,211,238,0.5);background:rgba(6,182,212,0.15);padding:1px 5px;font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:0.1em;color:#22D3EE">CALL NEXT</span></sc-if>
+                                <span style="{{ p.chipStyle }}">{{ p.statusLabel }}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#6B7280">{{ p.meta }}</span>
+                              </div>
+                              <div style="display:flex;flex-shrink:0;align-items:center;gap:6px">
+                                <button onClick="{{ p.markGood }}" title="Mark good number" aria-label="Mark good number" style="{{ p.goodBtnStyle }}" style-hover="background:rgba(34,197,94,0.25)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5.5 5.5L20 6.5"></path></svg></button>
+                                <button onClick="{{ p.markBad }}" title="Mark bad number — stays visible, crossed out" aria-label="Mark bad number" style="{{ p.badBtnStyle }}" style-hover="background:rgba(239,68,68,0.25)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+                              </div>
+                            </div>
+                            <div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:4px">
+                              <sc-for list="{{ p.outcomes }}" as="o" hint-placeholder-count="4">
+                                <button onClick="{{ o.click }}" style="{{ o.style }}" style-hover="border-color:rgba(6,182,212,0.5);color:#E5E7EB">{{ o.label }}</button>
+                              </sc-for>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+
+                      <!-- emails (secondary) -->
+                      <sc-if value="{{ c.hasEmails }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-top:12px;border-top:1px dashed rgba(30,30,36,0.9);padding-top:9px">
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8.5px;text-transform:uppercase;letter-spacing:0.18em;color:rgba(107,114,128,0.7)">emails · secondary channel</div>
+                          <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px">
+                            <sc-for list="{{ c.emails }}" as="em" hint-placeholder-count="1">
+                              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                                <span style="{{ em.style }}">{{ em.addr }}</span>
+                                <select value="{{ em.status }}" onChange="{{ em.onStatus }}" style="{{ em.selStyle }}">
+                                  <option value="untested">untested</option><option value="emailed">emailed</option><option value="replied">replied</option><option value="bounced">bounced</option><option value="wrong_person">wrong person</option><option value="do_not_email">do not email</option>
+                                </select>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <!-- RIGHT: notes, next action, timeline -->
+              <div style="min-width:0;display:flex;flex-direction:column;gap:16px">
+
+                <!-- venue notes -->
+                <div style="border-radius:13px;border:1px solid #1E1E24;background:#101013;overflow:hidden;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+                  <div style="border-bottom:1px solid rgba(30,30,36,0.7);padding:10px 18px;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.14em;color:#9CA3AF">02 · venue notes</div>
+                  <div style="padding:12px 18px 14px">
+                    <textarea value="{{ d.notes }}" onChange="{{ d.onNotes }}" rows="{{ 3 }}" style="width:100%;box-sizing:border-box;resize:vertical;border-radius:8px;border:1px solid #1E1E24;background:#0A0A0B;padding:8px 10px;font-size:12px;line-height:1.5;color:#E5E7EB;outline:none" style-focus="border-color:rgba(6,182,212,0.5)"></textarea>
+                  </div>
+                </div>
+
+                <!-- next action -->
+                <div style="border-radius:13px;border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.04);overflow:hidden">
+                  <div style="border-bottom:1px solid rgba(6,182,212,0.2);padding:10px 18px;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.14em;color:#06B6D4">03 · next action</div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:12px 18px 14px">
+                    <input value="{{ d.next }}" onChange="{{ d.onNext }}" style="flex:1;min-width:0;border-radius:8px;border:1px solid #1E1E24;background:#0A0A0B;padding:8px 10px;font-size:12.5px;color:#E5E7EB;outline:none" style-focus="border-color:rgba(6,182,212,0.5)" />
+                    <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;border-radius:99px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.1);padding:2px 9px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#F59E0B">{{ d.nextDue }}</span>
+                  </div>
+                </div>
+
+                <!-- timeline -->
+                <div style="border-radius:13px;border:1px solid #1E1E24;background:#101013;overflow:hidden;box-shadow:0 1px 0 0 rgba(255,255,255,0.02) inset,0 2px 20px rgba(0,0,0,0.4)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(30,30,36,0.7);padding:10px 18px">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.14em;color:#9CA3AF">04 · touchpoint timeline</span>
+                    <div style="display:flex;gap:4px">
+                      <button onClick="{{ d.logVisit }}" style="border-radius:6px;border:1px solid #1E1E24;background:transparent;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:#9CA3AF;cursor:pointer" style-hover="border-color:rgba(6,182,212,0.5);color:#06B6D4">+ visit</button>
+                      <button onClick="{{ d.logNote }}" style="border-radius:6px;border:1px solid #1E1E24;background:transparent;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:#9CA3AF;cursor:pointer" style-hover="border-color:rgba(6,182,212,0.5);color:#06B6D4">+ note</button>
+                      <button onClick="{{ d.logFollow }}" style="border-radius:6px;border:1px solid #1E1E24;background:transparent;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:#9CA3AF;cursor:pointer" style-hover="border-color:rgba(6,182,212,0.5);color:#06B6D4">+ follow-up</button>
+                    </div>
+                  </div>
+                  <div style="padding:16px 18px">
+                    <sc-if value="{{ d.hasTimeline }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;flex-direction:column">
+                        <sc-for list="{{ d.timeline }}" as="t" hint-placeholder-count="3">
+                          <div style="position:relative;display:flex;gap:12px;padding-bottom:14px" style-before="content:'';position:absolute;left:26px;top:22px;bottom:0;width:1px;background:rgba(30,30,36,0.9)">
+                            <span style="{{ t.iconStyle }}">{{ t.icon }}</span>
+                            <div style="min-width:0;flex:1;padding-top:1px">
+                              <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px">
+                                <span style="font-size:12px;font-weight:600;color:#E5E7EB">{{ t.outcome }}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:{{ t.actorColor }}">{{ t.actor }}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#6B7280">{{ t.ts }}</span>
+                              </div>
+                              <sc-if value="{{ t.notes }}" hint-placeholder-val="{{ false }}"><div style="margin-top:3px;font-size:11.5px;line-height:1.5;color:#9CA3AF">{{ t.notes }}</div></sc-if>
+                              <sc-if value="{{ t.next }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;border-radius:6px;border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.08);padding:2px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#F59E0B">→ {{ t.next }}</div></sc-if>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ d.noTimeline }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:12px 0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.1em;color:rgba(107,114,128,0.7)">no touchpoints yet — lead stays not active until one is logged</div>
+                    </sc-if>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </main>
+
+    <!-- ticker footer -->
+    <footer style="flex-shrink:0;border-top:1px solid rgba(30,30,36,0.7);background:rgba(10,10,11,0.8)">
+      <div style="display:flex;height:32px;align-items:center;padding:0 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(107,114,128,0.6)">
+        <span style="margin-right:8px;display:inline-block;height:6px;width:6px;border-radius:99px;background:rgba(6,182,212,0.4)"></span>
+        {{ tickerText }}
+      </div>
+    </footer>
+  </div>
+</div>
+
+</x-dc>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/x-dc" data-dc-script data-props="{&quot;showEmptyState&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Prototype states&quot;}, &quot;friendName&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Dev&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Prototype states&quot;}}">
+class Component extends DCLogic {
+  state = { leads: null, query: "", filter: "all", cats: [], sel: null, imported: false };
+
+  componentDidMount() {
+    if (!this.state.leads) this.setState({ leads: this.seed() });
+  }
+
+  // ---------- mock/seed data (PROTOTYPE ONLY) ----------
+  seed() {
+    const friend = this.props.friendName ?? "Dev";
+    return [
+      {
+        id: 1, score: 86, venue: "Lucky Star Convenience", cluster: "LEX-01 · weekend route", stage: "call_queue", active: false,
+        category: "Convenience", address: "116 Example Street, Springfield ZZ", phone: "(781) 555-0107",
+        rating: 4.6, reviews: 214, web: "venue.example", window: "7-10 PM", tags: ["weekend", "pm"],
+        notes: "Counter space right of register. Kids traffic after 3pm from Diamond MS. Owner on-site evenings per Yelp reply.",
+        next: "Call Minh on best line, ask for 5 min pitch", nextDue: "due Thu · 7-10 PM",
+        contacts: [
+          { name: "Minh Tran", title: "Owner", conf: "high", source: "PeopleFinder · property record + LLC filing match",
+            phones: [
+              { number: "(781) 555-0142", status: "untested", meta: "mobile · PF primary" },
+              { number: "(617) 555-8830", status: "no_answer", meta: "mobile · PF alt" },
+              { number: "(781) 555-2291", status: "bad", meta: "landline · disconnected" },
+            ],
+            emails: [
+              { addr: "contact@example.com", status: "untested" },
+              { addr: "owner@example.com", status: "emailed" },
+            ] },
+          { name: "Priya Patel", title: "Needs Review", conf: "review", source: "PeopleFinder · same-address hit, possible co-owner",
+            phones: [
+              { number: "(857) 555-1176", status: "untested", meta: "mobile · unverified" },
+              { number: "(781) 555-0033", status: "wrong_person", meta: "reached a P. Patel — realtor" },
+            ],
+            emails: [ { addr: "contact1@example.com", status: "untested" } ] },
+        ],
+        timeline: [
+          { type: "call", actor: "Arjun", ts: "Jul 5 · 8:12 PM", outcome: "Call — no answer", notes: "(617) 555-8830, rang out. Try primary next.", next: null },
+          { type: "vm", actor: "Arjun", ts: "Jul 5 · 8:14 PM", outcome: "Left voicemail", notes: "Short pitch VM on store line. Mentioned Pokemon machine, rev share.", next: "Call Minh Thu 7-10 PM" },
+          { type: "note", actor: friend, ts: "Jul 4 · 5:40 PM", outcome: "Drive-by note", notes: "Busy at 5:30pm, lots of families. Good corner by the ATM for a machine.", next: null },
+        ],
+      },
+      {
+        id: 2, score: 74, venue: "7-Eleven #23114", cluster: "LEX-01", stage: "new", active: false,
+        category: "7-Eleven / Franchise C-store", address: "112 Example Street, Springfield ZZ", phone: "(781) 555-0199",
+        rating: 3.9, reviews: 88, web: null, window: "7-9 AM", tags: ["am"],
+        notes: "Franchisee-owned per PF. Corporate friction low if franchisee signs.",
+        next: "Find franchisee cell — 2 untested numbers", nextDue: "unscheduled",
+        contacts: [
+          { name: "Sanjay Gupta", title: "Franchisee", conf: "medium", source: "PeopleFinder · franchise registry cross-ref",
+            phones: [
+              { number: "(339) 555-4471", status: "untested", meta: "mobile · PF primary" },
+              { number: "(781) 555-6203", status: "untested", meta: "landline · home" },
+            ],
+            emails: [ { addr: "contact2@example.com", status: "untested" } ] },
+        ],
+        timeline: [],
+      },
+      {
+        id: 3, score: 68, venue: "Alewife Gas & Go", cluster: "CAM-02", stage: "contacted", active: true,
+        category: "Gas + Convenience", address: "120 Example Street, Springfield ZZ", phone: "(617) 555-0245",
+        rating: 4.1, reviews: 131, web: null, window: "7-10 PM", tags: ["pm"],
+        notes: "Manager friendly, said owner comes in evenings. Space near coffee station.",
+        next: "Ask for Farid directly on next call", nextDue: "due Wed · 7-10 PM",
+        contacts: [
+          { name: "Farid Aziz", title: "Owner", conf: "medium", source: "PeopleFinder · business license match",
+            phones: [
+              { number: "(617) 555-7742", status: "reached_manager", meta: "store line" },
+              { number: "(508) 555-9914", status: "untested", meta: "mobile · PF alt" },
+            ],
+            emails: [ { addr: "manager@example.com", status: "emailed" } ] },
+        ],
+        timeline: [
+          { type: "call", actor: "Arjun", ts: "Jul 3 · 7:45 PM", outcome: "Reached manager", notes: "Manager Nick — said Farid decides, in most evenings.", next: "Ask for Farid directly" },
+        ],
+      },
+      {
+        id: 4, score: 91, venue: "H Mart Central Sq", cluster: "CAM-02 · walk-in", stage: "visit_queue", active: false,
+        category: "Grocery / Specialty Market", address: "124 Example Street, Springfield ZZ", phone: "(617) 555-0378",
+        rating: 4.5, reviews: 1892, web: "hmart.com", window: "7-9 AM", tags: ["am", "weekend"],
+        notes: "Huge Pokemon buyer fit — students + families. Store manager can escalate to regional. Easy walk-in from Red Line.",
+        next: "Walk in Sat AM, ask for store manager Kim", nextDue: "due Sat · 7-9 AM",
+        contacts: [
+          { name: "Unknown — store manager \"Kim\"", title: "Needs Review", conf: "review", source: "Yelp review mention · needs owner lookup",
+            phones: [ { number: "(617) 555-0378", status: "untested", meta: "store line only" } ],
+            emails: [] },
+        ],
+        timeline: [],
+      },
+      {
+        id: 5, score: 82, venue: "a bowling venueing & Arcade", cluster: "ARL-03", stage: "interested", active: true,
+        category: "Arcade / Bowling / Family Entertainment", address: "114 Example Street, Springfield ZZ", phone: "(781) 555-0412",
+        rating: 4.3, reviews: 542, web: "bowling.example.com", window: "7-10 PM", tags: ["pm", "weekend"],
+        notes: "GM loved the idea next to prize counter. Wants rev-share numbers in writing.",
+        next: "Send one-pager, then visit Fri night", nextDue: "due Fri · 7-10 PM",
+        contacts: [
+          { name: "Tony Marchetti", title: "GM / Operator", conf: "high", source: "Met in person · card exchanged",
+            phones: [ { number: "(781) 555-8821", status: "reached_owner", meta: "direct cell" } ],
+            emails: [ { addr: "owner@bowling.example.com", status: "replied" } ] },
+        ],
+        timeline: [
+          { type: "visit", actor: "Arjun", ts: "Jul 1 · 8:30 PM", outcome: "In-person visit — interested", notes: "Walked the floor with Tony. Spot by prize counter has power.", next: "Send rev-share one-pager" },
+          { type: "email", actor: "Arjun", ts: "Jul 2 · 10:02 AM", outcome: "Email sent — one-pager", notes: "Sent placement terms. Tony replied same day asking about restock cadence.", next: null },
+        ],
+      },
+      {
+        id: 6, score: 88, venue: "TCG Vault Cards & Collectibles", cluster: "LEX-01 · walk-in", stage: "follow_up", active: true,
+        category: "Toy / Card / Hobby", address: "128 Example Street, Springfield ZZ", phone: "(781) 555-0533",
+        rating: 4.8, reviews: 167, web: "tcgvault.shop", window: "7-10 PM", tags: ["pm"],
+        notes: "Owner already sells singles — machine could cannibalize. He floated a consignment split instead.",
+        next: "Follow up on consignment vs flat rent", nextDue: "overdue · Jul 5",
+        contacts: [
+          { name: "Marcus Webb", title: "Owner", conf: "high", source: "PeopleFinder · exact match, verified on call",
+            phones: [
+              { number: "(781) 555-3390", status: "reached_owner", meta: "mobile · verified" },
+              { number: "(617) 555-1284", status: "dnc", meta: "asked to use mobile only" },
+            ],
+            emails: [ { addr: "marcus@tcgvault.shop", status: "emailed" } ] },
+        ],
+        timeline: [
+          { type: "call", actor: "Arjun", ts: "Jun 28 · 7:20 PM", outcome: "Reached owner", notes: "20 min call. Open but wants consignment split, not rent.", next: "Follow up Jul 5" },
+          { type: "followup", actor: friend, ts: "Jul 5 · 6:00 PM", outcome: "Follow-up attempted", notes: "No answer, didn't leave VM (second VM feels pushy).", next: "Retry Jul 7 evening" },
+        ],
+      },
+      {
+        id: 7, score: 61, venue: "Kung Fu Tea Lexington", cluster: "LEX-01", stage: "new", active: false,
+        category: "Dessert / Bubble Tea / Pizza", address: "118 Example Street, Springfield ZZ", phone: "(781) 555-0688",
+        rating: 4.2, reviews: 305, web: "kungfutea.com", window: "7-10 PM", tags: ["pm", "weekend"],
+        notes: "Franchise — need local franchisee, not corporate. Teen traffic strong.",
+        next: "Owner lookup — no contact found yet", nextDue: "unscheduled",
+        contacts: [],
+        timeline: [],
+      },
+      {
+        id: 8, score: 44, venue: "Liquor World", cluster: "ARL-03", stage: "no", active: true,
+        category: "Smoke / Vape / Liquor", address: "126 Example Street, Springfield ZZ", phone: "(781) 555-0721",
+        rating: 4.0, reviews: 96, web: null, window: "7-10 PM", tags: ["pm"],
+        notes: "Owner said no — 21+ floor policy, doesn't want kids lingering.",
+        next: "None — closed out", nextDue: "closed",
+        contacts: [
+          { name: "Dmitri Volkov", title: "Owner", conf: "high", source: "PeopleFinder · verified on call",
+            phones: [ { number: "(781) 555-5512", status: "reached_owner", meta: "mobile" } ],
+            emails: [] },
+        ],
+        timeline: [
+          { type: "call", actor: "Arjun", ts: "Jun 25 · 8:05 PM", outcome: "Reached owner — declined", notes: "Hard no. Keep for reference, don't re-contact.", next: null },
+        ],
+      },
+      {
+        id: 9, score: 57, venue: "Star Market Belmont", cluster: "BEL-04", stage: "hold", active: false,
+        category: "Grocery / Specialty Market", address: "122 Example Street, Springfield ZZ", phone: "(617) 555-0804",
+        rating: 4.0, reviews: 421, web: "starmarket.com", window: "7-9 AM", tags: ["am"],
+        notes: "Corporate chain — approval friction high. Hold unless regional contact appears.",
+        next: "Hold — corporate approval needed", nextDue: "hold",
+        contacts: [],
+        timeline: [],
+      },
+    ];
+  }
+
+  // ---------- constants ----------
+  get C() {
+    return { accent: "#06B6D4", glow: "#22D3EE", healthy: "#22C55E", warn: "#F59E0B", error: "#EF4444", off: "#4B5563", txtP: "#E5E7EB", txtM: "#9CA3AF", txtF: "#6B7280", border: "#1E1E24", mono: "'JetBrains Mono',monospace" };
+  }
+  stages() {
+    return [
+      { key: "new", label: "New", color: this.C.txtM },
+      { key: "call_queue", label: "Call Queue", color: this.C.accent },
+      { key: "visit_queue", label: "Visit Queue", color: this.C.accent },
+      { key: "contacted", label: "Contacted", color: this.C.txtP },
+      { key: "interested", label: "Interested", color: this.C.healthy },
+      { key: "follow_up", label: "Follow Up", color: this.C.warn },
+      { key: "no", label: "No", color: this.C.error },
+      { key: "placed", label: "Placed", color: this.C.healthy },
+      { key: "hold", label: "Hold", color: this.C.off },
+    ];
+  }
+  phoneStatuses() {
+    return {
+      untested: { label: "untested", tone: "healthy", usable: true },
+      good: { label: "good number", tone: "healthy", usable: true },
+      no_answer: { label: "no answer", tone: "warn", usable: true },
+      left_vm: { label: "left VM", tone: "warn", usable: true },
+      reached_owner: { label: "reached owner", tone: "healthy", usable: true },
+      reached_manager: { label: "reached mgr", tone: "accent", usable: true },
+      wrong_person: { label: "wrong person", tone: "off", usable: false },
+      bad: { label: "bad number", tone: "error", usable: false },
+      dnc: { label: "do not call", tone: "error", usable: false },
+    };
+  }
+
+  chip(tone, extra) {
+    const C = this.C;
+    const map = {
+      muted: [C.txtM, C.border, "transparent"],
+      accent: [C.accent, "rgba(6,182,212,0.4)", "rgba(6,182,212,0.1)"],
+      healthy: [C.healthy, "rgba(34,197,94,0.4)", "rgba(34,197,94,0.1)"],
+      warn: [C.warn, "rgba(245,158,11,0.4)", "rgba(245,158,11,0.1)"],
+      error: [C.error, "rgba(239,68,68,0.4)", "rgba(239,68,68,0.1)"],
+      off: [C.off, "rgba(75,85,99,0.4)", "rgba(75,85,99,0.1)"],
+    };
+    const [color, border, background] = map[tone] || map.muted;
+    return Object.assign({ display: "inline-flex", alignItems: "center", gap: 4, borderRadius: 999, border: "1px solid " + border, background, padding: "1px 8px", fontFamily: this.C.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color, whiteSpace: "nowrap" }, extra || {});
+  }
+
+  scoreTone(s) { return s >= 80 ? "healthy" : s >= 60 ? "accent" : s >= 45 ? "warn" : "off"; }
+
+  save() { this.setState({ leads: this.state.leads }); }
+  touch(lead, entry) {
+    lead.timeline = [{ actor: "Arjun", ts: "Just now", ...entry }, ...lead.timeline];
+    lead.active = true;
+    this.save();
+  }
+  untestedCount(lead) {
+    let n = 0;
+    for (const c of lead.contacts) for (const p of c.phones) if (p.status === "untested" || p.status === "good") n++;
+    return n;
+  }
+
+  matches(l) {
+    const q = this.state.query.trim().toLowerCase();
+    if (q && !(l.venue + " " + l.address + " " + l.category).toLowerCase().includes(q)) return false;
+    if (this.state.cats.length && !this.state.cats.includes(l.category)) return false;
+    const f = this.state.filter;
+    if (f === "not_active" && l.active) return false;
+    if (f === "active" && !l.active) return false;
+    if (f === "call_queue" && l.stage !== "call_queue") return false;
+    if (f === "visit_queue" && l.stage !== "visit_queue") return false;
+    if (f === "untested" && this.untestedCount(l) === 0) return false;
+    if (f === "weekend" && !l.tags.includes("weekend")) return false;
+    if (f === "pm" && l.window !== "7-10 PM") return false;
+    if (f === "am" && l.window !== "7-9 AM") return false;
+    return true;
+  }
+
+  // ---------- render ----------
+  renderVals() {
+    const C = this.C;
+    const leads = this.state.leads || [];
+    const stages = this.stages();
+    const stMap = Object.fromEntries(stages.map((s) => [s.key, s]));
+    const pStat = this.phoneStatuses();
+    const stop = (e) => e.stopPropagation();
+
+    const showEmpty = (this.props.showEmptyState ?? false) && !this.state.imported;
+    const pool = showEmpty ? [] : leads;
+
+    // nav rail
+    const navDefs = [
+      ["Home", "M3 10.5 12 3l9 7.5", "M5 9.5V21h14V9.5"],
+      ["Agents", "M12 4v3m-6 3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z", "M9 14h.01M15 14h.01"],
+      ["Email", "M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z", "m3 7 9 6 9-6"],
+      ["Calendar", "M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z", "M8 3v4m8-4v4M4 10h16"],
+      ["Vending", "M4 4h7v7H4Zm9 0h7v7h-7Z", "M4 13h7v7H4Zm9 0h7v7h-7Z"],
+      ["Pokemon CRM", "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18ZM3 12h6m6 0h6", "M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z", true],
+      ["Ad Agency", "M4 8h16v11H4Zm0 0 2-4 3 4m1-4 3 4m1-4 3 4", ""],
+      ["School", "m12 4 10 5-10 5L2 9Z", "M6 11.5V17c2 1.5 10 1.5 12 0v-5.5"],
+      ["Health", "M3 12h4l2-6 4 12 2-6h6", ""],
+      ["Connections", "M9 7V3m6 4V3M8 7h8v5a4 4 0 0 1-8 0Z", "M12 16v5"],
+      ["Projects", "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z", "M8 13a2 2 0 1 0 4 0"],
+      ["Terminal", "m5 8 4 4-4 4", "M12 17h7"],
+      ["Files", "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z", ""],
+      ["Accounts", "M9 15a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1", "M15 9a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1"],
+    ];
+    const navItems = navDefs.map(([label, d, d2, active]) => ({
+      label, d, d2: d2 || "M0 0", active: !!active, sw: active ? 2.2 : 1.8,
+      badge: label === "Email" ? "12" : null,
+      style: {
+        position: "relative", display: "flex", height: 40, alignItems: "center", gap: 12, padding: "0 12px", borderRadius: 8, cursor: "pointer",
+        background: active ? "rgba(6,182,212,0.1)" : "transparent", color: active ? C.accent : C.txtM,
+      },
+    }));
+
+    // hero
+    const activeN = pool.filter((l) => l.active).length;
+    const untestedN = pool.reduce((n, l) => n + this.untestedCount(l), 0);
+    const followN = pool.filter((l) => l.stage === "follow_up" || String(l.nextDue).startsWith("overdue")).length;
+
+    // filters
+    const filterDefs = [
+      ["all", "All"], ["not_active", "Not Active"], ["active", "Active"], ["call_queue", "Call Queue"], ["visit_queue", "Visit Queue"],
+      ["untested", "Has Untested #s"], ["weekend", "Weekend Route"], ["pm", "7-10 PM"], ["am", "7-9 AM"],
+    ];
+    const countFor = (key) => { const prev = this.state.filter; this.state.filter = key; const n = pool.filter((l) => this.matches(l)).length; this.state.filter = prev; return n; };
+    const filters = filterDefs.map(([key, label]) => {
+      const on = this.state.filter === key;
+      return {
+        label, count: String(countFor(key)), click: () => this.setState({ filter: key }),
+        style: { display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 6, border: "1px solid " + (on ? "rgba(6,182,212,0.4)" : "transparent"), background: on ? "rgba(6,182,212,0.15)" : "transparent", padding: "4px 10px", fontFamily: C.mono, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: on ? C.accent : C.txtM, cursor: "pointer" },
+        countStyle: { fontFamily: C.mono, fontSize: 9.5, color: on ? C.glow : C.txtF, opacity: 0.9 },
+      };
+    });
+
+    const catDefs = ["Convenience", "7-Eleven / Franchise C-store", "Gas + Convenience", "Grocery / Specialty Market", "Arcade / Bowling / Family Entertainment", "Toy / Card / Hobby", "Dessert / Bubble Tea / Pizza", "Smoke / Vape / Liquor"];
+    const cats = catDefs.map((label) => {
+      const on = this.state.cats.includes(label);
+      return {
+        label, click: () => this.setState({ cats: on ? this.state.cats.filter((x) => x !== label) : [...this.state.cats, label] }),
+        style: { borderRadius: 999, border: "1px solid " + (on ? "rgba(6,182,212,0.5)" : C.border), background: on ? "rgba(6,182,212,0.12)" : "rgba(21,21,26,0.4)", padding: "2px 10px", fontSize: 11, color: on ? C.accent : C.txtM, cursor: "pointer", whiteSpace: "nowrap" },
+      };
+    });
+
+    // table rows
+    const catShorts = { "Convenience": "Convenience", "7-Eleven / Franchise C-store": "7-11 / Franchise", "Gas + Convenience": "Gas + C-store", "Grocery / Specialty Market": "Grocery", "Arcade / Bowling / Family Entertainment": "Arcade / FEC", "Toy / Card / Hobby": "Toy / Card", "Dessert / Bubble Tea / Pizza": "Dessert / Tea", "Smoke / Vape / Liquor": "Smoke / Liquor" };
+    const filtered = pool.filter((l) => this.matches(l)).sort((a, b) => b.score - a.score);
+    const stageSelStyle = (l) => ({ appearance: "none", WebkitAppearance: "none", width: "100%", borderRadius: 6, border: "1px solid " + C.border, background: "#0A0A0B", padding: "4px 8px", fontFamily: C.mono, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: stMap[l.stage].color, cursor: "pointer" });
+    const rows = filtered.map((l) => {
+      const un = this.untestedCount(l);
+      const nContacts = l.contacts.length;
+      const overdue = String(l.nextDue).startsWith("overdue");
+      return {
+        score: String(l.score), scoreStyle: this.chip(this.scoreTone(l.score), { justifyContent: "center", minWidth: 26, fontWeight: 700, fontSize: 11 }),
+        venue: l.venue, cluster: l.cluster,
+        activeLabel: l.active ? "active" : "not active",
+        activeStyle: this.chip(l.active ? "accent" : "off", { fontSize: 8.5, padding: "0px 6px", flexShrink: 0 }),
+        stage: l.stage, onStage: (e) => { l.stage = e.target.value; this.save(); }, stageStyle: stageSelStyle(l),
+        catShort: catShorts[l.category] || l.category, catStyle: this.chip("muted", { fontSize: 9, textTransform: "none", letterSpacing: 0 }),
+        address: l.address, phone: l.phone,
+        rating: l.rating.toFixed(1), ratingColor: l.rating >= 4.3 ? C.healthy : l.rating >= 4 ? C.txtM : C.warn,
+        reviews: String(l.reviews),
+        webLabel: l.web ? "yes ↗" : "—", webColor: l.web ? C.accent : C.txtF,
+        notesLabel: l.notes ? "1n" : "—",
+        contactLabel: nContacts + "c", untestedLabel: un + "#",
+        untestedStyle: { color: un > 0 ? C.healthy : C.txtF, fontWeight: un > 0 ? 700 : 400 },
+        next: l.next, nextDue: l.nextDue, nextColor: overdue ? C.error : String(l.nextDue).startsWith("due") ? C.warn : C.txtF,
+        open: () => this.setState({ sel: l.id }),
+      };
+    });
+
+    // full-screen detail
+    const sel = pool.find((l) => l.id === this.state.sel);
+    let d = null;
+    if (sel) {
+      const outcomeDefs = [
+        ["No answer", "no_answer", "call", "Call — no answer"],
+        ["Left VM", "left_vm", "vm", "Left voicemail"],
+        ["Reached owner", "reached_owner", "call", "Reached owner"],
+        ["Reached mgr", "reached_manager", "call", "Reached manager"],
+        ["Wrong person", "wrong_person", "call", "Wrong person"],
+        ["Bad number", "bad", "note", "Marked bad number"],
+        ["Do not call", "dnc", "note", "Marked do not call"],
+      ];
+      const tlIcon = { call: ["CALL", "accent"], vm: ["VM", "warn"], note: ["NOTE", "muted"], email: ["MAIL", "muted"], visit: ["VISIT", "healthy"], followup: ["FLW", "warn"] };
+      const usableSeen = { v: false };
+      const iconBtn = (color, borderC, on) => ({ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, borderRadius: 999, border: "1px solid " + borderC, background: on ? borderC.replace("0.45", "0.2") : "transparent", color, cursor: "pointer", flexShrink: 0 });
+      d = {
+        venue: sel.venue, address: sel.address, category: sel.category, cluster: sel.cluster, window: sel.window,
+        score: "score " + sel.score, scoreStyle: this.chip(this.scoreTone(sel.score), { fontWeight: 700 }),
+        activeLabel: sel.active ? "active" : "not active", activeStyle: this.chip(sel.active ? "accent" : "off"),
+        catStyle: this.chip("accent", { textTransform: "none", letterSpacing: 0 }),
+        phone: sel.phone, web: sel.web || "none listed", webColor: sel.web ? C.accent : C.txtF,
+        stage: sel.stage, onStage: (e) => { sel.stage = e.target.value; this.save(); }, stageStyle: stageSelStyle(sel),
+        notes: sel.notes, onNotes: (e) => { sel.notes = e.target.value; this.save(); },
+        untestedSummary: this.untestedCount(sel) + " usable #",
+        noContacts: sel.contacts.length === 0,
+        contacts: sel.contacts.map((c) => ({
+          name: c.name,
+          title: c.title, titleStyle: this.chip(c.title === "Needs Review" ? "warn" : "accent", { textTransform: "none", letterSpacing: 0 }),
+          conf: c.conf === "high" ? "high confidence" : c.conf === "medium" ? "med confidence" : "needs review",
+          confStyle: this.chip(c.conf === "high" ? "healthy" : c.conf === "medium" ? "muted" : "warn", { fontSize: 8.5 }),
+          source: c.source,
+          hasEmails: c.emails.length > 0,
+          phones: c.phones.map((p) => {
+            const st = pStat[p.status];
+            const dead = !st.usable;
+            const best = st.usable && (p.status === "untested" || p.status === "good") && !usableSeen.v && (usableSeen.v = true);
+            return {
+              number: p.number, meta: p.meta,
+              best,
+              numStyle: { fontFamily: C.mono, fontSize: 14, fontWeight: 600, color: dead ? C.txtF : st.tone === "healthy" || p.status === "untested" ? C.healthy : C.txtP, textDecoration: dead ? "line-through" : "none", textDecorationColor: p.status === "bad" || p.status === "dnc" ? C.error : C.txtF, textDecorationThickness: "1.5px", whiteSpace: "nowrap" },
+              statusLabel: st.label, chipStyle: this.chip(st.tone, { fontSize: 8.5 }),
+              rowStyle: { borderRadius: 8, border: "1px solid " + (best ? "rgba(34,211,238,0.45)" : "rgba(30,30,36,0.9)"), background: best ? "rgba(6,182,212,0.06)" : dead ? "rgba(10,10,11,0.4)" : "rgba(10,10,11,0.6)", padding: "9px 11px", opacity: dead ? 0.55 : 1, boxShadow: best ? "0 0 12px rgba(34,211,238,0.12)" : "none" },
+              goodBtnStyle: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, borderRadius: 999, border: "1px solid rgba(34,197,94,0.45)", background: p.status === "good" ? "rgba(34,197,94,0.2)" : "transparent", color: C.healthy, cursor: "pointer", flexShrink: 0 },
+              badBtnStyle: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, borderRadius: 999, border: "1px solid rgba(239,68,68,0.45)", background: p.status === "bad" ? "rgba(239,68,68,0.2)" : "transparent", color: C.error, cursor: "pointer", flexShrink: 0 },
+              markGood: (e) => { e.stopPropagation(); p.status = "good"; this.save(); },
+              markBad: (e) => { e.stopPropagation(); p.status = "bad"; this.save(); },
+              outcomes: outcomeDefs.map(([label, status, type, outcome]) => ({
+                label,
+                style: { borderRadius: 5, border: "1px solid " + C.border, background: "transparent", padding: "2px 7px", fontFamily: C.mono, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.04em", color: p.status === status ? C.accent : C.txtF, cursor: "pointer" },
+                click: (e) => { e.stopPropagation(); p.status = status; this.touch(sel, { type, outcome, notes: p.number + " · " + label.toLowerCase(), next: null }); },
+              })),
+            };
+          }),
+          emails: c.emails.map((em) => {
+            const dead = em.status === "bounced" || em.status === "wrong_person" || em.status === "do_not_email";
+            return {
+              addr: em.addr, status: em.status,
+              style: { fontFamily: C.mono, fontSize: 11.5, color: dead ? C.txtF : em.status === "replied" ? C.healthy : C.txtM, textDecoration: dead ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis" },
+              selStyle: { appearance: "none", WebkitAppearance: "none", borderRadius: 5, border: "1px solid " + C.border, background: "#0A0A0B", padding: "2px 7px", fontFamily: C.mono, fontSize: 9.5, color: dead ? C.error : em.status === "replied" ? C.healthy : C.txtM, cursor: "pointer" },
+              onStatus: (e) => { const v = e.target.value; em.status = v; if (v === "emailed" || v === "replied") this.touch(sel, { type: "email", outcome: v === "replied" ? "Email reply received" : "Email logged", notes: em.addr, next: null }); else this.save(); },
+            };
+          }),
+        })),
+        hasTimeline: sel.timeline.length > 0, noTimeline: sel.timeline.length === 0,
+        timeline: sel.timeline.map((t) => {
+          const [icon, tone] = tlIcon[t.type] || tlIcon.note;
+          return {
+            icon, iconStyle: this.chip(tone, { flexShrink: 0, width: 40, justifyContent: "center", fontSize: 8.5, fontWeight: 700, borderRadius: 6, padding: "3px 0", zIndex: 1 }),
+            actor: "· " + t.actor, actorColor: t.actor === "Arjun" ? C.accent : C.glow,
+            ts: t.ts, outcome: t.outcome, notes: t.notes, next: t.next,
+          };
+        }),
+        logVisit: () => this.touch(sel, { type: "visit", outcome: "In-person visit", notes: "Logged from detail view (prototype)", next: null }),
+        logNote: () => this.touch(sel, { type: "note", outcome: "Manual note", notes: "Logged from detail view (prototype)", next: null }),
+        logFollow: () => this.touch(sel, { type: "followup", outcome: "Follow-up scheduled", notes: "Logged from detail view (prototype)", next: "Follow up this week" }),
+        next: sel.next, onNext: (e) => { sel.next = e.target.value; this.save(); }, nextDue: sel.nextDue,
+      };
+    }
+
+    return {
+      navItems, stages, stop,
+      topBarLabel: d ? "pokemon crm · lead detail" : "pokemon crm",
+      statusDotColor: untestedN > 0 ? C.healthy : C.off,
+      statusLabel: pool.length + " leads · " + activeN + " active",
+      heroAll: String(pool.length), heroAllSub: showEmpty ? "import a CSV to begin" : pool.length - activeN + " not active",
+      heroActive: String(activeN),
+      heroUntested: String(untestedN),
+      heroFollow: String(followN), heroFollowColor: followN > 0 ? C.warn : C.txtF, heroFollowSub: followN > 0 ? "incl. 1 overdue" : "nothing due",
+      query: this.state.query, onQuery: (e) => this.setState({ query: e.target.value }),
+      onImport: () => this.setState({ imported: true, leads: this.state.leads || this.seed() }),
+      empty: showEmpty, notEmpty: !showEmpty,
+      showList: !d,
+      filters, cats,
+      rows, rowCountLabel: rows.length + " of " + pool.length + " shown · sorted by score",
+      noResults: !showEmpty && rows.length === 0,
+      hasDrawer: !!d, d: d || {},
+      close: () => this.setState({ sel: null }),
+      tickerText: "20:14 pokemon-crm 2 touchpoints logged today · 20:02 pokemon-scout review packet ready · 19:48 vending machine LEX-A ok",
+    };
+  }
+}
+</script>
+</body>
+</html>
