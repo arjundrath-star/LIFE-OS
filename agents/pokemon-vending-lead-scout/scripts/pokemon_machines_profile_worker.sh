@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PROJECT_DIR="/home/Arjun/command-center/Pokemon Machines"
+RATH_DIR="/home/Arjun/rathworkspace"
 PROMPT_FILE="/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/profile-worker-prompt.md"
 RUN_ID="pokemon-leads-$(date -u +%Y%m%dT%H%M%SZ)"
 HERMES_BIN="${HERMES_BIN:-$(command -v hermes || true)}"
@@ -44,6 +45,10 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
   "$EVENT" context_loaded running "Loaded owner-first Pokemon context and initial prospect sheet" success >/dev/null
   POKEMON_USE_OSM_CACHE=1 "$GOOGLE_PY" "$SCRAPER" >/tmp/pokemon_lead_system_${RUN_ID}.json
   "$EVENT" sheet_build running "Built Pokemon vending MAIN and Active sheets" success >/dev/null
+  if [[ "${POKEMON_CRM_DB_SYNC:-1}" == "1" ]]; then
+    (cd "$RATH_DIR" && npm run import-pokemon-pipeline-crm -- "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv") >/tmp/pokemon_crm_import_${RUN_ID}.json
+    "$EVENT" crm_sync running "Synced Pokemon lead-agent output into Rathworkspace Pokemon CRM DB" success >/dev/null
+  fi
   "$EVENT" found running "Migrated initial leads and scraped at least 100 additional candidates" success >/dev/null
   "$GOOGLE_PY" "$SYNC" >/tmp/pokemon_drive_sync_${RUN_ID}.json
   "$EVENT" drive_sync running "Updated Drive copies in pokemon vending folder" success >/dev/null

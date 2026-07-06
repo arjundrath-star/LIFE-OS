@@ -13,16 +13,19 @@ Find and prepare review-only Pokemon / trading-card vending machine leads for Ar
 - `/home/Arjun/command-center/Pokemon Machines/drive_manifest.json`
 - Skill: `pokemon-vending-lead-scout`
 
-## Current sheet task
+## Current CRM-first task
 
-Use the owner-first lead system:
+Use the owner-first lead system, but treat Rathworkspace Pokemon CRM as the forward-looking source of truth for generated leads:
 
+- CRM route: `/pokemon-crm`
+- CRM tables: `pokemon_leads`, `pokemon_contacts`, `pokemon_phone_numbers`, `pokemon_emails`, `pokemon_touchpoints`, `pokemon_import_batches`
+- CRM import bridge: `/home/Arjun/rathworkspace/scripts/import-pokemon-pipeline-crm.ts`
 - MAIN: `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.xlsx`
 - Active: `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.xlsx`
 - Build/scrape script: `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py`
 - Drive sync script: `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py`
 
-The initial Cambridge/Lexington prospects should live in MAIN as migrated seed rows, not active rows. New scraper finds should also go to MAIN first. Active Leads are for user-selected leads or leads ready for outreach.
+The old MAIN/Active spreadsheets may remain as staging/Drive mirrors while the CRM migration stabilizes, but do not design new workflows around spreadsheets. Imported/generated venues start inactive in CRM. A lead becomes active only after a real touchpoint is logged: call, voicemail, email sent/logged, in-person visit, or follow-up note. Do not move leads to active just because the scraper found them.
 
 Owner focus:
 
@@ -55,9 +58,10 @@ For a standard run:
 1. Read the required context and emit `context_loaded`.
 2. Run `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py` from the project root to rebuild MAIN and Active local sheets.
 3. Verify MAIN has at least 139 rows: 39 initial seed rows plus at least 100 scraped rows.
-4. Run `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py` with `/home/Arjun/.hermes/google-venv/bin/python` to push/update Drive copies.
-5. Summarize row counts, source counts, owner-lookup status counts, walk-in priority counts, and Drive file IDs.
-6. Do not move any lead to Active unless Arjun explicitly selected it.
+4. Sync the generated MAIN CSV into Rathworkspace CRM with `cd /home/Arjun/rathworkspace && npm run import-pokemon-pipeline-crm -- "/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv"` unless explicitly disabled for a dry run.
+5. Run `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py` with `/home/Arjun/.hermes/google-venv/bin/python` to push/update Drive copies.
+6. Summarize CRM import counts, CRM lead counts, source counts, owner-lookup status counts, walk-in priority counts, and Drive file IDs.
+7. Do not mark any lead Active unless Arjun explicitly selected it or a real touchpoint was logged.
 
 ## Safety rules
 

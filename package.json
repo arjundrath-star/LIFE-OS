@@ -11,6 +11,7 @@
     "migrate": "tsx db/index.ts --migrate-only",
     "agent-event": "tsx scripts/agent-event.ts",
     "import-pokemon-crm": "tsx scripts/import-pokemon-crm.ts",
+    "import-pokemon-pipeline-crm": "tsx scripts/import-pokemon-pipeline-crm.ts",
     "rerank-pokemon-crm": "tsx scripts/rerank-pokemon-crm.ts"
   },
   "dependencies": {
