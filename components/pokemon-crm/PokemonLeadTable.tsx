@@ -33,7 +33,7 @@ export function PokemonLeadTable({
             "border-b border-border/70 bg-panel-2/40 px-5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-txt-faint"
           )}
         >
-          <span>Score</span>
+          <span>PK</span>
           <span>Venue</span>
           <span>Stage</span>
           <span>Category</span>
@@ -65,8 +65,8 @@ export function PokemonLeadTable({
               "cursor-pointer border-b border-border/50 px-5 py-2 transition-colors hover:bg-white/[0.03] focus-visible:bg-white/[0.04] focus-visible:outline-none"
             )}
           >
-            <Badge tone={scoreTone(l.vending_score)} className="min-w-[26px] justify-center font-bold">
-              {l.vending_score ?? "—"}
+            <Badge tone={scoreTone(l.pokemon_fit_score)} className="min-w-[26px] justify-center font-bold">
+              {l.pokemon_fit_score ?? "—"}
             </Badge>
             <span className="min-w-0">
               <span className="flex items-center gap-1.5">

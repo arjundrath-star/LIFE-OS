@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getDb, pushEvent } from "@/db";
+import { ownerAccessScore, pokemonFitScore } from "@/lib/pokemon-fit";
 
 const PHONE_RE = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
@@ -145,9 +146,11 @@ function main() {
     const insertLead = db.prepare(
       `INSERT INTO pokemon_leads
          (venue_name, category, address, city, state, website, venue_phone,
-          rating, reviews, vending_score, notes, source, source_batch_id, raw_json)
+          rating, reviews, vending_score, pokemon_fit_score, owner_access_score,
+          notes, source, source_batch_id, raw_json)
        VALUES (@venue_name, @category, @address, @city, @state, @website, @venue_phone,
-          @rating, @reviews, @vending_score, @notes, 'peoplefinder_csv', @batch_id, @raw_json)
+          @rating, @reviews, @vending_score, @pokemon_fit_score, @owner_access_score,
+          @notes, 'peoplefinder_csv', @batch_id, @raw_json)
        ON CONFLICT(venue_name, address) DO UPDATE SET
          category = excluded.category,
          city = excluded.city,
@@ -157,6 +160,8 @@ function main() {
          rating = excluded.rating,
          reviews = excluded.reviews,
          vending_score = excluded.vending_score,
+         pokemon_fit_score = excluded.pokemon_fit_score,
+         owner_access_score = excluded.owner_access_score,
          raw_json = excluded.raw_json,
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`
     );
@@ -196,21 +201,34 @@ function main() {
       const rating = parseFloat(col(r, "Rating"));
       const reviews = parseInt(col(r, "Reviews"), 10);
       const vendingScore = parseInt(col(r, "Vending Score"), 10);
+      const category = col(r, "Business Type") || null;
+      const cleanRating = Number.isFinite(rating) ? rating : null;
+      const cleanReviews = Number.isFinite(reviews) ? reviews : null;
+      const cleanVendingScore = Number.isFinite(vendingScore) ? vendingScore : null;
+      const fitInput = {
+        venue_name: venueName,
+        category,
+        vending_score: cleanVendingScore,
+        rating: cleanRating,
+        reviews: cleanReviews,
+      };
 
       // address stays a plain string ('' when blank): NULL would defeat both the
       // (venue_name, address) unique index (NULLs are distinct) and the = lookups.
       const existing = findLead.get(venueName, address) as { id: number } | undefined;
       insertLead.run({
         venue_name: venueName,
-        category: col(r, "Business Type") || null,
+        category,
         address,
         city: cityParts[0] || null,
         state: cityParts[1] || null,
         website: col(r, "Website") || null,
         venue_phone: normPhone(col(r, "Venue Phone")) || null,
-        rating: Number.isFinite(rating) ? rating : null,
-        reviews: Number.isFinite(reviews) ? reviews : null,
-        vending_score: Number.isFinite(vendingScore) ? vendingScore : null,
+        rating: cleanRating,
+        reviews: cleanReviews,
+        vending_score: cleanVendingScore,
+        pokemon_fit_score: pokemonFitScore(fitInput),
+        owner_access_score: ownerAccessScore(fitInput),
         notes: col(r, "Notes") || null,
         batch_id: batchId,
         raw_json: JSON.stringify(Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""]))),

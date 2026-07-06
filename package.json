@@ -10,7 +10,8 @@
     "lint": "next lint",
     "migrate": "tsx db/index.ts --migrate-only",
     "agent-event": "tsx scripts/agent-event.ts",
-    "import-pokemon-crm": "tsx scripts/import-pokemon-crm.ts"
+    "import-pokemon-crm": "tsx scripts/import-pokemon-crm.ts",
+    "rerank-pokemon-crm": "tsx scripts/rerank-pokemon-crm.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

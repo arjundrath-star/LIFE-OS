@@ -87,7 +87,8 @@ export function pokemonCrmSummary() {
 export function listLeads() {
   return all<any>(
     `SELECT l.id, l.venue_name, l.category, l.stage, l.active, l.address, l.city, l.state,
-            l.website, l.venue_phone, l.rating, l.reviews, l.vending_score, l.route_cluster,
+            l.website, l.venue_phone, l.rating, l.reviews, l.vending_score,
+            l.pokemon_fit_score, l.owner_access_score, l.route_cluster,
             l.best_visit_window, l.priority, l.next_action, l.next_action_due, l.notes,
             l.created_at, l.updated_at,
             (SELECT COUNT(*) FROM pokemon_contacts c WHERE c.lead_id = l.id) AS contact_count,
@@ -96,7 +97,8 @@ export function listLeads() {
             (SELECT COUNT(*) FROM pokemon_touchpoints t WHERE t.lead_id = l.id) AS touchpoint_count,
             (SELECT MAX(t.occurred_at) FROM pokemon_touchpoints t WHERE t.lead_id = l.id) AS last_touch_at
      FROM pokemon_leads l
-     ORDER BY (l.vending_score IS NULL), l.vending_score DESC, l.venue_name`
+     ORDER BY (l.pokemon_fit_score IS NULL), l.pokemon_fit_score DESC,
+              (l.vending_score IS NULL), l.vending_score DESC, l.venue_name`
   );
 }
 

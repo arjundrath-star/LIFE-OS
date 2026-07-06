@@ -45,6 +45,8 @@ export interface LeadRow {
   rating: number | null;
   reviews: number | null;
   vending_score: number | null;
+  pokemon_fit_score: number | null;
+  owner_access_score: number | null;
   route_cluster: string | null;
   best_visit_window: string | null;
   priority: string;

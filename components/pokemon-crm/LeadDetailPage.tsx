@@ -121,9 +121,14 @@ export function LeadDetailPage({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[22px] font-semibold tracking-tight text-txt-primary">{l.venue_name}</h1>
-              <Badge tone={scoreTone(l.vending_score)} className="font-bold">
-                score {l.vending_score ?? "—"}
+              <Badge tone={scoreTone(l.pokemon_fit_score)} className="font-bold">
+                PK score {l.pokemon_fit_score ?? "—"}
               </Badge>
+              {l.vending_score != null && (
+                <Badge tone="muted" className="!normal-case !tracking-normal">
+                  source vending {l.vending_score}
+                </Badge>
+              )}
               <Badge tone={l.active ? "accent" : "off"}>{l.active ? "active" : "not active"}</Badge>
             </div>
             <div className="mt-1 text-[13px] text-txt-muted">{l.address || "no address on file"}</div>
