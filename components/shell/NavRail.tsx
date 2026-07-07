@@ -16,6 +16,15 @@ function indicatorFor(item: NavItem, live: Live): Indicator | null {
   switch (item.key) {
     case "home":
       return { dot: { state: live.connStatus === "open" ? "live" : "warn", pulse: live.connStatus === "open" } };
+    case "kanban": {
+      const k = live.kanban;
+      if (!k) return { dot: { state: "off" } };
+      const blocked = k.stats?.blocked ?? 0;
+      const active = k.stats?.active ?? 0;
+      if (blocked > 0) return { badge: String(blocked), badgeTone: "warn" };
+      if (active > 0) return { badge: active > 99 ? "99+" : String(active), badgeTone: "accent" };
+      return { dot: { state: "off" } };
+    }
     case "agents": {
       const p = live.pulse;
       if (!p) return { dot: { state: "off" } };
@@ -47,6 +56,7 @@ function indicatorFor(item: NavItem, live: Live): Indicator | null {
 
 type Live = {
   pulse: any;
+  kanban: any;
   email: any;
   cal: any;
   conns: { state: string }[];
@@ -70,6 +80,7 @@ export function NavRail({
 }) {
   const pathname = usePathname();
   const pulse = useLiveData<any>("pulse");
+  const kanban = useLiveData<any>("kanban");
   const email = useLiveData<any>("email");
   const cal = useLiveData<any>("calendar");
   const conns = useLiveData<{ state: string }[]>("connections");
@@ -82,7 +93,7 @@ export function NavRail({
     return () => clearInterval(t);
   }, []);
 
-  const live: Live = { pulse, email, cal, conns: conns || [], days, connStatus };
+  const live: Live = { pulse, kanban, email, cal, conns: conns || [], days, connStatus };
 
   return (
     <nav

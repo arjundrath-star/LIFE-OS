@@ -3,6 +3,7 @@
 // rail and the command palette. Order is intentional and must not be re-sorted.
 import {
   Home,
+  Columns3,
   Bot,
   Mail,
   Calendar,
@@ -30,6 +31,7 @@ export type NavItem = {
 
 export const NAV: NavItem[] = [
   { key: "home", label: "Home", href: "/", Icon: Home },
+  { key: "kanban", label: "Kanban", href: "/kanban", Icon: Columns3 },
   { key: "agents", label: "Agents", href: "/agents", Icon: Bot },
   { key: "email", label: "Email", href: "/email", Icon: Mail },
   { key: "calendar", label: "Calendar", href: "/calendar", Icon: Calendar },
