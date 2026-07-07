@@ -6,6 +6,7 @@ import { readTelegramActivity } from "@/lib/sources/telegram";
 import { listProjects } from "@/lib/sources/vault";
 import { refreshAll, getStates } from "@/lib/connections";
 import { agentsOrchestrationSnapshot } from "@/lib/agents";
+import { kanbanSnapshot } from "@/lib/kanban";
 import { all, get, run, pushEvent, recentEvents, nowIso } from "@/db";
 
 const g = globalThis as any;
@@ -214,6 +215,13 @@ async function tickAgentRuns() {
   hub.broadcast("agent_runs", agentsOrchestrationSnapshot());
 }
 
+async function tickKanban() {
+  // Shared Hermes Kanban board. Read-only dashboard mirror: task writes remain in Hermes
+  // (`hermes kanban ...` / /kanban) so Rathworkspace cannot drift into a second source of truth.
+  const hub = getHub();
+  hub.broadcast("kanban", kanbanSnapshot());
+}
+
 function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -241,6 +249,7 @@ export function startScheduler() {
   const health = guarded("health", tickHealth);
   const vending = guarded("vending", tickVending);
   const agentRuns = guarded("agentRuns", tickAgentRuns);
+  const kanban = guarded("kanban", tickKanban);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -252,6 +261,7 @@ export function startScheduler() {
   health();
   vending();
   agentRuns();
+  kanban();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -263,6 +273,7 @@ export function startScheduler() {
     setInterval(health, 15 * 60 * 1000), // WHOOP data updates ~once/day; 15 min is ample
     setInterval(vending, 10 * 60 * 1000), // outreach moves slowly; 10 min keeps Gmail load tiny
     setInterval(agentRuns, 5000), // named-agent runs: read SQLite + broadcast, cheap and bounded
+    setInterval(kanban, 5000), // Hermes Kanban: read shared board + broadcast, cheap and bounded
   ];
 
   console.log("[scheduler] started");

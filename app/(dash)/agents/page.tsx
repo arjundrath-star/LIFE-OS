@@ -2,12 +2,14 @@
 import { ProjectPage, HeroStat } from "@/components/shell/ProjectPage";
 import { AgentsPanel } from "@/components/panels/AgentsPanel";
 import { AgentRunsPanel } from "@/components/panels/AgentRunsPanel";
+import { KanbanPanel } from "@/components/panels/KanbanPanel";
 import { useLiveData } from "@/hooks/useLiveData";
 import { Bot } from "lucide-react";
 
 export default function AgentsPage() {
   const agents = useLiveData<any>("agents");
   const runs = useLiveData<any>("agent_runs");
+  const kanban = useLiveData<any>("kanban");
   const hermes = agents?.hermes;
   const tg = agents?.telegram;
   const stats = runs?.stats;
@@ -28,11 +30,12 @@ export default function AgentsPage() {
             sub={namedActive > 0 ? `${stats?.active ?? 0} active · ${stats?.waiting ?? 0} waiting` : `${stats?.total ?? 0} registered · idle`}
           />
           <HeroStat label="Hermes" value={hermes?.online ? "ONLINE" : "OFFLINE"} tone={hermes?.online ? "healthy" : "error"} sub={hermes?.version ? `v${hermes.version} · ${hermes.gatewayState}` : hermes?.detail || "gateway"} />
-          <HeroStat label="Active sessions" value={hermes?.activeSessions ?? 0} tone="accent" sub="across platforms" />
+          <HeroStat label="Kanban" value={kanban?.stats?.active ?? "—"} tone={(kanban?.stats?.blocked ?? 0) > 0 ? "error" : (kanban?.stats?.active ?? 0) > 0 ? "accent" : "muted"} sub={kanban ? `${kanban.stats?.total ?? 0} cards · ${kanban.currentBoard} board` : "shared board"} />
           <HeroStat label="Telegram" value={tg?.state ?? "—"} tone={tg?.state === "active" || tg?.state === "idle" ? "healthy" : tg?.state === "conflict" ? "warn" : "error"} sub={tg?.detail || ""} />
         </div>
       }
     >
+      <KanbanPanel />
       <AgentRunsPanel />
       <AgentsPanel expanded />
     </ProjectPage>
