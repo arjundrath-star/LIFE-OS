@@ -6,7 +6,6 @@ import { Clock } from "@/components/Clock";
 import { CountUp } from "@/components/CountUp";
 import { StatusDot } from "@/components/StatusDot";
 import { Section } from "@/components/shell/ProjectPage";
-import { KanbanPanel } from "@/components/panels/KanbanPanel";
 import { EmptyState } from "@/components/Panel";
 import { Button } from "@/components/ui";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
@@ -349,7 +348,6 @@ function ProjectsGlance() {
 export function Home() {
   return (
     <div className="mx-auto flex max-w-[1700px] flex-col gap-5">
-      <KanbanPanel />
       <Hero />
       <ProjectsGlance />
       <div className="grid gap-5 lg:grid-cols-3">
