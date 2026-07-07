@@ -11,6 +11,8 @@ next-env.d.ts
 # data (sqlite lives on the box, never in git)
 data/*.db
 data/*.db-*
+data/*.db.backup*
+data/*.backup*
 data/*.sqlite*
 
 # secrets — the real store is ~/.config/rathworkspace/secrets.env, never here
@@ -23,6 +25,10 @@ data/*.sqlite*
 npm-install.log
 *.log
 .DS_Store
+
+# python cache from agent script smoke checks
+__pycache__/
+*.py[cod]
 
 # screenshots / build artifacts
 shots/
