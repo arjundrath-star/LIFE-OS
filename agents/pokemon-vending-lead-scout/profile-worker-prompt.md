@@ -15,7 +15,7 @@ Find and prepare review-only Pokemon / trading-card vending machine leads for Ar
 
 ## Current CRM-first task
 
-Use the owner-first lead system, but treat Rathworkspace Pokemon CRM as the forward-looking source of truth for generated leads:
+Use the owner-first lead system, but treat Rathworkspace Pokemon CRM as the primary operational source of truth. Sheet-shaped files are staging/import/export mirrors only. For all real follow-up state, call loops, emails, warm-lead ranking, and touchpoints, write/read the CRM first:
 
 - CRM route: `/pokemon-crm`
 - CRM tables: `pokemon_leads`, `pokemon_contacts`, `pokemon_phone_numbers`, `pokemon_emails`, `pokemon_touchpoints`, `pokemon_import_batches`

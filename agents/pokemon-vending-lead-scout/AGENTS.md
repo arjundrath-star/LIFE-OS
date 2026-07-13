@@ -59,23 +59,33 @@ Secondary tests:
 
 ## Owner-first lead system
 
-The Pokemon lead system mirrors the Portable Charging structure with two live sheets in both local command-center and Drive.
+The Rathworkspace Pokemon CRM tab is the main operational system for Pokemon vending. The old Pokemon sheets may still exist and are useful as staging/import/export mirrors, but they are not the source of truth for follow-ups, warm-lead ranking, calls, emails, or touchpoints.
 
-Local files:
+Primary CRM:
+
+- Rathworkspace route: `/pokemon-crm`
+- DB: `/home/Arjun/rathworkspace/data/rathworkspace.db`
+- Core tables: `pokemon_leads`, `pokemon_contacts`, `pokemon_phone_numbers`, `pokemon_emails`, `pokemon_touchpoints`
+- Import bridge from sheet-shaped lead batches: `/home/Arjun/rathworkspace/scripts/import-pokemon-pipeline-crm.ts`
+
+Sheet mirrors/staging files:
 
 - `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.xlsx`
 - `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv`
 - `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.xlsx`
 - `/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.csv`
 
-Drive folder:
+Drive mirror folder:
 
 - `PORTABLE CHARGING/pokemon machines/pokemon vending`
 
 Scripts:
 
-- `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py`
-- `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py`
+- `/home/Arjun/command-center/Pokemon Machines/scripts/pokemon_lead_system.py` creates/refreshes sheet-shaped candidate batches.
+- `/home/Arjun/rathworkspace/scripts/import-pokemon-pipeline-crm.ts` syncs those candidate batches into the CRM.
+- `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py` updates Drive mirrors.
+
+Operational rule: after a real touchpoint happens, update the CRM first. Only update sheets afterward if a Drive mirror/export needs to stay aligned.
 
 Owner-first rules:
 
