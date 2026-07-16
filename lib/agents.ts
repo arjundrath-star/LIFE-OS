@@ -317,8 +317,9 @@ export function agentsOrchestrationSnapshot() {
                  WHEN 'portable-charging-lead-scout' THEN 1
                  WHEN 'pokemon-vending-lead-scout' THEN 2
                  WHEN 'portable-charging-outreach-sender' THEN 3
-                 WHEN 'deliverability-monitor' THEN 4
-                 WHEN 'rathworkspace-platform-developer' THEN 5
+                 WHEN 'pokemon-vending-outreach-sender' THEN 4
+                 WHEN 'deliverability-monitor' THEN 5
+                 WHEN 'rathworkspace-platform-developer' THEN 6
                  ELSE 9 END,
                display_name ASC`
   );
@@ -341,9 +342,10 @@ export function agentsOrchestrationSnapshot() {
 
   const activeRuns = all<any>(
     `SELECT id, agent_slug, status, summary, started_at, finished_at, trigger_type, trigger_source
-       FROM agent_runs
-      WHERE status IN ('running','queued','waiting_for_review','blocked')
-      ORDER BY started_at DESC
+       FROM agent_runs r
+       JOIN agent_registry a ON a.slug = r.agent_slug AND a.last_run_id = r.id
+      WHERE r.status IN ('running','queued','waiting_for_review','blocked')
+      ORDER BY r.started_at DESC
       LIMIT 100`
   );
   const recentRuns = all<any>(

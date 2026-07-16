@@ -18,7 +18,7 @@ behind a shared server-auth layout (`components/shell/DashShell`):
 - **Home** (`/`) — the decluttered daily glance: a large living centerpiece, live
   agents, today's calendar, today's to-dos, a scannable recent-email feed, Whoop,
   and a clickable project glance.
-- One full page per section (`/vending`, `/ad-agency`, `/school`, `/agents`,
+- One full page per section (`/vending`, `/pokemon-crm`, `/ad-agency`, `/school`, `/agents`, `/kanban`,
   `/email`, `/calendar`, `/health`, `/connections`, `/projects`, `/terminal`,
   `/files`, `/accounts`) built on a shared `ProjectPage` template (hero metric band
   over stacked sections). `/terminal` and `/files` render the embeds full-height.
@@ -77,8 +77,7 @@ Migrations in `db/migrations/`, applied on boot.
   on Mercury), the Ad-Agency outreach pipeline (runs in `~/ad-engine`, not yet wired).
 
 ## Arjun-only setup steps (each unlocks a module)
-1. **Email + Calendar reader** — DONE 2026-06-22 (operator@example.com connected, 201
-   unread + calendar live). The OAuth client lives in Arjun's PERSONAL Google project
+1. **Email + Calendar reader** — connected. The OAuth client lives in Arjun's PERSONAL Google project
    (project number GCP_PROJECT_NUMBER), NOT gcp-project. To add more accounts later, in that
    project's Google Cloud console OAuth client, ensure the redirect URI is present:
    `https://rathworkspace.cloud/api/google/callback` (and
@@ -92,8 +91,7 @@ Migrations in `db/migrations/`, applied on boot.
 4. **School** — the NYU calendar layers into Calendar automatically once classes
    start (2026-08-29).
 
-## Known honest state
-The Telegram listener currently shows `on_broken` because two pollers are running
-(the bash `telegram-listener.sh` daemon and the Claude telegram bun plugin both call
-`getUpdates`, which 409s). That is a real pre-existing conflict the dashboard is
-surfacing correctly, not a dashboard bug.
+## Runtime health
+Do not encode volatile integration counts or incidents in this README. The gated
+Connections and Agents pages are the live source of truth; their checks report the current
+Hermes, Telegram, Tailscale, Cloudflare, Google, Whoop, Mercury, and worker-run state.

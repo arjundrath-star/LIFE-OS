@@ -85,8 +85,9 @@ scripts/pc-lead-scout.sh --demo
 ```
 
 This emits `started → spreadsheet_pull → dedupe → found → qualified → drafts →
-review_packet → waiting_for_review` under a `pc-demo-<ts>` run id, and the cards + timeline
-appear on `/agents` within ~5 s.
+review_packet → completed` under a `pc-demo-<ts>` run id. It uses only repo-local demo
+artifacts, makes no external calls, and leaves no fake run waiting for review. The card and
+timeline appear on `/agents` within ~5 s.
 
 ## Live Hermes cron wiring
 
@@ -95,6 +96,14 @@ The live Hermes Portable Charging lead-finder cron is wired through a prelude sc
 ```text
 /home/Arjun/.hermes/scripts/portable_charging_agent_prelude.sh
 ```
+
+The default-profile cron enters through the thin runtime wrapper
+`/home/Arjun/.hermes/scripts/portable_charging_profile_worker.sh`, which delegates to the
+reviewed source at
+`agents/portable-charging-lead-scout/scripts/portable_charging_profile_worker.sh`. That
+worker invokes the versioned prelude beside it and dispatches the dedicated
+`portable-scout` profile. The runtime worker and prelude are compatibility entrypoints only;
+Rathworkspace is the source of truth for both scripts.
 
 The prelude records a Hermes dispatch event, creates a unique
 `portable-charging-lead-scout/<run-id>` dashboard run, then injects the run id and helper command
@@ -135,11 +144,13 @@ Minimum milestone sequence: `started -> context_loaded -> dedupe -> found -> qua
 
 ## Platform developer agent
 
-Software/build sessions for this repo should report as `rathworkspace-platform-developer`.
+Software/build sessions and the nightly 11:45 PM ET maintenance run should report as
+`rathworkspace-platform-developer`.
 Use the root `AGENTS.md`, the per-agent manifest at
 `agents/rathworkspace-platform-developer/AGENTS.md`, and the Hermes skill
-`rathworkspace-platform-developer`. This agent is normally idle and exists so build sessions are
-visible without confusing them with Hermes orchestration or business-domain workers.
+`rathworkspace-platform-developer`. It is idle outside nightly maintenance and explicit
+build/review sessions, and exists so platform work is visible without confusing it with
+Hermes orchestration or business-domain workers.
 
 ## Reading the data
 
@@ -148,13 +159,8 @@ visible without confusing them with Hermes orchestration or business-domain work
   both behind the Google-allowlist auth gate.
 - The bottom event ticker mirrors meaningful run events (new run, status change, warn/error).
 
-## Cleaning up demo data
+## Demo data retention
 
-Demo runs use `pc-demo-*` ids. To remove them:
-
-```sql
-DELETE FROM agent_run_events WHERE run_id LIKE 'pc-demo-%';
-DELETE FROM agent_artifacts  WHERE run_id LIKE 'pc-demo-%';
-DELETE FROM agent_runs       WHERE id     LIKE 'pc-demo-%';
--- then reset the registry pointer if its last_run_id was a demo run.
-```
+Demo runs use `pc-demo-*` ids and are historical records. Do not delete orchestration rows
+or reset registry pointers with ad-hoc SQL. If demo retention becomes costly, add and verify
+an explicit maintenance command with Arjun's approval; until then, leave the rows intact.

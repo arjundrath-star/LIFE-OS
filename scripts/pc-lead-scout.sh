@@ -47,7 +47,7 @@ emit() {
 (return 0 2>/dev/null) && return 0
 
 # --- executed directly from here on: now it's safe to harden our own shell ---
-set -uo pipefail
+set -euo pipefail
 cd "$RW_REPO" || exit 1
 
 if [[ "${1:-}" != "--demo" ]]; then
@@ -56,7 +56,7 @@ if [[ "${1:-}" != "--demo" ]]; then
   exit 2
 fi
 
-# ---- demo run: realistic happy path that ENDS at waiting_for_review (awaiting approval) ----
+# ---- demo run: simulated happy path that terminates cleanly without external actions ----
 command -v tsx >/dev/null 2>&1 || { echo "error: tsx not found on PATH (run from the repo; node_modules/.bin missing?)" >&2; exit 2; }
 RUN="pc-demo-$(date +%s)"
 echo "[pc-lead-scout] demo run: $RUN  (agent=$AGENT) — no email is sent"
@@ -69,24 +69,22 @@ PC_TRIGGER_TYPE="demo" PC_TRIGGER_SOURCE="pc-lead-scout.sh --demo" \
     --description "Finds venue leads for portable charging, dedupes, drafts outreach, and sends a review packet to Arjun. Never sends outreach itself." \
     --detail-file "$DETAIL_TMP"
 sleep 1
-emit spreadsheet_pull running "Pulled venue spreadsheets (Sheets, read-only)" info \
-  --artifact-type spreadsheet --artifact-title "Venue master sheet" \
-  --artifact-uri "https://docs.google.com/spreadsheets/d/EXAMPLE_DEMO_SHEET/edit"
+emit spreadsheet_pull running "Simulated spreadsheet pull (no external request)" info \
+  --artifact-type link --artifact-title "Demo documentation" \
+  --artifact-uri "$RW_REPO/docs/agent-orchestration.md"
 sleep 1
-emit dedupe running "Deduped against 214 existing leads"
+emit dedupe running "Simulated dedupe against 214 sample leads"
 sleep 1
-emit found running "Found 8 candidate venues"
+emit found running "Simulated discovery of 8 candidate venues"
 sleep 1
-emit qualified running "Appended 5 qualified leads to the sheet"
+emit qualified running "Simulated qualification of 5 candidate venues"
 sleep 1
-emit drafts running "Drafted 5 outreach emails (held for review — not sent)" info \
-  --artifact-type draft --artifact-title "Draft packet (5 emails)" \
-  --artifact-uri "/home/Arjun/portable-charging/drafts/pc-$(date +%F).md"
+emit drafts running "Simulated 5 outreach drafts (not written or sent)" info \
+  --artifact-type link --artifact-title "Demo documentation" \
+  --artifact-uri "$RW_REPO/docs/agent-orchestration.md"
 sleep 1
-emit review_packet running "Sent review packet to operator@example.com" success \
-  --artifact-type email --artifact-title "Review packet (Gmail)" \
-  --artifact-uri "gmail-msg-id:DEMO0000000000"
+emit review_packet running "Simulated review-packet stage (no email sent)" success
 sleep 1
-emit waiting_for_review waiting_for_review "Waiting for Arjun to approve 5 drafts" warn
+emit completed completed "Demo completed; no outreach or review email sent" success
 
-echo "[pc-lead-scout] demo complete — run $RUN is now waiting_for_review on /agents"
+echo "[pc-lead-scout] demo complete — run $RUN is completed on /agents"

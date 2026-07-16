@@ -47,7 +47,9 @@ function proxyFor(pathname: string | null) {
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000", 10);
-const hostname = process.env.HOST || "0.0.0.0";
+// Production ingress and both embedded tools are local-only. Default to loopback so a
+// missing systemd HOST override cannot accidentally expose the origin on every interface.
+const hostname = process.env.HOST || "127.0.0.1";
 
 const ALLOWED = (process.env.GOOGLE_ALLOWED_EMAILS || "")
   .split(",")

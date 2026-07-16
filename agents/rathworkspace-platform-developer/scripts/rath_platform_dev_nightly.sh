@@ -40,6 +40,7 @@ npm run agent-event -- \
   --kind started \
   --status running \
   --summary "Nightly developer maintenance started" \
+  --schedule-label "nightly 11:45 PM ET + manual" \
   --trigger-type cron \
   --trigger-source "rath-platform-dev nightly maintenance" >/dev/null || true
 

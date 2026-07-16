@@ -73,13 +73,16 @@ At minimum for real code changes:
 
 ```bash
 git status --short
+npm run typecheck
 npm run migrate   # if DB touched
-npm run build
-sudo systemctl restart rathworkspace.service
-systemctl status rathworkspace.service --no-pager -l
+RATHWORKSPACE_SECRETS_PATH=/home/Arjun/.config/rathworkspace/secrets.env npm run build
 ```
 
-Also test relevant endpoints, CLI scripts, or WebSocket behavior depending on the change.
+The dedicated Hermes profile overrides `HOME`, so pass the production secret-store path to
+the build without reading or printing its contents. Also test relevant endpoints, CLI
+scripts, or WebSocket behavior depending on the change. Restart and inspect the production
+service only when deployment is explicitly authorized; a code review or local build does
+not imply deployment permission.
 
 ## Safety rules
 

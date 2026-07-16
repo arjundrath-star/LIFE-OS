@@ -41,12 +41,24 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
   SCRAPER="$PROJECT_DIR/scripts/pokemon_lead_system.py"
   SYNC="$PROJECT_DIR/scripts/sync_pokemon_vending_drive.py"
   GOOGLE_PY="/home/Arjun/.hermes/google-venv/bin/python"
+  MIN_CRM_ROWS="${POKEMON_CRM_MIN_ROWS:-100}"
   "$EVENT" started running "Pokemon vending lead scraper started" success >/dev/null
   "$EVENT" context_loaded running "Loaded owner-first Pokemon context and initial prospect sheet" success >/dev/null
   POKEMON_USE_OSM_CACHE=1 "$GOOGLE_PY" "$SCRAPER" >/tmp/pokemon_lead_system_${RUN_ID}.json
   "$EVENT" sheet_build running "Built Pokemon vending MAIN and Active sheets" success >/dev/null
   if [[ "${POKEMON_CRM_DB_SYNC:-1}" == "1" ]]; then
-    (cd "$RATH_DIR" && npm run import-pokemon-pipeline-crm -- "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv") >/tmp/pokemon_crm_import_${RUN_ID}.json
+    (cd "$RATH_DIR" && npm run --silent import-pokemon-pipeline-crm -- --dry-run "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv") >/tmp/pokemon_crm_preflight_${RUN_ID}.json
+    python3 - "/tmp/pokemon_crm_preflight_${RUN_ID}.json" "$MIN_CRM_ROWS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+result = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+minimum_rows = int(sys.argv[2])
+if result.get('row_count', 0) < minimum_rows or result.get('skipped') or result.get('warnings'):
+    raise SystemExit(f"Pokemon CRM preflight failed: {result}")
+PY
+    (cd "$RATH_DIR" && npm run --silent import-pokemon-pipeline-crm -- "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv") >/tmp/pokemon_crm_import_${RUN_ID}.json
     "$EVENT" crm_sync running "Synced Pokemon lead-agent output into Rathworkspace Pokemon CRM DB" success >/dev/null
   fi
   "$EVENT" found running "Migrated initial leads and scraped at least 100 additional candidates" success >/dev/null
@@ -57,6 +69,7 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
   cp "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv" "$ARCHIVE_DIR/Pokemon_Vending_Lead_Pipeline.snapshot.csv"
   cp "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Active_Leads.csv" "$ARCHIVE_DIR/Pokemon_Vending_Active_Leads.snapshot.csv"
   cp /tmp/pokemon_lead_system_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_lead_system.json" 2>/dev/null || true
+  cp /tmp/pokemon_crm_preflight_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_crm_preflight.json" 2>/dev/null || true
   cp /tmp/pokemon_crm_import_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_crm_import.json" 2>/dev/null || true
   cp /tmp/pokemon_drive_sync_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_drive_sync.json" 2>/dev/null || true
   SUMMARY=$(python3 - <<PY
@@ -85,10 +98,18 @@ EOF
 - MAIN snapshot: $ARCHIVE_DIR/Pokemon_Vending_Lead_Pipeline.snapshot.csv
 - Active snapshot: $ARCHIVE_DIR/Pokemon_Vending_Active_Leads.snapshot.csv
 - Scraper output: $ARCHIVE_DIR/pokemon_lead_system.json
+- CRM preflight output: $ARCHIVE_DIR/pokemon_crm_preflight.json
 - CRM import output: $ARCHIVE_DIR/pokemon_crm_import.json
 - Drive sync output: $ARCHIVE_DIR/pokemon_drive_sync.json
 EOF
-  printf '\n- %s — `%s` — %s\n' "$(date +%F)" "$RUN_ID" "$ARCHIVE_DIR" >> "$PROJECT_DIR/Leads/README.md"
+  cat > "$PROJECT_DIR/Leads/latest-run.md" <<EOF
+# Latest Pokemon lead-scout worker archive
+
+- Date: $(date +%F)
+- Run id: $RUN_ID
+- Archive: $ARCHIVE_DIR
+- Summary: $SUMMARY
+EOF
   "$EVENT" completed completed "$SUMMARY; archive=$ARCHIVE_DIR" success >/dev/null
   printf 'VPS: %s. Archive: %s\n' "$SUMMARY" "$ARCHIVE_DIR"
   exit 0

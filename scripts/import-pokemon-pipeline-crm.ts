@@ -2,7 +2,8 @@
 //
 // This is the bridge from the old spreadsheet-shaped lead scout output to the
 // Rathworkspace-native CRM. It is idempotent on (venue_name, address), preserves
-// active/stage/touchpoint history, and does not send outreach.
+// active/stage/touchpoint history and CRM-owned next actions, and does not send
+// outreach.
 //
 //   npm run import-pokemon-pipeline-crm -- "/path/to/Pokemon_Vending_Lead_Pipeline.csv"
 //   npm run import-pokemon-pipeline-crm -- --dry-run "/path/to/Pokemon_Vending_Lead_Pipeline.csv"
@@ -193,7 +194,6 @@ function importRows(abs: string, dryRun: boolean) {
          route_cluster = excluded.route_cluster,
          best_visit_window = excluded.best_visit_window,
          priority = excluded.priority,
-         next_action = excluded.next_action,
          raw_json = excluded.raw_json,
          notes = COALESCE(pokemon_leads.notes, excluded.notes),
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`

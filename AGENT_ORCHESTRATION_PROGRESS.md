@@ -1,5 +1,9 @@
 # Agent Orchestration — Progress
 
+> Historical implementation record for the June 2026 orchestration build. It is not a
+> live operations checklist. Use `AGENTS.md`, `docs/agent-orchestration.md`, the versioned
+> agent manifests, and the gated `/agents` page for current behavior and runtime state.
+
 Mission: turn rathworkspace into the visible control tower for named agent/subagent flows.
 Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-features.json`.
 
