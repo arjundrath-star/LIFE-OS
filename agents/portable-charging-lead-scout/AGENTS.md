@@ -50,6 +50,14 @@ Emit at least:
 
 If blocked/failing, emit `blocked` or `failed` with a clear summary.
 
+## Durable archive requirement
+
+Every lead-scout or email-prep run must leave a durable archive packet under:
+
+`/home/Arjun/command-center/Portable Charging/Archive/lead-gen/YYYY-MM-DD/<run-id>/`
+
+This is the source of truth for the next work session if Arjun ignores the Telegram notification. Include `run-summary.md`, `new-leads.csv`, `drafts.md`, and `manifest.md`. Write the packet even for zero-lead or blocked runs, and append a pointer to `_Run Log.md`.
+
 ## Outreach copy quality gate
 
 Paragraph 2 is the make-or-break part of every Portable Charging draft. Arjun has explicitly rejected clunky, formulaic paragraph 2s.

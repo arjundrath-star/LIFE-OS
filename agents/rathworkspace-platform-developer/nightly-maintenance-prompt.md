@@ -147,7 +147,7 @@ Check:
 - `systemctl --failed --no-pager`
 - `systemctl status rathworkspace.service --no-pager -l` if service exists
 - `hermes status --all`
-- `hermes cron status`
+- `hermes -p default cron status` for the real default-profile scheduler; do not treat profile-local `hermes cron status` showing zero jobs as an outage
 - recent critical errors in relevant logs when cheap
 
 Apply only small safe fixes. For dangerous/system-level fixes, record blockers.

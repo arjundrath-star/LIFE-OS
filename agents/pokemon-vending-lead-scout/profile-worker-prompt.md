@@ -60,8 +60,9 @@ For a standard run:
 3. Verify MAIN has at least 139 rows: 39 initial seed rows plus at least 100 scraped rows.
 4. Sync the generated MAIN CSV into Rathworkspace CRM with `cd /home/Arjun/rathworkspace && npm run import-pokemon-pipeline-crm -- "/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv"` unless explicitly disabled for a dry run.
 5. Run `/home/Arjun/command-center/Pokemon Machines/scripts/sync_pokemon_vending_drive.py` with `/home/Arjun/.hermes/google-venv/bin/python` to push/update Drive copies.
-6. Summarize CRM import counts, CRM lead counts, source counts, owner-lookup status counts, walk-in priority counts, and Drive file IDs.
-7. Do not mark any lead Active unless Arjun explicitly selected it or a real touchpoint was logged.
+6. Write a durable archive packet under `/home/Arjun/command-center/Pokemon Machines/Archive/lead-gen/YYYY-MM-DD/<run-id>/` with `run-summary.md`, lead/snapshot CSVs, CRM/Drive sync outputs, any draft/review packet artifacts, and `manifest.md` linking the exact paths. Write it even for zero-lead or blocked runs.
+7. Summarize CRM import counts, CRM lead counts, source counts, owner-lookup status counts, walk-in priority counts, Drive file IDs, and archive folder path.
+8. Do not mark any lead Active unless Arjun explicitly selected it or a real touchpoint was logged.
 
 ## Safety rules
 

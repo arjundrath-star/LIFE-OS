@@ -52,6 +52,13 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" != "1" ]]; then
   "$EVENT" found running "Migrated initial leads and scraped at least 100 additional candidates" success >/dev/null
   "$GOOGLE_PY" "$SYNC" >/tmp/pokemon_drive_sync_${RUN_ID}.json
   "$EVENT" drive_sync running "Updated Drive copies in pokemon vending folder" success >/dev/null
+  ARCHIVE_DIR="$PROJECT_DIR/Archive/lead-gen/$(date -u +%F)/$RUN_ID"
+  mkdir -p "$ARCHIVE_DIR"
+  cp "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv" "$ARCHIVE_DIR/Pokemon_Vending_Lead_Pipeline.snapshot.csv"
+  cp "$PROJECT_DIR/pokemon vending/Pokemon_Vending_Active_Leads.csv" "$ARCHIVE_DIR/Pokemon_Vending_Active_Leads.snapshot.csv"
+  cp /tmp/pokemon_lead_system_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_lead_system.json" 2>/dev/null || true
+  cp /tmp/pokemon_crm_import_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_crm_import.json" 2>/dev/null || true
+  cp /tmp/pokemon_drive_sync_${RUN_ID}.json "$ARCHIVE_DIR/pokemon_drive_sync.json" 2>/dev/null || true
   SUMMARY=$(python3 - <<PY
 import csv, json
 from pathlib import Path
@@ -61,8 +68,29 @@ manifest=json.loads((root/'pokemon_vending_drive_manifest.json').read_text())
 print(f"Pokemon vending lead system refreshed: {len(rows)} MAIN rows, {sum(r['Source']=='Initial Claude prospect sheet' for r in rows)} seed, {sum(r['Source']!='Initial Claude prospect sheet' for r in rows)} scraped, Drive {manifest['pokemon_vending_folder']['id']}")
 PY
 )
-  "$EVENT" completed completed "$SUMMARY" success >/dev/null
-  printf 'VPS: %s\n' "$SUMMARY"
+  cat > "$ARCHIVE_DIR/run-summary.md" <<EOF
+# Pokemon vending lead scout archive
+
+Run id: $RUN_ID
+Status: completed
+Completed UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Summary: $SUMMARY
+
+No venue outreach was sent. This archive contains the exact pipeline/active snapshots, scraper output, CRM import output, and Drive sync output needed for the next work session.
+EOF
+  cat > "$ARCHIVE_DIR/manifest.md" <<EOF
+# Manifest
+
+- Run id: $RUN_ID
+- MAIN snapshot: $ARCHIVE_DIR/Pokemon_Vending_Lead_Pipeline.snapshot.csv
+- Active snapshot: $ARCHIVE_DIR/Pokemon_Vending_Active_Leads.snapshot.csv
+- Scraper output: $ARCHIVE_DIR/pokemon_lead_system.json
+- CRM import output: $ARCHIVE_DIR/pokemon_crm_import.json
+- Drive sync output: $ARCHIVE_DIR/pokemon_drive_sync.json
+EOF
+  printf '\n- %s — `%s` — %s\n' "$(date +%F)" "$RUN_ID" "$ARCHIVE_DIR" >> "$PROJECT_DIR/Leads/README.md"
+  "$EVENT" completed completed "$SUMMARY; archive=$ARCHIVE_DIR" success >/dev/null
+  printf 'VPS: %s. Archive: %s\n' "$SUMMARY" "$ARCHIVE_DIR"
   exit 0
 fi
 

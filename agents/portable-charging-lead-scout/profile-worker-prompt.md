@@ -95,7 +95,20 @@ Skip duplicates. Do not add parallel rows just because a venue appears under a s
 
 ## Review packet
 
-If you create drafts, save the packet under `Gmail Outreach/` with a date/run-specific name and send one internal email to Arjun.
+Every run must be useful even if Arjun never replies in Telegram. Create a durable archive folder before final response:
+
+`/home/Arjun/command-center/Portable Charging/Archive/lead-gen/YYYY-MM-DD/<run-id>/`
+
+Write at minimum:
+
+- `run-summary.md`: run id, sources checked, lead counts before/after, new leads appended, drafts created, review email status, Drive push status, verification counts, blockers, and exact next action for the next worker/human.
+- `new-leads.csv`: only the newly appended leads for this run, with the same columns as MAIN. If zero, write the header plus no rows and state zero in `run-summary.md`.
+- `drafts.md`: every outreach draft prepared for internal review, grouped by venue/recipient. If zero, write "No drafts created this run".
+- `manifest.md`: links/paths to logs, scripts, review packets, Gmail ids/thread ids, and changed files.
+
+Also append a one-line pointer to `/home/Arjun/command-center/Portable Charging/_Run Log.md` with the run id and archive folder. The archive is required even when the run is blocked or produces zero new leads.
+
+If you create drafts, save the packet under `Gmail Outreach/` with a date/run-specific name, copy or link it from the archive `manifest.md`, and send one internal email to Arjun.
 
 The review packet must include:
 
@@ -120,4 +133,5 @@ Start with `VPS:` and report:
 - Drive push status
 - verification counts
 - files changed
+- archive folder path
 - blockers or human review needed

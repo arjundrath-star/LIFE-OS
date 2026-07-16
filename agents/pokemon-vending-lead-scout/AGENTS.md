@@ -116,6 +116,14 @@ Emit at least:
 
 If blocked or failing, emit `blocked` or `failed` with a clear summary.
 
+## Durable archive requirement
+
+Every lead-scout or email-prep run must leave a durable archive packet under:
+
+`/home/Arjun/command-center/Pokemon Machines/Archive/lead-gen/YYYY-MM-DD/<run-id>/`
+
+This is the source of truth for the next work session if Arjun ignores the Telegram notification. Include `run-summary.md`, new-lead/snapshot CSVs, any email-review packets or draft files, send logs, CRM/Drive sync outputs, and a `manifest.md` with exact paths. Write the packet even for zero-lead or blocked runs, and append or update an obvious pointer in `Leads/README.md` or the relevant run log.
+
 ## Safety rules
 
 - Do not contact venues.
