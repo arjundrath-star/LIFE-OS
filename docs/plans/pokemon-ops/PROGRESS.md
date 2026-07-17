@@ -296,3 +296,21 @@ Incidents (all resolved, logged for honesty):
 Deviations: eBay live yield is 0 from this box (geo-currency), documented + self-
 healing; agentic phase not exercised live in-session (stub-tested by subagent; cron
 runs it), per DoD which requires only ≥1 live observation row. Spec issues: none.
+
+### 2026-07-17 — MEGA-SESSION END
+
+Run complete through Phase 6. One Fable-orchestrated session executed Phases 0–6
+sequentially under the authorized protocol override (2026-07-17): every phase has a
+green DoD with outputs pasted above, an annotated pushed tag (pokemon-ops/phase-0..6),
+and an agent-event. Email checkpoints sent after Phases 2, 4, 6.
+
+System state: main deployed on prod, schema 0011 live, 16 products + 29 price
+observations (15 carddistro benchmark + 14 live tcgplayer), rules engine
+adversarially verified, dashboard tab live, alerts cron */15 + digest 07:30, sourcing
+scan cron daily 06:15. Two real production buy-signal alerts delivered tonight.
+
+Phase 7 (Nayax Lynx poller + reconciliation) is NOT started. It awaits the human
+checklist §5.1: Nayax operator account, Core login, device serial, self-serve User
+Token → NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL in ~/.config/rathworkspace/secrets.env.
+When those land, launch Phase 7 per prompts/PHASE-7-prompt.md (single-phase protocol
+resumes unless Arjun says otherwise).
