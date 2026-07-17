@@ -1,0 +1,97 @@
+<!--
+SYNTHETIC FIXTURE — not a captured real eBay page.
+
+Same provenance note as ebay_sold_pokemon_booster_lots.html in this
+directory: eBay blocked every fetch-ladder rung tried from this box on
+2026-07-17 (see agents/pokemon-sourcing-scout/README.md "eBay scraper"),
+so no real page could be captured. Hand-built to match eBay's SRP DOM
+convention (li.s-item cards). Active/current listings, so no "Sold"
+badge on any card — this is what makes it an *_active_*.html fixture
+under source_from_filename()'s naming convention, tagging every row
+parsed from this file as source=ebay_active.
+
+Row coverage in this file:
+  - itm/222222222221: bare "booster box" -> booster_box_default (36)
+  - itm/222222222222: "3 booster boxes" -> n_booster_boxes (108)
+  - itm/222222222223: "x24" generic multiplier -> x_n (24)
+  - itm/222222222224: Elite Trainer Box -> excluded (etb_excluded)
+  - itm/222222222225: "opened"/"display only" -> excluded (non_sealed_excluded)
+-->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>pokemon booster lot | eBay (active)</title></head>
+<body>
+<ul class="srp-results srp-list clearfix" id="srp-river-results">
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/sch/i.html?_from=R40">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Shop on eBay</div>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/222222222221?hash=item2a1">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Black Bolt Booster Box Sealed New Release</div>
+      <div class="s-item__subtitle">Ships next business day</div>
+      <span class="s-item__price">$149.99</span>
+      <span class="s-item__shipping s-item__logisticsCost">Free shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/222222222222?hash=item2a2">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon White Flare 3 Booster Boxes Sealed Lot</div>
+      <div class="s-item__subtitle">Three factory sealed boxes</div>
+      <span class="s-item__price">$420.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$20.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/222222222223?hash=item2a3">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Pitch Black Booster Pack Lot x24 Sealed</div>
+      <div class="s-item__subtitle">24 individual packs, randomly pulled</div>
+      <span class="s-item__price">$95.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$10.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/222222222224?hash=item2a4">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Prismatic Evolutions Elite Trainer Box Sealed ETB</div>
+      <div class="s-item__subtitle">Brand new ETB, factory sealed</div>
+      <span class="s-item__price">$59.99</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$7.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/222222222225?hash=item2a5">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Ascended Heroes Booster Packs Opened Box Display Only</div>
+      <div class="s-item__subtitle">Empty display box, packs already opened</div>
+      <span class="s-item__price">$40.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$6.00 shipping</span>
+    </div>
+  </li>
+
+</ul>
+</body>
+</html>

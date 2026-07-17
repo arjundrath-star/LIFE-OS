@@ -41,7 +41,10 @@ log() {
 }
 
 tsx_cli() {
-  "$TSX_BIN" "$DATA_CLI" "$@"
+  # Subshell-cd to the repo: tsx resolves the tsconfig "@/" path alias relative
+  # to cwd, and cron's cwd is $HOME — without this every cron run dies with
+  # MODULE_NOT_FOUND '@/db' (bit us on the first live cron ticks 2026-07-17).
+  ( cd "$REPO_ROOT" && "$TSX_BIN" "$DATA_CLI" "$@" )
 }
 
 # curl -s + a Telegram-shaped JSON fallback so callers can always `jq .ok`
@@ -61,6 +64,16 @@ send_telegram() {
 }
 
 DIGEST=0
+# Non-live-DB safety: alerts computed from a test/temp DB must never reach
+# Arjun's phone. If RATHWORKSPACE_DB points anywhere but the production DB,
+# force dry-run (incident 2026-07-17: a dispatcher dry run against a temp DB
+# live-sent two real alerts).
+if [ -n "${RATHWORKSPACE_DB:-}" ] && [ "${RATHWORKSPACE_DB}" != "/home/Arjun/rathworkspace/data/rathworkspace.db" ]; then
+  FORCE_DRY_NONLIVE=1
+else
+  FORCE_DRY_NONLIVE=0
+fi
+
 DRY_RUN=0
 TEST_MODE=0
 AS_OF=""
@@ -77,6 +90,12 @@ done
 
 if [ -z "$AS_OF" ]; then
   AS_OF="$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')"
+fi
+
+if [ "$FORCE_DRY_NONLIVE" = "1" ] && [ "$DRY_RUN" != "1" ]; then
+  echo "non-live RATHWORKSPACE_DB detected: forcing --dry-run (no sends, no marks)" >&2
+  DRY_RUN=1
+  TEST_MODE=0
 fi
 
 if [ "$TEST_MODE" = "1" ]; then

@@ -1,0 +1,86 @@
+<!--
+SYNTHETIC FIXTURE — not a captured real eBay page.
+
+Same provenance note as the other two fixtures in this directory: eBay
+blocked every fetch-ladder rung tried from this box on 2026-07-17 (see
+agents/pokemon-sourcing-scout/README.md "eBay scraper"). Hand-built to
+match eBay's SRP DOM convention (li.s-item cards). Named *_active_*.html
+per source_from_filename()'s convention (no "Sold" badges), dedicated to
+exercising the three exclusion doctrines side by side plus one clean
+pass-through row so the file isn't 100% exclusions:
+
+  - itm/333333333331: "Elite Trainer Box ETB" -> etb_excluded
+  - itm/333333333332: "ETB Booster Box Bundle" -> etb_excluded (ETB token alone)
+  - itm/333333333333: "PSA ... BGS" graded slab -> graded_slab_excluded
+  - itm/333333333334: "Resealed Unsealed Repack" -> non_sealed_excluded
+  - itm/333333333335: bare "booster box", no exclusion -> booster_box_default (36)
+-->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>pokemon booster lot | eBay (active, ETB exclusion case)</title></head>
+<body>
+<ul class="srp-results srp-list clearfix" id="srp-river-results">
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/333333333331?hash=item3b1">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon 151 Elite Trainer Box ETB Sealed New</div>
+      <div class="s-item__subtitle">Includes promo card and dice</div>
+      <span class="s-item__price">$54.99</span>
+      <span class="s-item__shipping s-item__logisticsCost">Free shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/333333333332?hash=item3b2">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Surging Sparks ETB Booster Box Bundle</div>
+      <div class="s-item__subtitle">ETB plus extra promo packs</div>
+      <span class="s-item__price">$130.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$11.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/333333333333?hash=item3b3">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Destined Rivals Booster Box PSA Graded Case BGS 9.5</div>
+      <div class="s-item__subtitle">Professionally graded and slabbed case</div>
+      <span class="s-item__price">$1200.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$40.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/333333333334?hash=item3b4">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Storm Emerald Booster Box Resealed Unsealed Repack</div>
+      <div class="s-item__subtitle">Box has been opened and resealed, buyer beware</div>
+      <span class="s-item__price">$140.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$9.00 shipping</span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/333333333335?hash=item3b5">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Chaos Rising Booster Box Sealed</div>
+      <div class="s-item__subtitle">Factory sealed, US release</div>
+      <span class="s-item__price">$99.99</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$8.00 shipping</span>
+    </div>
+  </li>
+
+</ul>
+</body>
+</html>

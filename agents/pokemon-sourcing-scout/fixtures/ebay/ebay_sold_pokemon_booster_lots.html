@@ -1,0 +1,140 @@
+<!--
+SYNTHETIC FIXTURE — not a captured real eBay page.
+
+Why: verified 2026-07-17 that eBay's search endpoint (/sch/i.html) blocks
+this box at every rung of the fetch ladder (python-requests 403s; both a
+freshly-launched headless chromium and the shared CDP chrome at
+[::1]:18800 get served eBay's own "Error Page | eBay" bot-block HTML for
+/sch/i.html, even though the eBay homepage itself renders fine via
+chromium — see agents/pokemon-sourcing-scout/README.md "eBay scraper").
+No real search-result HTML could be captured.
+
+This page is hand-built to match eBay's search-results-page (SRP) DOM
+convention as of the last time it was directly observable (li.s-item
+cards inside a ul.srp-results, with a.s-item__link / .s-item__title /
+.s-item__subtitle / .s-item__price / .s-item__shipping child elements,
+plus the perennial "Shop on eBay" filler card eBay always injects as the
+first list item). It exercises the sold-listing path: every card here
+represents a completed/sold search (source=ebay_sold), which is why the
+file is named *_sold_*.html — see source_from_filename() in
+ebay_scraper.py for the file-naming convention this parser relies on.
+
+Row coverage in this file:
+  - itm/111111111111: bare "booster box" -> booster_box_default (36)
+  - itm/111111111112: "x36" generic multiplier -> x_n (36)
+  - itm/111111111113: "case of 6 boxes" -> case_of_boxes (216)
+  - itm/111111111114: "lot of 10" -> lot_of_n (10)
+  - itm/111111111115: "PSA 9" graded slab -> excluded
+  - itm/111111111116: Yu-Gi-Oh! listing, no target set match -> unknown_set skip
+  - itm/111111111117: "36 Packs" -> n_packs (36)
+  - the "Shop on eBay" filler card -> skipped, no s-item__title
+-->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>pokemon booster lot | eBay (sold)</title></head>
+<body>
+<ul class="srp-results srp-list clearfix" id="srp-river-results">
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/sch/i.html?_from=R40">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Shop on eBay</div>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111111?hash=item19xyz">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon TCG Prismatic Evolutions Booster Box Sealed New</div>
+      <div class="s-item__subtitle">Factory sealed, ships same day</div>
+      <span class="s-item__price">$189.99</span>
+      <span class="s-item__shipping s-item__logisticsCost">Free shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 10, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111112?hash=item19abc">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon 151 Booster Packs x36 Sealed Lot</div>
+      <div class="s-item__subtitle">Booster packs only, no box</div>
+      <span class="s-item__price">$210.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$15.00 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 11, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111113?hash=item19def">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Destined Rivals Booster Box Case of 6 Boxes Sealed</div>
+      <div class="s-item__subtitle">Full sealed case, ships via FedEx</div>
+      <span class="s-item__price">$999.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$25.00 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 12, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111114?hash=item19ghi">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Surging Sparks Booster Pack Lot of 10 Sealed</div>
+      <div class="s-item__subtitle">Random packs pulled from sealed boxes</div>
+      <span class="s-item__price">$65.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$8.00 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 12, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111115?hash=item19jkl">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Charizard Base Set Unlimited Holo Card PSA 9</div>
+      <div class="s-item__subtitle">Professionally graded slab</div>
+      <span class="s-item__price">$450.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$12.00 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 13, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111116?hash=item19mno">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Yu-Gi-Oh Booster Box Case Sealed 12 Boxes</div>
+      <div class="s-item__subtitle">Not Pokemon, different TCG</div>
+      <span class="s-item__price">$720.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$30.00 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 13, 2026</span></span>
+    </div>
+  </li>
+
+  <li class="s-item s-item__pl-on-bottom">
+    <div class="s-item__info clearfix">
+      <a class="s-item__link" href="https://www.ebay.com/itm/111111111117?hash=item19pqr">
+        <div class="s-item__image-wrapper"></div>
+      </a>
+      <div class="s-item__title">Pokemon Journey Together Booster 36 Packs Sealed</div>
+      <div class="s-item__subtitle">Loose packs, no outer box included</div>
+      <span class="s-item__price">$118.00</span>
+      <span class="s-item__shipping s-item__logisticsCost">+$9.50 shipping</span>
+      <span class="s-item__title--tagblock"><span class="POSITIVE">Sold  Jul 14, 2026</span></span>
+    </div>
+  </li>
+
+</ul>
+</body>
+</html>

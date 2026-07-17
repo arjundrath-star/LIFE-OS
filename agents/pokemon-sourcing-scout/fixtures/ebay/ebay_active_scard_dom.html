@@ -1,0 +1,122 @@
+<!--
+SYNTHETIC FIXTURE — not a captured real eBay page, but modeled on the
+REAL live SRP DOM as returned by the warmed-chromium rung on 2026-07-17
+(class names, nesting, and the "Opens in a new window or tab" title
+suffix are copied from a live fetch; only the item ids, set names, and
+prices are hand-set for deterministic coverage).
+
+This is the CURRENT eBay SRP DOM generation: li.s-card / .su-card-container
+markup, NOT the legacy li.s-item markup the other fixtures in this
+directory use. It exercises _card_from_scard() + the .s-card branch of
+parse_search_page(), plus the USD-only currency guard.
+
+"active" in the filename tags every parsed row source=ebay_active via
+source_from_filename().
+
+Row coverage:
+  - itm/444444444441: USD "$189.99" + "$12.50 shipping", bare booster box
+      -> survives, booster_box_default (36)
+  - itm/444444444442: USD "US $420.00", "3 booster boxes", free shipping
+      -> survives, n_booster_boxes (108)
+  - itm/444444444443: BRL "R$ 7,493.96" (box geolocated to eBay BR)
+      -> DROPPED, non_usd_price (the whole point of the currency guard)
+  - itm/444444444444: USD but Elite Trainer Box -> DROPPED, etb_excluded
+  - placeholder "Shop on eBay" card -> skipped (perennial first card)
+-->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Pokemon Booster Pack Lot for sale | eBay</title></head>
+<body>
+<ul class="srp-results srp-list clearfix" id="srp-river-results">
+
+  <li class="s-card s-card--vertical">
+    <div class="su-card-container su-card-container--vertical">
+      <div class="su-card-container__header">
+        <a class="s-card__link image-treatment" href="https://ebay.com/itm/123456?itmmeta=PLACEHOLDER" target="_blank">
+          <img class="s-card__image" alt="Shop on eBay"/>
+        </a>
+      </div>
+      <div class="su-card-container__content">
+        <span class="s-card__title"><span class="su-styled-text primary default">Shop on eBay</span></span>
+        <div class="s-card__attribute-row"><span class="su-styled-text primary bold large-1 s-card__price">$20.00</span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="s-card s-card--vertical" data-listingid="444444444441">
+    <div class="su-card-container su-card-container--vertical">
+      <div class="su-card-container__header">
+        <a class="s-card__link image-treatment" href="https://www.ebay.com/itm/444444444441?_skw=pokemon+prismatic+evolutions&itmmeta=01AAA" target="_blank">
+          <img class="s-card__image" alt="Pokemon Prismatic Evolutions Booster Box Sealed"/>
+        </a>
+      </div>
+      <div class="su-card-container__content">
+        <span class="s-card__title"><span class="su-styled-text primary default">Pokemon TCG Prismatic Evolutions Booster Box Factory Sealed New<span class="clipped">Opens in a new window or tab</span></span></span>
+        <div class="su-card-container__attributes__primary">
+          <div class="s-card__attribute-row"><span class="su-styled-text primary bold large-1 s-card__price">$189.99</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">Buy It Now</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">+$12.50 shipping</span></div>
+        </div>
+        <div class="s-card__subtitle-row"><span class="s-card__subtitle"><span class="su-styled-text secondary default">Brand New</span></span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="s-card s-card--vertical" data-listingid="444444444442">
+    <div class="su-card-container su-card-container--vertical">
+      <div class="su-card-container__header">
+        <a class="s-card__link image-treatment" href="https://www.ebay.com/itm/444444444442?_skw=pokemon+white+flare&itmmeta=01BBB" target="_blank">
+          <img class="s-card__image" alt="Pokemon White Flare booster boxes"/>
+        </a>
+      </div>
+      <div class="su-card-container__content">
+        <span class="s-card__title"><span class="su-styled-text primary default">Pokemon White Flare 3 Booster Boxes Sealed Lot Japanese<span class="clipped">Opens in a new window or tab</span></span></span>
+        <div class="su-card-container__attributes__primary">
+          <div class="s-card__attribute-row"><span class="su-styled-text primary bold large-1 s-card__price">US $420.00</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">Free shipping</span></div>
+        </div>
+        <div class="s-card__subtitle-row"><span class="s-card__subtitle"><span class="su-styled-text secondary default">Brand New</span></span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="s-card s-card--vertical" data-listingid="444444444443">
+    <div class="su-card-container su-card-container--vertical">
+      <div class="su-card-container__header">
+        <a class="s-card__link image-treatment" href="https://www.ebay.com/itm/444444444443?_skw=pokemon+151&itmmeta=01CCC" target="_blank">
+          <img class="s-card__image" alt="Lot of 72 Pokemon 151 booster packs"/>
+        </a>
+      </div>
+      <div class="su-card-container__content">
+        <span class="s-card__title"><span class="su-styled-text primary default">Lot of (72) Pokemon TCG 151 Booster Packs Sealed<span class="clipped">Opens in a new window or tab</span></span></span>
+        <div class="su-card-container__attributes__primary">
+          <div class="s-card__attribute-row"><span class="su-styled-text primary bold large-1 s-card__price">R$ 7,493.96</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">17 bids &middot; Time left 3d 4h</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">+R$ 331.59 shipping</span></div>
+        </div>
+        <div class="s-card__subtitle-row"><span class="s-card__subtitle"><span class="su-styled-text secondary default">Brand New</span></span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="s-card s-card--vertical" data-listingid="444444444444">
+    <div class="su-card-container su-card-container--vertical">
+      <div class="su-card-container__header">
+        <a class="s-card__link image-treatment" href="https://www.ebay.com/itm/444444444444?_skw=pokemon+151+etb&itmmeta=01DDD" target="_blank">
+          <img class="s-card__image" alt="Pokemon 151 Elite Trainer Box"/>
+        </a>
+      </div>
+      <div class="su-card-container__content">
+        <span class="s-card__title"><span class="su-styled-text primary default">Pokemon 151 Elite Trainer Box ETB Sealed New<span class="clipped">Opens in a new window or tab</span></span></span>
+        <div class="su-card-container__attributes__primary">
+          <div class="s-card__attribute-row"><span class="su-styled-text primary bold large-1 s-card__price">$54.99</span></div>
+          <div class="s-card__attribute-row"><span class="su-styled-text secondary large">Free shipping</span></div>
+        </div>
+        <div class="s-card__subtitle-row"><span class="s-card__subtitle"><span class="su-styled-text secondary default">Brand New</span></span></div>
+      </div>
+    </div>
+  </li>
+
+</ul>
+</body>
+</html>
