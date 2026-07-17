@@ -3,9 +3,9 @@
 ## CURRENT STATE (only mutable region; everything below the line is append-only)
 
 - Branch: main
-- Last completed phase: 0 (repo hygiene)
-- Last tag: pokemon-ops/phase-0
-- Next phase: 1 (schema 0011 + data layer)
+- Last completed phase: 1 (schema 0011 + data layer + seeds + verify harness)
+- Last tag: pokemon-ops/phase-1
+- Next phase: 2 (CRUD routes + CSV importers + smoke script)
 - Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
@@ -57,3 +57,39 @@ pokemon-ops/phase-0  (pushed to origin)
 ```
 
 Deviations: none. Spec issues: none. Next: Phase 1.
+
+### 2026-07-17 — Phase 1 complete (mega-session)
+
+Work done (Fable subagent implemented; orchestrator verified independently):
+- `db/migrations/0011_pokemon_ops.sql`: all 8 pk_ tables per LOCKED PLAN §2 + pk_config
+  + pk_v_benchmark_current view. listing_ref/external_txn_id NOT NULL DEFAULT '' with
+  UNIQUE dedupe keys; partial unique index on pk_sales for lynx/sqs; enum CHECKs.
+- `lib/pokemon-ops/{types,db,import-observations}.ts`: typed data layer, IMMEDIATE-tx
+  write helpers for external CLIs, receipt-gated (sha256) CSV importer core.
+- `scripts/pokemon-ops-seed.ts` (idempotent): Fixture Corner Store (machines id=1, placing),
+  16 pk_products, carddistro-2026-07-17.csv → 15 observations.
+- `tests/pokemon-ops.test.ts` (8 tests, isolated temp DB): round-trips, audit_count
+  baseline-reset stock math, benchmark view latest-by-date, '' dedupe + NULL-in-UNIQUE
+  regression demo, lynx partial-index dedupe, seed idempotency, USD→cents exact.
+- `npm run verify:pokemon-ops` = migrate + migrate-idempotency + tests + build.
+
+Verified by (DoD outputs, pasted; re-run in main session, not trusted from subagent):
+```
+$ npm run verify:pokemon-ops
+... [verify:pokemon-ops] PASS  (VERIFY_EXIT=0; # tests 8 / # pass 8 / # fail 0)
+$ npm run migrate   (second run)
+[db] migrations up to date at /home/Arjun/rathworkspace/data/rathworkspace.db
+$ npm run seed:pokemon-ops  (run twice — identical counts, import {imported:0,skipped:15} on rerun)
+$ sqlite3 data/rathworkspace.db "select count(*) from pk_price_observations where source='carddistro'"
+15
+$ sqlite3 data/rathworkspace.db "select count(*) from pk_products"
+16
+$ systemctl restart rathworkspace → active; curl localhost:3000/ → 307
+$ git tag --list 'pokemon-ops/phase-1' → pokemon-ops/phase-1 (pushed)
+```
+
+Deviations: refill_cycle_days seeded 30 (not spec's 14 fallback) per confirmed MACHINE
+FACTS in prompts/PHASE-1-prompt.md — authorized. Minor additive judgment calls: unique
+index on pk_products.set_name (canonical-name rule), benchmark_delta_cents = landed −
+benchmark (negative = cheaper than mentor), extra stock-events index. Spec issues: none.
+Next: Phase 2.
