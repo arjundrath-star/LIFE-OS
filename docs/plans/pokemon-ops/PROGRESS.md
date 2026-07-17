@@ -3,9 +3,9 @@
 ## CURRENT STATE (only mutable region; everything below the line is append-only)
 
 - Branch: main
-- Last completed phase: 4 (dashboard tab + WS + E2E)
-- Last tag: pokemon-ops/phase-4
-- Next phase: 5 (Telegram alerts + digest)
+- Last completed phase: 5 (Telegram alerts + digest)
+- Last tag: pokemon-ops/phase-5
+- Next phase: 6 (Hermes sourcing scanner)
 - Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
@@ -198,3 +198,35 @@ action accepts POST and PATCH; Button testids are ids (Tremor prop types). Note 
 ops: subagent found+fixed a stale .next build-manifest mismatch (pre-existing; clean
 rebuild clears it — if /pokemon-crm or any tab 404s its client JS after a deploy,
 rm -rf .next && npm run build). Spec issues: none. Next: Phase 5.
+
+### 2026-07-17 — Phase 5 complete (mega-session)
+
+Work done (Sonnet subagent implemented; orchestrator re-verified + performed the single
+live send):
+- scripts/pokemon-ops-alerts.sh: immediate mode (unalerted action/urgent recs +
+  sourcing observations beating benchmark by ≥15%; send-then-mark so failed sends
+  retry), --digest (KPI band, spread, open recs by severity, best fresh offer per
+  product), --dry-run, --test. Bash+curl on TELEGRAM_BOT_TOKEN from ~/.hermes/.env,
+  chat ALERT_CHAT_ID, cron-PATH header. Zero Hermes dependency.
+- scripts/pokemon-ops-alerts-data.ts (pending/digest/mark subcommands; all SQL in
+  lib/pokemon-ops/db.ts; deterministic --as-of).
+- Golden fixture alerts-digest (action alerts yes; info/pre-alerted/carddistro/<15%
+  no) + 3 tests in verify. run-fixture.ts loader factored for reuse (12/12 rules
+  fixtures unaffected).
+- Crontab: 2 entries installed (*/15 immediate, 07:30 digest), prior 161 lines intact.
+
+Verified by (DoD outputs, re-run in main session):
+```
+$ npm run verify:pokemon-ops → PASS exit 0 (8+4+12+3 tests + build)
+$ bash scripts/pokemon-ops-alerts.sh --dry-run  (live DB) → empty, exit 0
+  (fixture dry-run diffs asserted exact in test:pokemon-ops-alerts)
+$ bash scripts/pokemon-ops-alerts.sh --test → {"ok":true,"result":{"message_id":2677,
+  ...,"chat":{"id":ALERT_CHAT_ID,...},"text":"pokemon-ops alerts: test send OK"}}
+$ bash scripts/pokemon-ops-alerts.sh  (immediate re-run) → "0 alerts" logged, 0 sent
+$ crontab -l | grep pokemon-ops-alerts → 2 job entries
+$ git tag --list 'pokemon-ops/phase-5' → pokemon-ops/phase-5 (pushed)
+```
+
+Deviations: none material. Fix worth noting: getDb() migration logging corrupted CLI
+JSON on fresh DBs; alerts CLI now swallows that line (would only have bitten future
+fresh DBs). Spec issues: none. Next: Phase 6.
