@@ -231,6 +231,15 @@ async function tickPokemonOpsRules() {
   });
 }
 
+async function tickPokemonOps() {
+  // Dashboard snapshot broadcast for the /pokemon-ops tab's 'pokemon_ops'
+  // channel. The snapshot is built server-side (lib/pokemon-ops/snapshot.ts)
+  // from the metrics layer — panels never compute business math client-side.
+  const hub = getHub();
+  const { pokemonOpsSnapshot } = await import("@/lib/pokemon-ops/snapshot");
+  hub.broadcast("pokemon_ops", pokemonOpsSnapshot(nowIso()));
+}
+
 async function tickKanban() {
   // Shared Hermes Kanban board. Read-only dashboard mirror: task writes remain in Hermes
   // (`hermes kanban ...` / /kanban) so Rathworkspace cannot drift into a second source of truth.
@@ -267,6 +276,7 @@ export function startScheduler() {
   const agentRuns = guarded("agentRuns", tickAgentRuns);
   const kanban = guarded("kanban", tickKanban);
   const pokemonOpsRules = guarded("pokemonOpsRules", tickPokemonOpsRules);
+  const pokemonOps = guarded("pokemonOps", tickPokemonOps);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -280,6 +290,7 @@ export function startScheduler() {
   agentRuns();
   kanban();
   pokemonOpsRules();
+  pokemonOps();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -293,6 +304,7 @@ export function startScheduler() {
     setInterval(agentRuns, 5000), // named-agent runs: read SQLite + broadcast, cheap and bounded
     setInterval(kanban, 5000), // Hermes Kanban: read shared board + broadcast, cheap and bounded
     setInterval(pokemonOpsRules, 24 * 60 * 60 * 1000), // pokemon-ops rules: daily cadence (+ boot burst above); on-demand via POST /api/pokemon-ops/rules/run
+    setInterval(pokemonOps, 60000), // pokemon-ops dashboard snapshot: cheap read + broadcast, 60s per PHASE-4
   ];
 
   console.log("[scheduler] started");

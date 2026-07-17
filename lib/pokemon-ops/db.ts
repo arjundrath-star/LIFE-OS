@@ -764,6 +764,22 @@ export function listRecommendationsFiltered(opts: RecommendationFilter = {}): Pk
   );
 }
 
+/** Ack/dismiss (or any status transition) from the dashboard. Enum-validated
+ *  only, same shape as updateLotStatus — no rule-specific side effects here. */
+export function updateRecommendationStatus(
+  id: number,
+  status: string
+): PkRecommendation {
+  assertEnum(status, RECOMMENDATION_STATUSES, "recommendation status");
+  return immediate(() => {
+    const res = getDb()
+      .prepare(`UPDATE pk_recommendations SET status = ? WHERE id = ?`)
+      .run(status, id);
+    if (res.changes === 0) throw new Error(`recommendation ${id} not found`);
+    return get<PkRecommendation>(`SELECT * FROM pk_recommendations WHERE id = ?`, id)!;
+  });
+}
+
 // ---- pk_import_receipts ----
 
 export function getImportReceipt(sha256: string): PkImportReceipt | undefined {
