@@ -3,9 +3,9 @@
 ## CURRENT STATE (only mutable region; everything below the line is append-only)
 
 - Branch: main
-- Last completed phase: 2 (CRUD routes + CSV importers + smoke script)
-- Last tag: pokemon-ops/phase-2
-- Next phase: 3 (metrics + rules engine + daily tick)
+- Last completed phase: 3 (metrics + rules engine + daily tick)
+- Last tag: pokemon-ops/phase-3
+- Next phase: 4 (dashboard tab + WS + E2E)
 - Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
@@ -126,3 +126,42 @@ idempotency is file-level (no natural row key in locked schema); single-sale der
 product from active assignment. Incident note: subagent's smoke iteration briefly
 kill-9'd the prod PID; systemd auto-recovered, healthy throughout after. Spec issues:
 none. Next: Phase 3.
+
+### 2026-07-17 — Phase 3 complete (mega-session)
+
+Work done (Fable builder subagent + SEPARATE blind Fable adversarial subagent):
+- lib/pokemon-ops/metrics.ts: FIFO lot allocation, margin $/slot/day (primary KPI),
+  velocity (14d window), days-of-supply, projected sellout, refill-sync spread, total
+  invested, benchmark-delta series. Pure, asOf-parameterized, integer cents.
+- lib/pokemon-ops/rules.ts: refill_sync (spread > 7d), price_raise/add_slot (sellout
+  < 50% of refill_cycle_days=30 → < 15d), dead_stock (21d), refill_order ($1,200
+  budget greedy fill, freshest-observation-per-source ≤30d, min-margin skip). Open-rec
+  dedupe on (rule, machine_id, slot_number). RULE_CONSTANTS exported + documented.
+- tickPokemonOpsRules daily in scheduler (channel pokemon_ops_rules) + POST/GET
+  /api/pokemon-ops/rules/run.
+- 11 golden fixture cases: inputs.json / expected.json / DERIVATION.md per case +
+  CONVENTIONS.md. Boundary cases sit exactly AT thresholds to pin strict comparisons.
+
+Adversarial pass (mandatory per session protocol): a separate Fable subagent, blind to
+the builder's code/expected/derivations (scratch-dir copy of inputs + CONVENTIONS +
+value-stripped skeletons only), re-derived all expected values by hand. Mechanical deep
+diff: 11/11 cases MATCH, zero mismatched leaves. Fixtures accepted without changes.
+
+Verified by (DoD outputs, re-run in main session):
+```
+$ npm run verify:pokemon-ops → PASS exit 0 (8+4+12 tests; 12/12 rules fixtures exact)
+$ POST /api/pokemon-ops/rules/run (authed, isolated server on fixture-seeded temp DB):
+HTTP=200 {"ok":true,"evaluated":4,"emitted":0,"skipped_duplicates":2,"open":[
+  {"id":2,"rule":"add_slot",...},{"id":1,"rule":"price_raise",...}]}  (≥1 rec ✓)
+$ systemctl restart rathworkspace → active; curl localhost:3000/ → 307
+$ git tag --list 'pokemon-ops/phase-3' → pokemon-ops/phase-3 (pushed)
+```
+
+Incident (self-inflicted, resolved): the ad-hoc DoD server boot omitted
+NODE_ENV=production, so Next dev-mode clobbered .next and prod crash-looped on restart;
+rebuilt + restarted, healthy. scripts/pokemon-ops-smoke.sh is NOT affected (it sets
+NODE_ENV=production). Rule for future sessions: any ad-hoc `tsx server.ts` boot must
+set NODE_ENV=production.
+
+Deviations: none from spec; all convention choices documented in CONVENTIONS.md.
+Spec issues: none. Next: Phase 4.
