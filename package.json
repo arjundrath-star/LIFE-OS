@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "tsc --noEmit",
+    "test:agentmemory": "tsx --test tests/agentmemory.test.ts",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx db/index.ts --migrate-only",
     "agent-event": "tsx scripts/agent-event.ts",

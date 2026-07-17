@@ -18,7 +18,7 @@ behind a shared server-auth layout (`components/shell/DashShell`):
 - **Home** (`/`) — the decluttered daily glance: a large living centerpiece, live
   agents, today's calendar, today's to-dos, a scannable recent-email feed, Whoop,
   and a clickable project glance.
-- One full page per section (`/vending`, `/pokemon-crm`, `/ad-agency`, `/school`, `/agents`, `/kanban`,
+- One full page per section (`/vending`, `/pokemon-crm`, `/ad-agency`, `/school`, `/agents`, `/agentmemory`, `/kanban`,
   `/email`, `/calendar`, `/health`, `/connections`, `/projects`, `/terminal`,
   `/files`, `/accounts`) built on a shared `ProjectPage` template (hero metric band
   over stacked sections). `/terminal` and `/files` render the embeds full-height.
@@ -28,6 +28,11 @@ behind a shared server-auth layout (`components/shell/DashShell`):
   screensaver (breathing centerpiece + calm metrics); the rail hides.
 The embedded ttyd/filebrowser stay at `/terminal/` and `/files/` (the custom server
 proxies only those trailing-slash subpaths; the bare paths are the Next pages).
+
+`/agentmemory` is a native authenticated read-only view. Its server-side BFF at
+`/api/agentmemory` calls only the loopback AgentMemory API with a server-only bearer,
+returns an explicit redacted schema, and exposes bounded/rate-limited search. It does
+not proxy the native viewer, iii console, arbitrary paths, writes, or agent scopes.
 
 ## How it runs (production, on the VPS)
 Three systemd services:

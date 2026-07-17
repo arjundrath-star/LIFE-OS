@@ -17,6 +17,7 @@ import {
   Terminal,
   FolderOpen,
   Link2,
+  BrainCircuit,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const NAV: NavItem[] = [
   { key: "home", label: "Home", href: "/", Icon: Home },
   { key: "kanban", label: "Kanban", href: "/kanban", Icon: Columns3 },
   { key: "agents", label: "Agents", href: "/agents", Icon: Bot },
+  { key: "agentmemory", label: "AgentMemory", href: "/agentmemory", Icon: BrainCircuit },
   { key: "email", label: "Email", href: "/email", Icon: Mail },
   { key: "calendar", label: "Calendar", href: "/calendar", Icon: Calendar },
   { key: "vending", label: "Vending", href: "/vending", Icon: Boxes },
