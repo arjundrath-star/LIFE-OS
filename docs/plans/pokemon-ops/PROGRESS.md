@@ -3,9 +3,9 @@
 ## CURRENT STATE (only mutable region; everything below the line is append-only)
 
 - Branch: main
-- Last completed phase: 3 (metrics + rules engine + daily tick)
-- Last tag: pokemon-ops/phase-3
-- Next phase: 4 (dashboard tab + WS + E2E)
+- Last completed phase: 4 (dashboard tab + WS + E2E)
+- Last tag: pokemon-ops/phase-4
+- Next phase: 5 (Telegram alerts + digest)
 - Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
@@ -165,3 +165,36 @@ set NODE_ENV=production.
 
 Deviations: none from spec; all convention choices documented in CONVENTIONS.md.
 Spec issues: none. Next: Phase 4.
+
+### 2026-07-17 — Phase 4 complete (mega-session)
+
+Work done (Sonnet subagent implemented; orchestrator personally ran E2E + inspected
+screenshot per session protocol):
+- lib/pokemon-ops/snapshot.ts (all KPI math server-side on metrics.ts) + tickPokemonOps
+  60s → WS channel pokemon_ops + GET /api/pokemon-ops first-paint fallback.
+- Tab app/(dash)/pokemon-ops + components/pokemon-ops/*: KPI band, slot table, open
+  recommendations (ack/dismiss via new recommendations route), recent sales, sourcing
+  feed w/ benchmark deltas, purchase lots, entry forms (lot/observation/sku/stock/
+  quick-sale) + multipart CSV upload route reusing importer cores. Nav entry added.
+  Honest empty states for the pre-launch live DB (no fake zeros).
+- E2E scripts/pokemon-ops-e2e.ts: puppeteer-core + system chromium, isolated
+  NODE_ENV=production server on fixture fifo-margin-basic, page.setCookie auth
+  (localhost trusted secure context), asserts KPI total-invested $230.00 → creates lot
+  via form → asserts $281.23 + lot appears; screenshot artifact.
+
+Verified by (DoD outputs; E2E run personally by orchestrator, screenshot inspected):
+```
+$ npm run e2e:pokemon-ops → "== summary: 0 failing checks ==" E2E_EXIT=0 (run 3x total, no flake)
+$ test -f tests/pokemon-ops/artifacts/phase4.png → exists (206281 bytes; visually
+  inspected: theme, KPI band, slots, recs w/ Ack/Dismiss, feeds, forms all correct)
+$ npm run verify:pokemon-ops → PASS exit 0 (includes npm run build → 0)
+$ systemctl restart rathworkspace → active; curl / → 307; curl /pokemon-ops → 307 (auth gate)
+$ git tag --list 'pokemon-ops/phase-4' → pokemon-ops/phase-4 (pushed)
+```
+
+Deviations (judgment calls): margin $/slot/day KPI = SUM across active slots (labeled
+in UI); sell-through window 30d per PLAN wording (velocity stays 14d); recommendation
+action accepts POST and PATCH; Button testids are ids (Tremor prop types). Note for
+ops: subagent found+fixed a stale .next build-manifest mismatch (pre-existing; clean
+rebuild clears it — if /pokemon-crm or any tab 404s its client JS after a deploy,
+rm -rf .next && npm run build). Spec issues: none. Next: Phase 5.
