@@ -13,6 +13,7 @@ import {
   PRODUCT_TIERS,
   RECOMMENDATION_RULES,
   RECOMMENDATION_SEVERITIES,
+  RECOMMENDATION_STATUSES,
   REPRINT_STATUSES,
   SALE_SOURCES,
   STOCK_EVENT_TYPES,
@@ -726,6 +727,40 @@ export function insertRecommendation(input: NewRecommendation): number {
 export function listOpenRecommendations(): PkRecommendation[] {
   return all<PkRecommendation>(
     `SELECT * FROM pk_recommendations WHERE status = 'open' ORDER BY created_at DESC, id DESC`
+  );
+}
+
+export interface RecommendationFilter {
+  status?: string;
+  rule?: string;
+  machineId?: number;
+  limit?: number;
+}
+
+export function listRecommendationsFiltered(opts: RecommendationFilter = {}): PkRecommendation[] {
+  if (opts.status !== undefined) {
+    assertEnum(opts.status, RECOMMENDATION_STATUSES, "recommendation status");
+  }
+  if (opts.rule !== undefined) assertEnum(opts.rule, RECOMMENDATION_RULES, "recommendation rule");
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (opts.status) {
+    clauses.push("status = ?");
+    params.push(opts.status);
+  }
+  if (opts.rule) {
+    clauses.push("rule = ?");
+    params.push(opts.rule);
+  }
+  if (opts.machineId !== undefined) {
+    clauses.push("machine_id = ?");
+    params.push(opts.machineId);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  params.push(opts.limit ?? 100);
+  return all<PkRecommendation>(
+    `SELECT * FROM pk_recommendations ${where} ORDER BY created_at DESC, id DESC LIMIT ?`,
+    ...params
   );
 }
 

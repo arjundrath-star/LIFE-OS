@@ -1,0 +1,95 @@
+{
+  "runs": [
+    {
+      "evaluated": 4,
+      "emitted": 1,
+      "skipped_duplicates": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "rule": "refill_order",
+      "machine_id": "Fixture Machine",
+      "slot_number": null,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "budget_cents": 120000,
+        "spent_cents": 119050,
+        "remaining_cents": 950,
+        "items": [
+          {
+            "product_id": "Set One",
+            "set_name": "Set One",
+            "slot_numbers": [
+              1
+            ],
+            "need": 28,
+            "days_of_supply": 16,
+            "qty": 28,
+            "source": "tcgplayer",
+            "observed_date": "2026-06-20",
+            "unit_cost_cents": 850,
+            "line_total_cents": 23800,
+            "expected_margin_per_pack_cents": 1150,
+            "benchmark_delta_cents": -50
+          },
+          {
+            "product_id": "Set Four",
+            "set_name": "Set Four",
+            "slot_numbers": [
+              4
+            ],
+            "need": 11,
+            "days_of_supply": 19,
+            "qty": 11,
+            "source": "costco",
+            "observed_date": "2026-07-12",
+            "unit_cost_cents": 750,
+            "line_total_cents": 8250,
+            "expected_margin_per_pack_cents": 1050,
+            "benchmark_delta_cents": -50
+          },
+          {
+            "product_id": "Set Five",
+            "set_name": "Set Five",
+            "slot_numbers": [
+              5
+            ],
+            "need": 69,
+            "days_of_supply": 22,
+            "qty": 58,
+            "source": "amazon",
+            "observed_date": "2026-07-08",
+            "unit_cost_cents": 1500,
+            "line_total_cents": 87000,
+            "expected_margin_per_pack_cents": 1000,
+            "benchmark_delta_cents": -100
+          }
+        ],
+        "skipped": [
+          {
+            "product_id": "Set Two",
+            "set_name": "Set Two",
+            "slot_numbers": [
+              2
+            ],
+            "reason": "below_min_margin",
+            "source": "ebay_sold",
+            "unit_cost_cents": 950,
+            "price_cents": 1400,
+            "expected_margin_per_pack_cents": 450
+          },
+          {
+            "product_id": "Set Three",
+            "set_name": "Set Three",
+            "slot_numbers": [
+              3
+            ],
+            "reason": "no_fresh_observation"
+          }
+        ]
+      }
+    }
+  ]
+}

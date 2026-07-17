@@ -1,0 +1,78 @@
+{
+  "runs": [
+    {
+      "evaluated": 4,
+      "emitted": 3,
+      "skipped_duplicates": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "rule": "add_slot",
+      "machine_id": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "product_id": "Epsilon",
+        "set_name": "Epsilon",
+        "fast_slot": 1,
+        "fast_days_of_supply": 5,
+        "candidate_slot": 3,
+        "candidate_kind": "unassigned",
+        "candidate_days_of_supply": null
+      }
+    },
+    {
+      "rule": "price_raise",
+      "machine_id": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "product_id": "Epsilon",
+        "set_name": "Epsilon",
+        "days_of_supply": 5,
+        "threshold_days": 15,
+        "velocity_units_per_day": 2,
+        "current_stock": 10,
+        "current_price_cents": 1600,
+        "suggested_price_min_cents": 1700,
+        "suggested_price_max_cents": 1800
+      }
+    },
+    {
+      "rule": "refill_sync",
+      "machine_id": "Fixture Machine",
+      "slot_number": null,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "spread_days": 15,
+        "threshold_days": 7,
+        "slots": [
+          {
+            "slot_number": 1,
+            "product_id": "Epsilon",
+            "set_name": "Epsilon",
+            "days_of_supply": 5,
+            "velocity_units_per_day": 2,
+            "current_stock": 10
+          },
+          {
+            "slot_number": 2,
+            "product_id": "Zeta",
+            "set_name": "Zeta",
+            "days_of_supply": 20,
+            "velocity_units_per_day": 0.5,
+            "current_stock": 10
+          }
+        ],
+        "suggestion": {
+          "raise_price_slot": 1,
+          "lower_price_or_rotate_slot": 2
+        }
+      }
+    }
+  ]
+}

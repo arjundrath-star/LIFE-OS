@@ -1,0 +1,92 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Beta",
+      "form": "booster",
+      "tier": "mid"
+    }
+  ],
+  "observations": [],
+  "lots": [
+    {
+      "ref": "lotB1",
+      "product": "Beta",
+      "purchase_date": "2026-07-01",
+      "source": "carddistro",
+      "pack_count": 20,
+      "total_cost_cents": 18000,
+      "status": "received"
+    }
+  ],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Beta",
+      "price_cents": 1500,
+      "capacity": 30,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [],
+  "sales": [
+    {
+      "ref": "s0",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Beta",
+      "qty": 2,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-07-08T12:00:00.000Z"
+    },
+    {
+      "ref": "sb",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Beta",
+      "qty": 1,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-07-10T00:00:00.000Z"
+    },
+    {
+      "ref": "s1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Beta",
+      "qty": 3,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-07-12T12:00:00.000Z"
+    },
+    {
+      "ref": "s2",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Beta",
+      "qty": 4,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-07-15T12:00:00.000Z"
+    }
+  ],
+  "queries": [
+    {
+      "name": "kpi7",
+      "fn": "marginPerSlotDay",
+      "machine": "Fixture Machine",
+      "slot": 1,
+      "windowDays": 7
+    },
+    {
+      "name": "kpi14",
+      "fn": "marginPerSlotDay",
+      "machine": "Fixture Machine",
+      "slot": 1,
+      "windowDays": 14
+    }
+  ]
+}

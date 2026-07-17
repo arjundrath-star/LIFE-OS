@@ -1,0 +1,88 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Epsilon",
+      "form": "booster",
+      "tier": "mid"
+    },
+    {
+      "set_name": "Zeta",
+      "form": "booster",
+      "tier": "mid"
+    }
+  ],
+  "observations": [],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Epsilon",
+      "price_cents": 1600,
+      "capacity": 40,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Zeta",
+      "price_cents": 1600,
+      "capacity": 40,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 38,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "event": "refill",
+      "qty_delta": 17,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "e1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Epsilon",
+      "qty": 14,
+      "unit_price_cents": 1600,
+      "sold_at": "2026-07-06T12:00:00.000Z"
+    },
+    {
+      "ref": "e2",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Epsilon",
+      "qty": 14,
+      "unit_price_cents": 1600,
+      "sold_at": "2026-07-12T12:00:00.000Z"
+    },
+    {
+      "ref": "z1",
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Zeta",
+      "qty": 7,
+      "unit_price_cents": 1600,
+      "sold_at": "2026-07-08T12:00:00.000Z"
+    }
+  ],
+  "rules": {
+    "runs": 1
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Theta",
+      "form": "booster",
+      "tier": "entry"
+    }
+  ],
+  "observations": [],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Theta",
+      "price_cents": 1000,
+      "capacity": 20,
+      "assigned_at": "2026-06-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 10,
+      "at": "2026-06-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "t1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Theta",
+      "qty": 2,
+      "unit_price_cents": 1000,
+      "sold_at": "2026-06-27T12:00:00.000Z"
+    }
+  ],
+  "rules": {
+    "runs": 1
+  }
+}

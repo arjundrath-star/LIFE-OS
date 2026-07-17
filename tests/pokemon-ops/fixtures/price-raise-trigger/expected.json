@@ -1,0 +1,45 @@
+{
+  "runs": [
+    {
+      "evaluated": 4,
+      "emitted": 2,
+      "skipped_duplicates": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "rule": "add_slot",
+      "machine_id": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "product_id": "Eta",
+        "set_name": "Eta",
+        "fast_slot": 1,
+        "fast_days_of_supply": 10,
+        "candidate_slot": 2,
+        "candidate_kind": "unassigned",
+        "candidate_days_of_supply": null
+      }
+    },
+    {
+      "rule": "price_raise",
+      "machine_id": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "status": "open",
+      "payload": {
+        "product_id": "Eta",
+        "set_name": "Eta",
+        "days_of_supply": 10,
+        "threshold_days": 15,
+        "velocity_units_per_day": 1,
+        "current_stock": 10,
+        "current_price_cents": 1200,
+        "suggested_price_min_cents": 1300,
+        "suggested_price_max_cents": 1400
+      }
+    }
+  ]
+}

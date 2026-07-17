@@ -26,6 +26,7 @@ if (!out.includes("up to date") || out.includes("applied migration")) {
 
 run("tests", ["run", "test:pokemon-ops"]);
 run("ingest tests", ["run", "test:pokemon-ops-ingest"]);
+run("rules golden fixtures", ["run", "test:pokemon-ops-rules"]);
 run("build", ["run", "build"]);
 
 console.log("\n[verify:pokemon-ops] PASS");

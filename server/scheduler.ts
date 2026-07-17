@@ -215,6 +215,22 @@ async function tickAgentRuns() {
   hub.broadcast("agent_runs", agentsOrchestrationSnapshot());
 }
 
+async function tickPokemonOpsRules() {
+  // Daily pokemon-ops rules evaluation. The engine is deterministic — asOf is
+  // stamped here at the boundary and threaded through (no Date.now() inside
+  // lib/pokemon-ops). Broadcast is a tiny summary; the recommendations
+  // themselves live in pk_recommendations (UI / alerts read the table).
+  const hub = getHub();
+  const { runRules } = await import("@/lib/pokemon-ops/rules");
+  const { listOpenRecommendations } = await import("@/lib/pokemon-ops/db");
+  const result = runRules(nowIso());
+  hub.broadcast("pokemon_ops_rules", {
+    ...result,
+    open: listOpenRecommendations().length,
+    lastRunAt: nowIso(),
+  });
+}
+
 async function tickKanban() {
   // Shared Hermes Kanban board. Read-only dashboard mirror: task writes remain in Hermes
   // (`hermes kanban ...` / /kanban) so Rathworkspace cannot drift into a second source of truth.
@@ -250,6 +266,7 @@ export function startScheduler() {
   const vending = guarded("vending", tickVending);
   const agentRuns = guarded("agentRuns", tickAgentRuns);
   const kanban = guarded("kanban", tickKanban);
+  const pokemonOpsRules = guarded("pokemonOpsRules", tickPokemonOpsRules);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -262,6 +279,7 @@ export function startScheduler() {
   vending();
   agentRuns();
   kanban();
+  pokemonOpsRules();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -274,6 +292,7 @@ export function startScheduler() {
     setInterval(vending, 10 * 60 * 1000), // outreach moves slowly; 10 min keeps Gmail load tiny
     setInterval(agentRuns, 5000), // named-agent runs: read SQLite + broadcast, cheap and bounded
     setInterval(kanban, 5000), // Hermes Kanban: read shared board + broadcast, cheap and bounded
+    setInterval(pokemonOpsRules, 24 * 60 * 60 * 1000), // pokemon-ops rules: daily cadence (+ boot burst above); on-demand via POST /api/pokemon-ops/rules/run
   ];
 
   console.log("[scheduler] started");

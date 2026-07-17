@@ -1,0 +1,50 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Eta",
+      "form": "booster",
+      "tier": "entry"
+    }
+  ],
+  "observations": [],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Eta",
+      "price_cents": 1200,
+      "capacity": 30,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 24,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "h1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Eta",
+      "qty": 14,
+      "unit_price_cents": 1200,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    }
+  ],
+  "rules": {
+    "runs": 1
+  }
+}

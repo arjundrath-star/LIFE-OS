@@ -1,0 +1,137 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Alpha",
+      "form": "booster",
+      "tier": "mid"
+    }
+  ],
+  "observations": [
+    {
+      "ref": "o1",
+      "product": "Alpha",
+      "observed_date": "2026-05-20",
+      "source": "tcgplayer",
+      "price_per_pack_cents": 850
+    },
+    {
+      "ref": "o2",
+      "product": "Alpha",
+      "observed_date": "2026-06-01",
+      "source": "carddistro",
+      "price_per_pack_cents": 900
+    },
+    {
+      "ref": "o3",
+      "product": "Alpha",
+      "observed_date": "2026-06-05",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 800
+    },
+    {
+      "ref": "o4",
+      "product": "Alpha",
+      "observed_date": "2026-06-10",
+      "source": "carddistro",
+      "price_per_pack_cents": 950
+    },
+    {
+      "ref": "o5",
+      "product": "Alpha",
+      "observed_date": "2026-06-15",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 1000
+    }
+  ],
+  "lots": [
+    {
+      "ref": "lotC",
+      "product": "Alpha",
+      "purchase_date": "2026-05-01",
+      "source": "ebay_sold",
+      "pack_count": 5,
+      "total_cost_cents": 5000,
+      "status": "in_transit"
+    },
+    {
+      "ref": "lotA",
+      "product": "Alpha",
+      "purchase_date": "2026-06-01",
+      "source": "ebay_sold",
+      "pack_count": 10,
+      "total_cost_cents": 8000,
+      "status": "received"
+    },
+    {
+      "ref": "lotB",
+      "product": "Alpha",
+      "purchase_date": "2026-06-10",
+      "source": "tcgplayer",
+      "pack_count": 10,
+      "total_cost_cents": 10000,
+      "status": "received"
+    }
+  ],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "price_cents": 1500,
+      "capacity": 30,
+      "assigned_at": "2026-06-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [],
+  "sales": [
+    {
+      "ref": "s1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "qty": 6,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-06-15T12:00:00.000Z"
+    },
+    {
+      "ref": "s2",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "qty": 6,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-06-20T12:00:00.000Z"
+    },
+    {
+      "ref": "s3",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "qty": 3,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-06-25T12:00:00.000Z"
+    }
+  ],
+  "queries": [
+    {
+      "name": "fifo",
+      "fn": "fifoAllocation",
+      "product": "Alpha"
+    },
+    {
+      "name": "total_invested",
+      "fn": "totalInvested"
+    },
+    {
+      "name": "benchmark_series",
+      "fn": "benchmarkDeltaSeries",
+      "product": "Alpha"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Gamma",
+      "form": "booster",
+      "tier": "mid"
+    },
+    {
+      "set_name": "Delta",
+      "form": "booster",
+      "tier": "entry"
+    }
+  ],
+  "observations": [],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Gamma",
+      "price_cents": 1200,
+      "capacity": 30,
+      "assigned_at": "2026-06-25T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Delta",
+      "price_cents": 1000,
+      "capacity": 20,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 20,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "event": "refill",
+      "qty_delta": 5,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "g1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Gamma",
+      "qty": 3,
+      "unit_price_cents": 1200,
+      "sold_at": "2026-07-02T12:00:00.000Z"
+    },
+    {
+      "ref": "g2",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Gamma",
+      "qty": 4,
+      "unit_price_cents": 1200,
+      "sold_at": "2026-07-05T12:00:00.000Z"
+    },
+    {
+      "ref": "g3",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Gamma",
+      "qty": 3,
+      "unit_price_cents": 1200,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    }
+  ],
+  "queries": [
+    {
+      "name": "velocity_slot1",
+      "fn": "velocity",
+      "machine": "Fixture Machine",
+      "slot": 1
+    },
+    {
+      "name": "dos_slot1",
+      "fn": "daysOfSupply",
+      "machine": "Fixture Machine",
+      "slot": 1
+    },
+    {
+      "name": "sellout_slot1",
+      "fn": "projectedSelloutDate",
+      "machine": "Fixture Machine",
+      "slot": 1
+    },
+    {
+      "name": "velocity_slot2",
+      "fn": "velocity",
+      "machine": "Fixture Machine",
+      "slot": 2
+    },
+    {
+      "name": "dos_slot2",
+      "fn": "daysOfSupply",
+      "machine": "Fixture Machine",
+      "slot": 2
+    },
+    {
+      "name": "sellout_slot2",
+      "fn": "projectedSelloutDate",
+      "machine": "Fixture Machine",
+      "slot": 2
+    },
+    {
+      "name": "spread",
+      "fn": "refillSyncSpread",
+      "machine": "Fixture Machine"
+    }
+  ]
+}

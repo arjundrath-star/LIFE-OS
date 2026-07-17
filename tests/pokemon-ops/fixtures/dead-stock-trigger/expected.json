@@ -1,0 +1,27 @@
+{
+  "runs": [
+    {
+      "evaluated": 4,
+      "emitted": 1,
+      "skipped_duplicates": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "rule": "dead_stock",
+      "machine_id": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "info",
+      "status": "open",
+      "payload": {
+        "product_id": "Theta",
+        "set_name": "Theta",
+        "current_stock": 8,
+        "window_days": 21,
+        "last_sale_at": "2026-06-20T12:00:00.000Z",
+        "days_since_last_sale": 26.5,
+        "suggestion": "rotate_to_mystery"
+      }
+    }
+  ]
+}

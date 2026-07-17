@@ -1,0 +1,105 @@
+{
+  "queries": {
+    "fifo": [
+      {
+        "sale_id": "s1",
+        "machine_id": "Fixture Machine",
+        "slot_number": 1,
+        "sold_at": "2026-06-15T12:00:00.000Z",
+        "qty": 6,
+        "unit_price_cents": 1500,
+        "allocations": [
+          {
+            "lot_id": "lotA",
+            "qty": 6,
+            "landed_cost_per_pack_cents": 800
+          }
+        ],
+        "margin_cents": 4200,
+        "unallocated_qty": 0
+      },
+      {
+        "sale_id": "s2",
+        "machine_id": "Fixture Machine",
+        "slot_number": 1,
+        "sold_at": "2026-06-20T12:00:00.000Z",
+        "qty": 6,
+        "unit_price_cents": 1500,
+        "allocations": [
+          {
+            "lot_id": "lotA",
+            "qty": 4,
+            "landed_cost_per_pack_cents": 800
+          },
+          {
+            "lot_id": "lotB",
+            "qty": 2,
+            "landed_cost_per_pack_cents": 1000
+          }
+        ],
+        "margin_cents": 3800,
+        "unallocated_qty": 0
+      },
+      {
+        "sale_id": "s3",
+        "machine_id": "Fixture Machine",
+        "slot_number": 1,
+        "sold_at": "2026-06-25T12:00:00.000Z",
+        "qty": 3,
+        "unit_price_cents": 1500,
+        "allocations": [
+          {
+            "lot_id": "lotB",
+            "qty": 3,
+            "landed_cost_per_pack_cents": 1000
+          }
+        ],
+        "margin_cents": 1500,
+        "unallocated_qty": 0
+      }
+    ],
+    "total_invested": 23000,
+    "benchmark_series": [
+      {
+        "observation_id": "o1",
+        "source": "tcgplayer",
+        "observed_date": "2026-05-20",
+        "price_per_pack_cents": 850,
+        "benchmark_price_cents": null,
+        "benchmark_delta_cents": null
+      },
+      {
+        "observation_id": "o2",
+        "source": "carddistro",
+        "observed_date": "2026-06-01",
+        "price_per_pack_cents": 900,
+        "benchmark_price_cents": 900,
+        "benchmark_delta_cents": 0
+      },
+      {
+        "observation_id": "o3",
+        "source": "ebay_sold",
+        "observed_date": "2026-06-05",
+        "price_per_pack_cents": 800,
+        "benchmark_price_cents": 900,
+        "benchmark_delta_cents": -100
+      },
+      {
+        "observation_id": "o4",
+        "source": "carddistro",
+        "observed_date": "2026-06-10",
+        "price_per_pack_cents": 950,
+        "benchmark_price_cents": 950,
+        "benchmark_delta_cents": 0
+      },
+      {
+        "observation_id": "o5",
+        "source": "ebay_sold",
+        "observed_date": "2026-06-15",
+        "price_per_pack_cents": 1000,
+        "benchmark_price_cents": 950,
+        "benchmark_delta_cents": 50
+      }
+    ]
+  }
+}

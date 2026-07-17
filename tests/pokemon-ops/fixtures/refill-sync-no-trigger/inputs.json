@@ -1,0 +1,79 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Iota",
+      "form": "booster",
+      "tier": "mid"
+    },
+    {
+      "set_name": "Kappa",
+      "form": "booster",
+      "tier": "mid"
+    }
+  ],
+  "observations": [],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Iota",
+      "price_cents": 1600,
+      "capacity": 40,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Kappa",
+      "price_cents": 1600,
+      "capacity": 40,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 30,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "event": "refill",
+      "qty_delta": 37,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "i1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Iota",
+      "qty": 14,
+      "unit_price_cents": 1600,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    },
+    {
+      "ref": "k1",
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Kappa",
+      "qty": 14,
+      "unit_price_cents": 1600,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    }
+  ],
+  "rules": {
+    "runs": 1
+  }
+}

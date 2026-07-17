@@ -1,0 +1,244 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Set One",
+      "form": "booster",
+      "tier": "mid"
+    },
+    {
+      "set_name": "Set Two",
+      "form": "booster",
+      "tier": "entry"
+    },
+    {
+      "set_name": "Set Three",
+      "form": "booster",
+      "tier": "entry"
+    },
+    {
+      "set_name": "Set Four",
+      "form": "booster",
+      "tier": "mid"
+    },
+    {
+      "set_name": "Set Five",
+      "form": "booster",
+      "tier": "premium"
+    }
+  ],
+  "observations": [
+    {
+      "ref": "b1",
+      "product": "Set One",
+      "observed_date": "2026-07-01",
+      "source": "carddistro",
+      "price_per_pack_cents": 900
+    },
+    {
+      "ref": "p1",
+      "product": "Set One",
+      "observed_date": "2026-06-20",
+      "source": "tcgplayer",
+      "price_per_pack_cents": 850
+    },
+    {
+      "ref": "e1",
+      "product": "Set One",
+      "observed_date": "2026-05-10",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 700
+    },
+    {
+      "ref": "b2",
+      "product": "Set Two",
+      "observed_date": "2026-07-05",
+      "source": "carddistro",
+      "price_per_pack_cents": 1000
+    },
+    {
+      "ref": "e2",
+      "product": "Set Two",
+      "observed_date": "2026-07-01",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 950
+    },
+    {
+      "ref": "l3",
+      "product": "Set Three",
+      "observed_date": "2026-06-01",
+      "source": "local_shop",
+      "price_per_pack_cents": 700
+    },
+    {
+      "ref": "b4",
+      "product": "Set Four",
+      "observed_date": "2026-06-25",
+      "source": "carddistro",
+      "price_per_pack_cents": 800
+    },
+    {
+      "ref": "c4",
+      "product": "Set Four",
+      "observed_date": "2026-07-12",
+      "source": "costco",
+      "price_per_pack_cents": 750
+    },
+    {
+      "ref": "b5",
+      "product": "Set Five",
+      "observed_date": "2026-07-01",
+      "source": "carddistro",
+      "price_per_pack_cents": 1600
+    },
+    {
+      "ref": "e5",
+      "product": "Set Five",
+      "observed_date": "2026-07-08",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 1500
+    },
+    {
+      "ref": "a5",
+      "product": "Set Five",
+      "observed_date": "2026-07-08",
+      "source": "amazon",
+      "price_per_pack_cents": 1500
+    }
+  ],
+  "lots": [],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Set One",
+      "price_cents": 2000,
+      "capacity": 60,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Set Two",
+      "price_cents": 1400,
+      "capacity": 40,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 3,
+      "product": "Set Three",
+      "price_cents": 1500,
+      "capacity": 20,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 4,
+      "product": "Set Four",
+      "price_cents": 1800,
+      "capacity": 30,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 5,
+      "product": "Set Five",
+      "price_cents": 2500,
+      "capacity": 80,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 60,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "event": "refill",
+      "qty_delta": 31,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 3,
+      "event": "refill",
+      "qty_delta": 32,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 4,
+      "event": "refill",
+      "qty_delta": 33,
+      "at": "2026-07-01T00:00:00.000Z"
+    },
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 5,
+      "event": "refill",
+      "qty_delta": 18,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "r1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Set One",
+      "qty": 28,
+      "unit_price_cents": 2000,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    },
+    {
+      "ref": "r2",
+      "machine": "Fixture Machine",
+      "slot_number": 2,
+      "product": "Set Two",
+      "qty": 14,
+      "unit_price_cents": 1400,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    },
+    {
+      "ref": "r3",
+      "machine": "Fixture Machine",
+      "slot_number": 3,
+      "product": "Set Three",
+      "qty": 14,
+      "unit_price_cents": 1500,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    },
+    {
+      "ref": "r4",
+      "machine": "Fixture Machine",
+      "slot_number": 4,
+      "product": "Set Four",
+      "qty": 14,
+      "unit_price_cents": 1800,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    },
+    {
+      "ref": "r5",
+      "machine": "Fixture Machine",
+      "slot_number": 5,
+      "product": "Set Five",
+      "qty": 7,
+      "unit_price_cents": 2500,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    }
+  ],
+  "rules": {
+    "runs": 1
+  }
+}

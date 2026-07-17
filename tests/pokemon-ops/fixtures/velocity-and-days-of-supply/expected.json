@@ -1,0 +1,11 @@
+{
+  "queries": {
+    "velocity_slot1": 0.5,
+    "dos_slot1": 20,
+    "sellout_slot1": "2026-08-06T00:00:00.000Z",
+    "velocity_slot2": 0,
+    "dos_slot2": null,
+    "sellout_slot2": null,
+    "spread": null
+  }
+}
