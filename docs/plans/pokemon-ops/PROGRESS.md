@@ -3,9 +3,9 @@
 ## CURRENT STATE (only mutable region; everything below the line is append-only)
 
 - Branch: main
-- Last completed phase: 1 (schema 0011 + data layer + seeds + verify harness)
-- Last tag: pokemon-ops/phase-1
-- Next phase: 2 (CRUD routes + CSV importers + smoke script)
+- Last completed phase: 2 (CRUD routes + CSV importers + smoke script)
+- Last tag: pokemon-ops/phase-2
+- Next phase: 3 (metrics + rules engine + daily tick)
 - Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
@@ -93,3 +93,36 @@ FACTS in prompts/PHASE-1-prompt.md — authorized. Minor additive judgment calls
 index on pk_products.set_name (canonical-name rule), benchmark_delta_cents = landed −
 benchmark (negative = cheaper than mentor), extra stock-events index. Spec issues: none.
 Next: Phase 2.
+
+### 2026-07-17 — Phase 2 complete (mega-session)
+
+Work done (Sonnet subagent implemented; orchestrator re-verified everything):
+- Routes: app/api/pokemon-ops/{observations,lots,sku-assignments,stock-events,sales,
+  products,config}/route.ts — requireUser guard + middleware gate (unauthed → 401,
+  smoke-asserted), all writes through lib/pokemon-ops/db.ts. Lots compute landed cost +
+  benchmark delta at insert; SKU assign = atomic end-old+append-new; sales quick_bulk
+  attributes qty across days (noon UTC, remainder to most recent day).
+- lib/pokemon-ops/importers.ts (bulk lots + bulk sales, sha256 receipts, IMMEDIATE tx)
+  + CLI scripts/pokemon-ops-import.ts (kinds: carddistro|observations|lots|sales).
+- scripts/pokemon-ops-smoke.sh: isolated server (temp DB, port 3210, minted session
+  cookie via scripts/pokemon-ops-mint-session.ts), 30+ assertions, 0 failing.
+- tests/pokemon-ops-ingest.test.ts (4 tests) wired into verify:pokemon-ops.
+
+Verified by (DoD outputs, re-run in main session):
+```
+$ npm run verify:pokemon-ops → [verify:pokemon-ops] PASS (8+4 tests pass, build ok) exit 0
+$ bash scripts/pokemon-ops-smoke.sh → "== summary: 0 failing checks ==" exit 0
+$ import carddistro CSV twice against live DB:
+  run1: {imported:0, skipped:15} → count 15
+  run2: {imported:0, skipped:15} → count 15   (identical; receipt-gated no-op)
+$ systemctl restart rathworkspace → active; curl localhost:3000/ → 307
+$ git tag --list 'pokemon-ops/phase-2' → pokemon-ops/phase-2 (pushed)
+```
+
+Deviations (judgment calls, logged): observations CLI kind aliases carddistro format
+(full-format variant deferred — PLAN §3 lists it under the same importer family); lot
+status PATCH validates enum only (no state machine — spec literal); bulk-lots
+idempotency is file-level (no natural row key in locked schema); single-sale derives
+product from active assignment. Incident note: subagent's smoke iteration briefly
+kill-9'd the prod PID; systemd auto-recovered, healthy throughout after. Spec issues:
+none. Next: Phase 3.
