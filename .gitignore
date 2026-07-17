@@ -24,6 +24,7 @@ data/*.sqlite*
 # logs / os
 npm-install.log
 *.log
+logs/
 .DS_Store
 
 # python cache from agent script smoke checks

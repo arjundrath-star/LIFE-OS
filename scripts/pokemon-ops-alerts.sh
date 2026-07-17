@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# pokemon-ops-alerts.sh — Phase 5 deterministic Telegram alerts + morning
+# digest. Plain OS cron + bash + curl so it works even if Hermes is down.
+# All SQL/business logic lives in scripts/pokemon-ops-alerts-data.ts (tsx);
+# this script only sends/logs/marks based on that CLI's JSON output.
+#
+# Modes:
+#   (default)        immediate: unalerted open action/urgent recommendations
+#                    + unalerted sourcing observations beating benchmark by
+#                    alert_threshold_pct -> one Telegram message each;
+#                    alerted_at is set ONLY after a confirmed "ok":true send
+#                    (send-then-mark — a failed send stays unalerted for the
+#                    next run).
+#   --digest         07:30 morning KPI summary. Sends one message
+#                    unconditionally; never marks anything.
+#   --dry-run        print exact message payloads without sending or marking.
+#                    Combine with --digest for the digest payload. Accepts
+#                    --as-of passthrough for deterministic tests.
+#   --test           send a single fixed test message and print the raw
+#                    Telegram JSON response. NEVER run this from an agent —
+#                    it is a live send; only the human orchestrator runs it.
+#
+# Cron PATH trap (Learnings 2026-05-05): cron's minimal environment lacks
+# node/tsx/jq/curl on PATH — export a full one before anything else runs.
+export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DATA_CLI="$REPO_ROOT/scripts/pokemon-ops-alerts-data.ts"
+TSX_BIN="$REPO_ROOT/node_modules/.bin/tsx"
+LOG_DIR="$REPO_ROOT/logs"
+LOG_FILE="$LOG_DIR/pokemon-ops-alerts.log"
+TG_ENV="$HOME/.hermes/.env"
+CHAT_ID="ALERT_CHAT_ID"
+
+mkdir -p "$LOG_DIR"
+
+log() {
+  echo "[$(date -u '+%F %T UTC')] $*" >> "$LOG_FILE"
+}
+
+tsx_cli() {
+  "$TSX_BIN" "$DATA_CLI" "$@"
+}
+
+# curl -s + a Telegram-shaped JSON fallback so callers can always `jq .ok`
+# without checking curl's own exit code separately.
+send_telegram() {
+  local text="$1"
+  local token
+  token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$TG_ENV" 2>/dev/null | cut -d= -f2- | tr -d '"') || true
+  if [ -z "${token:-}" ]; then
+    echo '{"ok":false,"error_description":"no TELEGRAM_BOT_TOKEN found"}'
+    return 0
+  fi
+  curl -s -m 10 "https://api.telegram.org/bot${token}/sendMessage" \
+    -d "chat_id=${CHAT_ID}" \
+    --data-urlencode "text=${text}" \
+    || echo '{"ok":false,"error_description":"curl request failed"}'
+}
+
+DIGEST=0
+DRY_RUN=0
+TEST_MODE=0
+AS_OF=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --digest) DIGEST=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --test) TEST_MODE=1; shift ;;
+    --as-of) AS_OF="${2:-}"; shift 2 ;;
+    *) echo "unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+if [ -z "$AS_OF" ]; then
+  AS_OF="$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')"
+fi
+
+if [ "$TEST_MODE" = "1" ]; then
+  resp="$(send_telegram "pokemon-ops alerts: test send OK")"
+  echo "$resp"
+  log "TEST send response: $resp"
+  exit 0
+fi
+
+if [ "$DIGEST" = "1" ]; then
+  message="$(tsx_cli digest --as-of "$AS_OF" | jq -r '.message')"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "$message"
+    exit 0
+  fi
+  resp="$(send_telegram "$message")"
+  ok="$(echo "$resp" | jq -r '.ok // false')"
+  log "digest sent (ok=$ok)"
+  exit 0
+fi
+
+# ---- immediate mode ----
+alerts_json="$(tsx_cli pending --as-of "$AS_OF")"
+
+if [ "$DRY_RUN" = "1" ]; then
+  echo "$alerts_json" | jq -r '.alerts[] | "DRY kind=\(.kind) id=\(.id) :: \(.message)"'
+  exit 0
+fi
+
+count="$(echo "$alerts_json" | jq '.alerts | length')"
+if [ "$count" -eq 0 ]; then
+  log "0 alerts"
+  exit 0
+fi
+
+while IFS= read -r alert; do
+  kind="$(echo "$alert" | jq -r '.kind')"
+  id="$(echo "$alert" | jq -r '.id')"
+  message="$(echo "$alert" | jq -r '.message')"
+  resp="$(send_telegram "$message")"
+  ok="$(echo "$resp" | jq -r '.ok // false')"
+  if [ "$ok" = "true" ]; then
+    tsx_cli mark --kind "$kind" --id "$id" --at "$AS_OF" > /dev/null
+    log "sent+marked kind=$kind id=$id"
+  else
+    log "SEND FAILED kind=$kind id=$id resp=$resp"
+  fi
+done < <(echo "$alerts_json" | jq -c '.alerts[]')

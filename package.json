@@ -19,6 +19,7 @@
     "test:pokemon-ops": "tsx --test tests/pokemon-ops.test.ts",
     "test:pokemon-ops-ingest": "tsx --test tests/pokemon-ops-ingest.test.ts",
     "test:pokemon-ops-rules": "tsx --test tests/pokemon-ops-rules.test.ts",
+    "test:pokemon-ops-alerts": "tsx --test tests/pokemon-ops-alerts.test.ts",
     "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts",
     "import:pokemon-ops": "tsx scripts/pokemon-ops-import.ts",
     "smoke:pokemon-ops": "bash scripts/pokemon-ops-smoke.sh",

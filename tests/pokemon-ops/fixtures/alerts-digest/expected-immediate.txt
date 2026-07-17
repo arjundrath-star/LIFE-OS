@@ -1,0 +1,2 @@
+DRY kind=rec id=1 :: [PRICE_RAISE] Fixture Machine slot 1: Alpha days-of-supply 10d is below 15d: raise price from $12.00 to $13.00-$14.00
+DRY kind=obs id=2 :: SOURCING: Alpha at $8.00 from ebay_active beats benchmark $10.00 by 20.0%

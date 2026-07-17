@@ -17,9 +17,13 @@ const fixturesDir = path.join(__dirname, "pokemon-ops", "fixtures");
 const runner = path.join(__dirname, "pokemon-ops", "run-fixture.ts");
 const tsxBin = path.join(repoRoot, "node_modules", ".bin", "tsx");
 
+// Scoped to this suite's own golden-fixture contract (expected.json). Other
+// fixture directories under fixtures/ (e.g. alerts-digest, Phase 5's
+// expected-immediate.txt/expected-digest.txt pair, owned by
+// tests/pokemon-ops-alerts.test.ts) are a different shape and are skipped here.
 const cases = fs
   .readdirSync(fixturesDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
+  .filter((d) => d.isDirectory() && fs.existsSync(path.join(fixturesDir, d.name, "expected.json")))
   .map((d) => d.name)
   .sort();
 

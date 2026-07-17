@@ -18,6 +18,7 @@ import {
   SALE_SOURCES,
   STOCK_EVENT_TYPES,
   type Machine,
+  type ObservationSource,
   type NewImportReceipt,
   type NewPriceObservation,
   type NewProduct,
@@ -70,6 +71,10 @@ function assertDate(value: string, label: string): string {
 
 export function getMachineByName(name: string): Machine | undefined {
   return get<Machine>(`SELECT * FROM machines WHERE name = ?`, name);
+}
+
+export function getMachine(id: number): Machine | undefined {
+  return get<Machine>(`SELECT * FROM machines WHERE id = ?`, id);
 }
 
 /** Lookup-first ensure. Existing rows are left alone except NULL note/location backfill. */
@@ -406,6 +411,92 @@ export function insertSkuAssignment(input: NewSkuAssignment): number {
   });
 }
 
+/**
+ * Cheapest fresh (observed_date >= asOf − maxAgeDays, inclusive — same
+ * exactly-N-days-old-still-fresh convention as rules.ts's refill_order),
+ * non-carddistro observation per product, newest FEED_LIMIT collapsed to one
+ * row per product_id. Ties: lowest price wins; tie on price → most recent
+ * observed_date, then highest id. Products with no fresh non-carddistro
+ * observation are simply absent (never a fake row).
+ */
+export interface BestFreshOffer {
+  product_id: number;
+  set_name: string;
+  source: ObservationSource;
+  observed_date: string;
+  price_per_pack_cents: number;
+  benchmark_price_cents: number | null;
+}
+
+export function listBestFreshOffers(asOf: string, maxAgeDays: number): BestFreshOffer[] {
+  const asOfMs = Date.parse(asOf);
+  if (Number.isNaN(asOfMs)) throw new Error(`bad asOf: ${asOf}`);
+  const cutoffDate = new Date(asOfMs - maxAgeDays * 86_400_000).toISOString().slice(0, 10);
+  const rows = all<PkPriceObservation & { set_name: string }>(
+    `SELECT o.*, p.set_name
+     FROM pk_price_observations o
+     JOIN pk_products p ON p.id = o.product_id
+     WHERE o.source != 'carddistro' AND o.observed_date >= ?
+     ORDER BY o.product_id, o.price_per_pack_cents ASC, o.observed_date DESC, o.id DESC`,
+    cutoffDate
+  );
+  const seen = new Set<number>();
+  const out: BestFreshOffer[] = [];
+  for (const r of rows) {
+    if (seen.has(r.product_id)) continue;
+    seen.add(r.product_id);
+    const benchmark = latestBenchmarkForProduct(r.product_id);
+    out.push({
+      product_id: r.product_id,
+      set_name: r.set_name,
+      source: r.source,
+      observed_date: r.observed_date,
+      price_per_pack_cents: r.price_per_pack_cents,
+      benchmark_price_cents: benchmark ? benchmark.price_per_pack_cents : null,
+    });
+  }
+  return out.sort((a, b) => a.set_name.localeCompare(b.set_name));
+}
+
+/**
+ * Sourcing alerts (Phase 5): unalerted, non-carddistro observations whose
+ * price beats the product's current carddistro benchmark by more than
+ * thresholdPct. Observations for a product with no benchmark yet are
+ * excluded (nothing to compare against). Ordered by id ASC (insertion
+ * order — first-seen, first-alerted, deterministic).
+ */
+export interface SourcingAlertCandidate extends PkPriceObservation {
+  set_name: string;
+  benchmark_price_cents: number;
+  beats_pct: number;
+}
+
+export function listPendingSourcingAlerts(thresholdPct: number): SourcingAlertCandidate[] {
+  return all<SourcingAlertCandidate>(
+    `SELECT o.*, p.set_name,
+            b.price_per_pack_cents AS benchmark_price_cents,
+            (1.0 - (o.price_per_pack_cents * 1.0 / b.price_per_pack_cents)) * 100.0 AS beats_pct
+     FROM pk_price_observations o
+     JOIN pk_products p ON p.id = o.product_id
+     JOIN pk_v_benchmark_current b ON b.product_id = o.product_id
+     WHERE o.alerted_at IS NULL
+       AND o.source != 'carddistro'
+       AND o.price_per_pack_cents <= b.price_per_pack_cents * (1.0 - ? / 100.0)
+     ORDER BY o.id`,
+    thresholdPct
+  );
+}
+
+/** Send-then-mark (Phase 5 alerts): only sets alerted_at if still NULL, so a
+ *  retried mark call after a successful send is a no-op — idempotent. */
+export function markObservationAlerted(id: number, at: string): void {
+  immediate(() => {
+    getDb()
+      .prepare(`UPDATE pk_price_observations SET alerted_at = ? WHERE id = ? AND alerted_at IS NULL`)
+      .run(at, id);
+  });
+}
+
 /** Rotation/price change: end the old row (append the new one separately). */
 export function endSkuAssignment(id: number, endedAt?: string): void {
   immediate(() => {
@@ -728,6 +819,27 @@ export function listOpenRecommendations(): PkRecommendation[] {
   return all<PkRecommendation>(
     `SELECT * FROM pk_recommendations WHERE status = 'open' ORDER BY created_at DESC, id DESC`
   );
+}
+
+/** Phase 5 alerts: open, unalerted, actionable (severity action|urgent)
+ *  recommendations. Ordered by id ASC (insertion order — first-opened,
+ *  first-alerted, deterministic). info-severity rows never alert. */
+export function listPendingActionRecommendations(): PkRecommendation[] {
+  return all<PkRecommendation>(
+    `SELECT * FROM pk_recommendations
+     WHERE status = 'open' AND severity IN ('action','urgent') AND alerted_at IS NULL
+     ORDER BY id`
+  );
+}
+
+/** Send-then-mark (Phase 5 alerts): only sets alerted_at if still NULL, so a
+ *  retried mark call after a successful send is a no-op — idempotent. */
+export function markRecommendationAlerted(id: number, at: string): void {
+  immediate(() => {
+    getDb()
+      .prepare(`UPDATE pk_recommendations SET alerted_at = ? WHERE id = ? AND alerted_at IS NULL`)
+      .run(at, id);
+  });
 }
 
 export interface RecommendationFilter {

@@ -1,0 +1,129 @@
+{
+  "asOf": "2026-07-17T00:00:00.000Z",
+  "machines": [
+    {
+      "name": "Fixture Machine"
+    }
+  ],
+  "products": [
+    {
+      "set_name": "Alpha",
+      "form": "booster",
+      "tier": "mid"
+    }
+  ],
+  "observations": [
+    {
+      "ref": "bench1",
+      "product": "Alpha",
+      "observed_date": "2026-07-15",
+      "source": "carddistro",
+      "price_per_pack_cents": 1000
+    },
+    {
+      "ref": "good1",
+      "product": "Alpha",
+      "observed_date": "2026-07-16",
+      "source": "ebay_active",
+      "price_per_pack_cents": 800
+    },
+    {
+      "ref": "meh1",
+      "product": "Alpha",
+      "observed_date": "2026-07-16",
+      "source": "tcgplayer",
+      "price_per_pack_cents": 900
+    }
+  ],
+  "lots": [
+    {
+      "ref": "lot1",
+      "product": "Alpha",
+      "purchase_date": "2026-06-25",
+      "source": "carddistro",
+      "pack_count": 24,
+      "total_cost_cents": 19200,
+      "status": "received"
+    }
+  ],
+  "assignments": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "price_cents": 1200,
+      "capacity": 30,
+      "assigned_at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "stock_events": [
+    {
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "event": "refill",
+      "qty_delta": 24,
+      "at": "2026-07-01T00:00:00.000Z"
+    }
+  ],
+  "sales": [
+    {
+      "ref": "h1",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "product": "Alpha",
+      "qty": 14,
+      "unit_price_cents": 1200,
+      "sold_at": "2026-07-10T12:00:00.000Z"
+    }
+  ],
+  "recommendations": [
+    {
+      "ref": "recA",
+      "rule": "price_raise",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "payload": {
+        "set_name": "Alpha",
+        "days_of_supply": 10,
+        "threshold_days": 15,
+        "velocity_units_per_day": 1,
+        "current_stock": 10,
+        "current_price_cents": 1200,
+        "suggested_price_min_cents": 1300,
+        "suggested_price_max_cents": 1400
+      }
+    },
+    {
+      "ref": "recB",
+      "rule": "dead_stock",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "info",
+      "payload": {
+        "set_name": "Alpha",
+        "current_stock": 10,
+        "window_days": 21,
+        "last_sale_at": "2026-07-10T12:00:00.000Z",
+        "days_since_last_sale": 6.5,
+        "suggestion": "rotate_to_mystery"
+      }
+    },
+    {
+      "ref": "recC",
+      "rule": "add_slot",
+      "machine": "Fixture Machine",
+      "slot_number": 1,
+      "severity": "action",
+      "alerted_at": "2026-07-16T00:00:00.000Z",
+      "payload": {
+        "set_name": "Alpha",
+        "fast_slot": 1,
+        "fast_days_of_supply": 10,
+        "candidate_slot": 2,
+        "candidate_kind": "unassigned",
+        "candidate_days_of_supply": null
+      }
+    }
+  ]
+}

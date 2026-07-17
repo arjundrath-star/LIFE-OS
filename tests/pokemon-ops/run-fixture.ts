@@ -14,24 +14,34 @@
 import fs from "node:fs";
 import path from "node:path";
 
-async function main() {
-  const fixtureDir = process.argv[2];
-  const outFile = process.argv[3];
-  if (!fixtureDir || !outFile) {
-    throw new Error("usage: run-fixture.ts <fixtureDir> <outFile>");
-  }
-  if (!process.env.RATHWORKSPACE_DB) {
-    throw new Error("RATHWORKSPACE_DB must point at a fresh temp DB");
-  }
+export interface LoadedFixture {
+  machineIds: Map<string, number>;
+  machineNames: Map<number, string>;
+  productIds: Map<string, number>;
+  productNames: Map<number, string>;
+  obsRefs: Map<number, string>;
+  lotRefs: Map<number, string>;
+  saleRefs: Map<number, string>;
+}
 
-  const inputs = JSON.parse(fs.readFileSync(path.join(fixtureDir, "inputs.json"), "utf8"));
+export function mustGet<K, V>(map: Map<K, V>, key: K, label: string): V {
+  const v = map.get(key);
+  if (v === undefined) throw new Error(`unknown ${label}: ${String(key)}`);
+  return v;
+}
 
+/**
+ * Loads the common inputs.json sections (machines/products/observations/lots/
+ * assignments/stock_events/sales/config) into whatever DB `getDb()` currently
+ * points at (RATHWORKSPACE_DB must already be set before this runs — same
+ * process-boundary-per-DB rule as everywhere else in this test suite).
+ * Extracted from run-fixture.ts's main() so other fixture-driven tests (e.g.
+ * tests/pokemon-ops-alerts.test.ts) can seed the same base shape without
+ * duplicating this loop. Behavior is unchanged from the original inline code.
+ */
+export async function loadInputs(inputs: any): Promise<LoadedFixture> {
   const ops = await import("../../lib/pokemon-ops/db");
-  const metrics = await import("../../lib/pokemon-ops/metrics");
-  const rules = await import("../../lib/pokemon-ops/rules");
-  const db = await import("../../db");
 
-  // ---- load ----
   const machineIds = new Map<string, number>();
   const machineNames = new Map<number, string>();
   for (const m of inputs.machines ?? []) {
@@ -56,12 +66,6 @@ async function main() {
     productIds.set(p.set_name, id);
     productNames.set(id, p.set_name);
   }
-
-  const mustGet = <K, V>(map: Map<K, V>, key: K, label: string): V => {
-    const v = map.get(key);
-    if (v === undefined) throw new Error(`unknown ${label}: ${String(key)}`);
-    return v;
-  };
 
   const obsRefs = new Map<number, string>();
   for (const o of inputs.observations ?? []) {
@@ -132,6 +136,28 @@ async function main() {
   for (const [k, v] of Object.entries(inputs.config ?? {})) {
     ops.setConfig(k, v as string | number);
   }
+
+  return { machineIds, machineNames, productIds, productNames, obsRefs, lotRefs, saleRefs };
+}
+
+async function main() {
+  const fixtureDir = process.argv[2];
+  const outFile = process.argv[3];
+  if (!fixtureDir || !outFile) {
+    throw new Error("usage: run-fixture.ts <fixtureDir> <outFile>");
+  }
+  if (!process.env.RATHWORKSPACE_DB) {
+    throw new Error("RATHWORKSPACE_DB must point at a fresh temp DB");
+  }
+
+  const inputs = JSON.parse(fs.readFileSync(path.join(fixtureDir, "inputs.json"), "utf8"));
+
+  const metrics = await import("../../lib/pokemon-ops/metrics");
+  const rules = await import("../../lib/pokemon-ops/rules");
+  const db = await import("../../db");
+
+  const { machineIds, machineNames, productIds, productNames, obsRefs, lotRefs, saleRefs } =
+    await loadInputs(inputs);
 
   // ---- normalization ----
   const idMaps: Record<string, Map<number, string>> = {
@@ -223,7 +249,12 @@ async function main() {
   fs.writeFileSync(outFile, JSON.stringify(result, null, 2));
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Guarded: tests/pokemon-ops-alerts.test.ts imports loadInputs/mustGet from
+// this module via a separate entry script — that import must not trigger a
+// run of this file's own CLI main().
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
