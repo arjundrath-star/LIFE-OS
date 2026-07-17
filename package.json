@@ -14,7 +14,10 @@
     "agent-event": "tsx scripts/agent-event.ts",
     "import-pokemon-crm": "tsx scripts/import-pokemon-crm.ts",
     "import-pokemon-pipeline-crm": "tsx scripts/import-pokemon-pipeline-crm.ts",
-    "rerank-pokemon-crm": "tsx scripts/rerank-pokemon-crm.ts"
+    "rerank-pokemon-crm": "tsx scripts/rerank-pokemon-crm.ts",
+    "seed:pokemon-ops": "tsx scripts/pokemon-ops-seed.ts",
+    "test:pokemon-ops": "tsx --test tests/pokemon-ops.test.ts",
+    "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
