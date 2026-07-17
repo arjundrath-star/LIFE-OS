@@ -17,7 +17,10 @@
     "rerank-pokemon-crm": "tsx scripts/rerank-pokemon-crm.ts",
     "seed:pokemon-ops": "tsx scripts/pokemon-ops-seed.ts",
     "test:pokemon-ops": "tsx --test tests/pokemon-ops.test.ts",
-    "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts"
+    "test:pokemon-ops-ingest": "tsx --test tests/pokemon-ops-ingest.test.ts",
+    "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts",
+    "import:pokemon-ops": "tsx scripts/pokemon-ops-import.ts",
+    "smoke:pokemon-ops": "bash scripts/pokemon-ops-smoke.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

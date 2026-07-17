@@ -56,6 +56,15 @@ export type RecommendationSeverity = (typeof RECOMMENDATION_SEVERITIES)[number];
 export const RECOMMENDATION_STATUSES = ["open", "acked", "done", "dismissed"] as const;
 export type RecommendationStatus = (typeof RECOMMENDATION_STATUSES)[number];
 
+// pk_config known keys (integer-string values). PATCH only ever touches these.
+export const CONFIG_KEYS = [
+  "refill_cycle_days",
+  "budget_cents",
+  "alert_threshold_pct",
+  "min_margin_cents",
+] as const;
+export type ConfigKey = (typeof CONFIG_KEYS)[number];
+
 // ---- row types (as read from SQLite) ----
 
 export interface PkProduct {

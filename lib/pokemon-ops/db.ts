@@ -13,6 +13,7 @@ import {
   PRODUCT_TIERS,
   RECOMMENDATION_RULES,
   RECOMMENDATION_SEVERITIES,
+  REPRINT_STATUSES,
   SALE_SOURCES,
   STOCK_EVENT_TYPES,
   type Machine,
@@ -142,6 +143,44 @@ export function ensureProduct(input: NewProduct): number {
   });
 }
 
+export interface ProductPatch {
+  tier?: string;
+  reprint_status?: string;
+  active?: 0 | 1;
+  display_name?: string;
+}
+
+/** Partial edit: tier / reprint_status / active / display_name. set_name is immutable (canonical key). */
+export function updateProductFields(id: number, patch: ProductPatch): PkProduct {
+  if (!getProduct(id)) throw new Error(`product ${id} not found`);
+  if (patch.tier !== undefined) assertEnum(patch.tier, PRODUCT_TIERS, "tier");
+  if (patch.reprint_status !== undefined) {
+    assertEnum(patch.reprint_status, REPRINT_STATUSES, "reprint_status");
+  }
+  if (patch.active !== undefined && patch.active !== 0 && patch.active !== 1) {
+    throw new Error(`active must be 0 or 1, got ${String(patch.active)}`);
+  }
+  return immediate(() => {
+    getDb()
+      .prepare(
+        `UPDATE pk_products SET
+           tier = COALESCE(?, tier),
+           reprint_status = COALESCE(?, reprint_status),
+           active = COALESCE(?, active),
+           display_name = COALESCE(?, display_name)
+         WHERE id = ?`
+      )
+      .run(
+        patch.tier ?? null,
+        patch.reprint_status ?? null,
+        patch.active ?? null,
+        patch.display_name ?? null,
+        id
+      );
+    return getProduct(id)!;
+  });
+}
+
 // ---- pk_price_observations ----
 
 export function insertPriceObservation(
@@ -212,6 +251,46 @@ export function listObservationsForProduct(productId: number): PkPriceObservatio
   );
 }
 
+export interface ObservationFilter {
+  productId?: number;
+  source?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}
+
+export function listObservationsFiltered(
+  opts: ObservationFilter = {}
+): Array<PkPriceObservation & { set_name: string }> {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (opts.productId !== undefined) {
+    clauses.push("o.product_id = ?");
+    params.push(opts.productId);
+  }
+  if (opts.source) {
+    clauses.push("o.source = ?");
+    params.push(opts.source);
+  }
+  if (opts.dateFrom) {
+    clauses.push("o.observed_date >= ?");
+    params.push(opts.dateFrom);
+  }
+  if (opts.dateTo) {
+    clauses.push("o.observed_date <= ?");
+    params.push(opts.dateTo);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  params.push(opts.limit ?? 50);
+  return all(
+    `SELECT o.*, p.set_name
+     FROM pk_price_observations o JOIN pk_products p ON p.id = o.product_id
+     ${where}
+     ORDER BY o.observed_date DESC, o.id DESC LIMIT ?`,
+    ...params
+  );
+}
+
 // ---- pk_purchase_lots ----
 
 /**
@@ -265,6 +344,39 @@ export function listPurchaseLots(): Array<PkPurchaseLot & { set_name: string }> 
      FROM pk_purchase_lots l JOIN pk_products p ON p.id = l.product_id
      ORDER BY l.purchase_date DESC, l.id DESC`
   );
+}
+
+export function listPurchaseLotsFiltered(
+  opts: { status?: string; productId?: number } = {}
+): Array<PkPurchaseLot & { set_name: string }> {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (opts.status) {
+    clauses.push("l.status = ?");
+    params.push(opts.status);
+  }
+  if (opts.productId !== undefined) {
+    clauses.push("l.product_id = ?");
+    params.push(opts.productId);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  return all(
+    `SELECT l.*, p.set_name
+     FROM pk_purchase_lots l JOIN pk_products p ON p.id = l.product_id
+     ${where}
+     ORDER BY l.purchase_date DESC, l.id DESC`,
+    ...params
+  );
+}
+
+/** Status transition (in_transit -> received -> allocated -> depleted). Enum-validated only. */
+export function updateLotStatus(id: number, status: string): PkPurchaseLot {
+  assertEnum(status, LOT_STATUSES, "lot status");
+  return immediate(() => {
+    const res = getDb().prepare(`UPDATE pk_purchase_lots SET status = ? WHERE id = ?`).run(status, id);
+    if (res.changes === 0) throw new Error(`purchase lot ${id} not found`);
+    return getPurchaseLot(id)!;
+  });
 }
 
 // ---- pk_sku_assignments ----
@@ -321,6 +433,52 @@ export function listActiveAssignments(
      WHERE a.ended_at IS NULL
      ORDER BY a.machine_id, a.slot_number`
   );
+}
+
+export function listAssignmentHistory(
+  machineId?: number
+): Array<PkSkuAssignment & { set_name: string }> {
+  if (machineId !== undefined) {
+    return all(
+      `SELECT a.*, p.set_name
+       FROM pk_sku_assignments a JOIN pk_products p ON p.id = a.product_id
+       WHERE a.machine_id = ?
+       ORDER BY a.slot_number, a.assigned_at`,
+      machineId
+    );
+  }
+  return all(
+    `SELECT a.*, p.set_name
+     FROM pk_sku_assignments a JOIN pk_products p ON p.id = a.product_id
+     ORDER BY a.machine_id, a.slot_number, a.assigned_at`
+  );
+}
+
+export function getActiveAssignmentForSlot(
+  machineId: number,
+  slotNumber: number
+): (PkSkuAssignment & { set_name: string }) | undefined {
+  return get(
+    `SELECT a.*, p.set_name
+     FROM pk_sku_assignments a JOIN pk_products p ON p.id = a.product_id
+     WHERE a.machine_id = ? AND a.slot_number = ? AND a.ended_at IS NULL`,
+    machineId,
+    slotNumber
+  );
+}
+
+/** Rotation/price-change entry point: ends any active row for (machine_id, slot_number)
+ *  then appends the new one, atomically. */
+export function reassignSku(input: NewSkuAssignment): number {
+  return immediate(() => {
+    const active = get<{ id: number }>(
+      `SELECT id FROM pk_sku_assignments WHERE machine_id = ? AND slot_number = ? AND ended_at IS NULL`,
+      input.machine_id,
+      input.slot_number
+    );
+    if (active) endSkuAssignment(active.id, input.assigned_at);
+    return insertSkuAssignment(input);
+  });
 }
 
 // ---- pk_stock_events ----
@@ -442,6 +600,107 @@ export function listRecentSales(limit = 50): Array<PkSale & { set_name: string }
   );
 }
 
+export function listSalesFiltered(
+  opts: { machineId?: number; since?: string; limit?: number } = {}
+): Array<PkSale & { set_name: string }> {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (opts.machineId !== undefined) {
+    clauses.push("s.machine_id = ?");
+    params.push(opts.machineId);
+  }
+  if (opts.since) {
+    clauses.push("s.sold_at >= ?");
+    params.push(opts.since);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  params.push(opts.limit ?? 50);
+  return all(
+    `SELECT s.*, p.set_name
+     FROM pk_sales s JOIN pk_products p ON p.id = s.product_id
+     ${where}
+     ORDER BY s.sold_at DESC, s.id DESC LIMIT ?`,
+    ...params
+  );
+}
+
+/**
+ * Even day-by-day attribution of a bulk qty across [since_ts's date, now's date]
+ * inclusive (both truncated to UTC calendar day). Remainder goes to the most
+ * recent (last) day. since_ts == now's date collapses to a single day.
+ */
+export function computeDayAttribution(
+  qty: number,
+  sinceIso: string,
+  nowIso_: string
+): Array<{ date: string; qty: number }> {
+  if (!Number.isInteger(qty) || qty <= 0) {
+    throw new Error(`qty must be a positive integer, got ${String(qty)}`);
+  }
+  const sinceDate = sinceIso.slice(0, 10);
+  const nowDate = nowIso_.slice(0, 10);
+  const sinceMs = new Date(`${sinceDate}T00:00:00.000Z`).getTime();
+  const nowMs = new Date(`${nowDate}T00:00:00.000Z`).getTime();
+  if (Number.isNaN(sinceMs)) throw new Error(`bad since_ts: ${sinceIso}`);
+  if (Number.isNaN(nowMs)) throw new Error(`bad now: ${nowIso_}`);
+  if (nowMs < sinceMs) throw new Error(`since_ts (${sinceIso}) is after now (${nowIso_})`);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const dayCount = Math.round((nowMs - sinceMs) / dayMs) + 1;
+  const base = Math.floor(qty / dayCount);
+  const remainder = qty - base * dayCount;
+  const days: Array<{ date: string; qty: number }> = [];
+  for (let i = 0; i < dayCount; i++) {
+    const date = new Date(sinceMs + i * dayMs).toISOString().slice(0, 10);
+    const isLast = i === dayCount - 1;
+    days.push({ date, qty: base + (isLast ? remainder : 0) });
+  }
+  return days;
+}
+
+export interface QuickBulkSaleInput {
+  machine_id: number;
+  slot_number: number;
+  qty: number;
+  since_ts: string;
+  now?: string;
+}
+
+/** "Sold N of slot X since <ts>" quick entry: attributes qty across days, one
+ *  pk_sales row per day (skipping zero-qty days), unit_price from the active
+ *  assignment, source 'manual'. */
+export function quickBulkSale(input: QuickBulkSaleInput): {
+  product_id: number;
+  unit_price_cents: number;
+  rows: Array<{ id: number; sold_at: string; qty: number }>;
+} {
+  return immediate(() => {
+    const assignment = getActiveAssignmentForSlot(input.machine_id, input.slot_number);
+    if (!assignment) {
+      throw new Error(
+        `no active sku assignment for machine ${input.machine_id} slot ${input.slot_number}`
+      );
+    }
+    const now = input.now ?? nowIso();
+    const attribution = computeDayAttribution(input.qty, input.since_ts, now);
+    const rows = attribution
+      .filter((d) => d.qty > 0)
+      .map((d) => {
+        const sold_at = `${d.date}T12:00:00.000Z`;
+        const res = insertSale({
+          machine_id: input.machine_id,
+          slot_number: input.slot_number,
+          product_id: assignment.product_id,
+          qty: d.qty,
+          unit_price_cents: assignment.price_cents,
+          sold_at,
+          source: "manual",
+        });
+        return { id: res.id!, sold_at, qty: d.qty };
+      });
+    return { product_id: assignment.product_id, unit_price_cents: assignment.price_cents, rows };
+  });
+}
+
 // ---- pk_recommendations ----
 
 export function insertRecommendation(input: NewRecommendation): number {
@@ -491,6 +750,10 @@ export function insertImportReceipt(input: NewImportReceipt): PkImportReceipt {
 
 export function getConfig(key: string): string | undefined {
   return get<{ v: string }>(`SELECT v FROM pk_config WHERE k = ?`, key)?.v;
+}
+
+export function listConfig(): Array<{ k: string; v: string; updated_at: string }> {
+  return all(`SELECT * FROM pk_config ORDER BY k`);
 }
 
 export function getConfigInt(key: string): number {
