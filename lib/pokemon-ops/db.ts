@@ -230,6 +230,29 @@ export function latestBenchmarkForProduct(productId: number): PkPriceObservation
   );
 }
 
+/** External market benchmark eligible on a given date. TCGplayer market is
+ * primary; eBay sold is used only when no TCGplayer observation exists for the
+ * product on or before that date. Supplier quotes and active listings never
+ * define benchmark value. */
+export function benchmarkForProductAtDate(
+  productId: number,
+  onOrBeforeDate: string
+): PkPriceObservation | undefined {
+  assertDate(onOrBeforeDate, "benchmark date");
+  return get<PkPriceObservation>(
+    `SELECT *
+     FROM pk_price_observations
+     WHERE product_id = ?
+       AND observed_date <= ?
+       AND source IN ('tcgplayer', 'ebay_sold')
+     ORDER BY CASE source WHEN 'tcgplayer' THEN 0 ELSE 1 END,
+              observed_date DESC, id DESC
+     LIMIT 1`,
+    productId,
+    onOrBeforeDate
+  );
+}
+
 export function listBenchmarks(): Array<PkPriceObservation & { set_name: string }> {
   return all(
     `SELECT b.*, p.set_name
@@ -300,9 +323,9 @@ export function listObservationsFiltered(
 // ---- pk_purchase_lots ----
 
 /**
- * Computes landed_cost_per_pack_cents and snapshots the benchmark at insert:
- * benchmark_price_cents = latest carddistro observation for the product,
- * benchmark_delta_cents = landed − benchmark (negative = cheaper than mentor).
+ * Computes landed_cost_per_pack_cents and snapshots the external market
+ * benchmark eligible on the purchase date (TCGplayer primary, eBay sold
+ * fallback). benchmark_delta_cents = landed − benchmark.
  */
 export function insertPurchaseLot(input: NewPurchaseLot): number {
   assertEnum(input.source, OBSERVATION_SOURCES, "lot source");
@@ -313,7 +336,7 @@ export function insertPurchaseLot(input: NewPurchaseLot): number {
   if (input.status) assertEnum(input.status, LOT_STATUSES, "lot status");
   return immediate(() => {
     const landed = Math.round(input.total_cost_cents / packCount);
-    const benchmark = latestBenchmarkForProduct(input.product_id);
+    const benchmark = benchmarkForProductAtDate(input.product_id, input.purchase_date);
     const benchmarkPrice = benchmark ? benchmark.price_per_pack_cents : null;
     const res = getDb()
       .prepare(
@@ -414,10 +437,11 @@ export function insertSkuAssignment(input: NewSkuAssignment): number {
 /**
  * Cheapest fresh (observed_date >= asOf − maxAgeDays, inclusive — same
  * exactly-N-days-old-still-fresh convention as rules.ts's refill_order),
- * non-carddistro observation per product, newest FEED_LIMIT collapsed to one
+ * actionable observation per product, newest FEED_LIMIT collapsed to one
  * row per product_id. Ties: lowest price wins; tie on price → most recent
- * observed_date, then highest id. Products with no fresh non-carddistro
- * observation are simply absent (never a fake row).
+ * observed_date, then highest id. TCGplayer/eBay sold are market indicators,
+ * not buy offers; Carddistro remains excluded. Products with no fresh
+ * actionable observation are simply absent (never a fake row).
  */
 export interface BestFreshOffer {
   product_id: number;
@@ -436,7 +460,8 @@ export function listBestFreshOffers(asOf: string, maxAgeDays: number): BestFresh
     `SELECT o.*, p.set_name
      FROM pk_price_observations o
      JOIN pk_products p ON p.id = o.product_id
-     WHERE o.source != 'carddistro' AND o.observed_date >= ?
+     WHERE o.source NOT IN ('carddistro', 'tcgplayer', 'ebay_sold')
+       AND o.observed_date >= ?
      ORDER BY o.product_id, o.price_per_pack_cents ASC, o.observed_date DESC, o.id DESC`,
     cutoffDate
   );
@@ -459,8 +484,8 @@ export function listBestFreshOffers(asOf: string, maxAgeDays: number): BestFresh
 }
 
 /**
- * Sourcing alerts (Phase 5): unalerted, non-carddistro observations whose
- * price beats the product's current carddistro benchmark by more than
+ * Sourcing alerts (Phase 5): unalerted actionable offers whose price beats the
+ * product's current external market benchmark by more than
  * thresholdPct. Observations for a product with no benchmark yet are
  * excluded (nothing to compare against). Ordered by id ASC (insertion
  * order — first-seen, first-alerted, deterministic).
@@ -480,7 +505,7 @@ export function listPendingSourcingAlerts(thresholdPct: number): SourcingAlertCa
      JOIN pk_products p ON p.id = o.product_id
      JOIN pk_v_benchmark_current b ON b.product_id = o.product_id
      WHERE o.alerted_at IS NULL
-       AND o.source != 'carddistro'
+       AND o.source NOT IN ('carddistro', 'tcgplayer', 'ebay_sold')
        AND o.price_per_pack_cents <= b.price_per_pack_cents * (1.0 - ? / 100.0)
      ORDER BY o.id`,
     thresholdPct

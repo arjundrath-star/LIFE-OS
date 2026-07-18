@@ -65,40 +65,40 @@
         "source": "tcgplayer",
         "observed_date": "2026-05-20",
         "price_per_pack_cents": 850,
-        "benchmark_price_cents": null,
-        "benchmark_delta_cents": null
+        "benchmark_price_cents": 850,
+        "benchmark_delta_cents": 0
       },
       {
         "observation_id": "o2",
         "source": "carddistro",
         "observed_date": "2026-06-01",
         "price_per_pack_cents": 900,
-        "benchmark_price_cents": 900,
-        "benchmark_delta_cents": 0
+        "benchmark_price_cents": 850,
+        "benchmark_delta_cents": 50
       },
       {
         "observation_id": "o3",
         "source": "ebay_sold",
         "observed_date": "2026-06-05",
         "price_per_pack_cents": 800,
-        "benchmark_price_cents": 900,
-        "benchmark_delta_cents": -100
+        "benchmark_price_cents": 850,
+        "benchmark_delta_cents": -50
       },
       {
         "observation_id": "o4",
         "source": "carddistro",
         "observed_date": "2026-06-10",
         "price_per_pack_cents": 950,
-        "benchmark_price_cents": 950,
-        "benchmark_delta_cents": 0
+        "benchmark_price_cents": 850,
+        "benchmark_delta_cents": 100
       },
       {
         "observation_id": "o5",
         "source": "ebay_sold",
         "observed_date": "2026-06-15",
         "price_per_pack_cents": 1000,
-        "benchmark_price_cents": 950,
-        "benchmark_delta_cents": 50
+        "benchmark_price_cents": 850,
+        "benchmark_delta_cents": 150
       }
     ]
   }

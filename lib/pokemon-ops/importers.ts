@@ -1,5 +1,5 @@
 // CSV importer cores for bulk purchase lots and bulk sales. Same idempotency shape
-// as import-observations.ts (the carddistro/benchmark importer, left untouched):
+// as import-observations.ts (the carddistro supplier-quote importer):
 // - file level: sha256 of the raw bytes gets a pk_import_receipts row in the same
 //   IMMEDIATE transaction as the inserts; a known fingerprint skips the whole file
 //   and returns the prior receipt (no-op rerun);

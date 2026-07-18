@@ -293,17 +293,19 @@ interface ProductNeed {
  * is older than OBSERVATION_MAX_AGE_DAYS (observed_date <
  * date(asOf − 30 days); exactly 30 days old is still fresh), then pick the
  * cheapest (lowest price_per_pack_cents; tie → most recent observed_date;
- * tie → source name ascending alphabetically). All sources participate,
- * including carddistro itself. Observation prices are treated as the expected
- * landed cost per pack (includes_shipping / includes_tax flags are ignored in
- * v1 — documented simplification).
+ * tie → source name ascending alphabetically). TCGplayer and eBay sold are
+ * valuation indicators, not actionable offers, so they do not participate.
+ * Carddistro remains eligible here as a supplier quote. Observation prices are
+ * treated as the expected landed cost per pack (includes_shipping /
+ * includes_tax flags are ignored in v1 — documented simplification).
  */
 function pickSource(
   productId: number,
   freshCutoffDate: string
 ): PkPriceObservation | null {
   const rows = all<PkPriceObservation>(
-    `SELECT * FROM pk_price_observations WHERE product_id = ?
+    `SELECT * FROM pk_price_observations
+     WHERE product_id = ? AND source NOT IN ('tcgplayer', 'ebay_sold')
      ORDER BY source, observed_date DESC, id DESC`,
     productId
   );

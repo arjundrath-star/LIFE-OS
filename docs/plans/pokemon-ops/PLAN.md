@@ -58,8 +58,10 @@ includes_shipping (0/1/NULL), includes_tax (0/1/NULL), listing_ref DEFAULT ''
 (URL/order#/'' — NOT NULL: it is in the dedupe key, and NULL-in-UNIQUE silently disables
 dedupe, Learnings 2026-07-06), quantity_available NULL, alerted_at NULL, notes, created_at.
 UNIQUE(source, listing_ref, observed_date, product_id)` for scanner idempotency.
-- The mentor benchmark is NOT a separate table: benchmark = latest `source='carddistro'`
-  observation per product (view `pk_v_benchmark_current`).
+- The benchmark is NOT a separate table: benchmark = latest TCGplayer market
+  observation per product, with latest eBay sold as fallback only when the product
+  has no TCGplayer observation (view `pk_v_benchmark_current`). Carddistro remains
+  a supplier/mentor quote and never defines fair value.
 - Seed: `seeds/carddistro-2026-07-17.csv` (15 rows, observed_date 2026-07-17).
 - Price history / cross-source comparison = plain queries over this table. That is the
   point of the design; do not denormalize it away.
@@ -89,7 +91,7 @@ imported_at. Copies the `pokemon_pipeline_sink_receipts` idempotent-import patte
 **`pk_purchase_lots`** — `id, purchase_date, source (same enum as observations),
 product_id FK, pack_count, total_cost_cents (tax+shipping INCLUDED),
 landed_cost_per_pack_cents (computed at insert), observation_id FK NULL (the observation
-that triggered the buy), benchmark_price_cents (latest carddistro at purchase time),
+that triggered the buy), benchmark_price_cents (date-eligible external benchmark at purchase time),
 benchmark_delta_cents, status (in_transit|received|allocated|depleted), notes, created_at`.
 Sales draw down lots FIFO per product (allocation computed in metrics, not stored).
 Lots roll up to "total invested"; a small exporter preserves

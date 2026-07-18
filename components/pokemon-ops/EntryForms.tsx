@@ -615,7 +615,7 @@ function CsvUploadForm({ onSubmitted }: { onSubmitted: () => void }) {
           value={kind}
           onChange={(e) => setKind(e.target.value)}
         >
-          <option value="carddistro">carddistro (mentor benchmark)</option>
+          <option value="carddistro">carddistro (supplier / mentor quote)</option>
           <option value="lots">lots</option>
           <option value="sales">sales</option>
         </select>

@@ -305,7 +305,7 @@ green DoD with outputs pasted above, an annotated pushed tag (pokemon-ops/phase-
 and an agent-event. Email checkpoints sent after Phases 2, 4, 6.
 
 System state: main deployed on prod, schema 0011 live, 16 products + 29 price
-observations (15 carddistro benchmark + 14 live tcgplayer), rules engine
+observations (15 carddistro supplier quotes + 14 live tcgplayer indicators), rules engine
 adversarially verified, dashboard tab live, alerts cron */15 + digest 07:30, sourcing
 scan cron daily 06:15. Two real production buy-signal alerts delivered tonight.
 
@@ -314,3 +314,12 @@ checklist §5.1: Nayax operator account, Core login, device serial, self-serve U
 Token → NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL in ~/.config/rathworkspace/secrets.env.
 When those land, launch Phase 7 per prompts/PHASE-7-prompt.md (single-phase protocol
 resumes unless Arjun says otherwise).
+
+### 2026-07-18 — EXTERNAL MARKET BENCHMARK POLICY
+
+Arjun superseded the original mentor-list benchmark. `pk_v_benchmark_current` now
+uses TCGplayer market observations as primary fair value, with eBay sold as fallback
+only when no TCGplayer observation exists. Carddistro remains a supplier/mentor quote.
+Valuation indicators are excluded from actionable sourcing offers and alerts. Migration
+0012 also re-benchmarks historical lot snapshots against the external indicator eligible
+on each purchase date.

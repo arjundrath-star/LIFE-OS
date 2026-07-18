@@ -60,7 +60,7 @@ export interface PokemonOpsSourcingRow {
   source: string;
   observed_date: string;
   price_per_pack_cents: number;
-  /** price − latest carddistro benchmark for this product; null if no benchmark yet. */
+  /** price − current external market benchmark; null if no benchmark yet. */
   benchmark_delta_cents: number | null;
 }
 
@@ -96,7 +96,7 @@ export interface PokemonOpsSnapshot {
   open_recommendations: PokemonOpsRecommendation[];
   recent_sales: Array<PkSale & { set_name: string }>;
   /** Latest observation per (product, source) pair, newest FEED_LIMIT by
-   *  observed_date, with benchmark delta vs the product's current carddistro price. */
+   *  observed_date, with delta vs the product's current external market benchmark. */
   sourcing_feed: PokemonOpsSourcingRow[];
   /** Newest purchase lots (for UI display + the lot-form E2E assertion — a
    *  freshly-created lot must be visible somewhere on the page). */

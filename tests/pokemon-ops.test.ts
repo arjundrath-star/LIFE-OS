@@ -16,8 +16,9 @@ const repoRoot = path.join(__dirname, "..");
 async function mods() {
   const ops = await import("../lib/pokemon-ops/db");
   const importer = await import("../lib/pokemon-ops/import-observations");
+  const metrics = await import("../lib/pokemon-ops/metrics");
   const db = await import("../db");
-  return { ops, importer, db };
+  return { ops, importer, metrics, db };
 }
 
 let machineId = 0;
@@ -43,6 +44,52 @@ test("migration seeds pk_config with confirmed values", async () => {
   assert.equal(ops.getConfigInt("min_margin_cents"), 1000);
   ops.setConfig("test_key", 7);
   assert.equal(ops.getConfigInt("test_key"), 7);
+});
+
+test("0012 backfills legacy lot snapshots with date-eligible external benchmarks", () => {
+  const migrationDbPath = path.join(tmpDir, "external-benchmark-migration.db");
+  const raw = new Database(migrationDbPath);
+  try {
+    raw.exec(fs.readFileSync(path.join(repoRoot, "db/migrations/0011_pokemon_ops.sql"), "utf8"));
+    raw.exec(`
+      INSERT INTO pk_products (set_name, display_name) VALUES ('Legacy Set', 'Legacy Set');
+      INSERT INTO pk_price_observations
+        (observed_date, source, product_id, price_per_pack_cents, listing_ref)
+      VALUES
+        ('2026-07-01', 'carddistro', 1, 1000, 'mentor'),
+        ('2026-07-02', 'ebay_sold', 1, 900, 'sold-old'),
+        ('2026-07-04', 'tcgplayer', 1, 1100, 'tcg-old'),
+        ('2026-07-09', 'ebay_sold', 1, 700, 'sold-new'),
+        ('2026-07-10', 'tcgplayer', 1, 1300, 'tcg-new');
+      INSERT INTO pk_purchase_lots
+        (purchase_date, source, product_id, pack_count, total_cost_cents,
+         landed_cost_per_pack_cents, benchmark_price_cents, benchmark_delta_cents)
+      VALUES
+        ('2026-06-30', 'target', 1, 2, 1600, 800, 1000, -200),
+        ('2026-07-03', 'target', 1, 2, 1600, 800, 1000, -200),
+        ('2026-07-05', 'target', 1, 2, 2000, 1000, 1000, 0);
+    `);
+
+    raw.exec(fs.readFileSync(path.join(repoRoot, "db/migrations/0012_pokemon_ops_external_benchmark.sql"), "utf8"));
+
+    assert.deepEqual(
+      raw.prepare(
+        `SELECT purchase_date, benchmark_price_cents, benchmark_delta_cents
+         FROM pk_purchase_lots ORDER BY purchase_date`
+      ).all(),
+      [
+        { purchase_date: "2026-06-30", benchmark_price_cents: null, benchmark_delta_cents: null },
+        { purchase_date: "2026-07-03", benchmark_price_cents: 900, benchmark_delta_cents: -100 },
+        { purchase_date: "2026-07-05", benchmark_price_cents: 1100, benchmark_delta_cents: -100 },
+      ]
+    );
+    assert.deepEqual(
+      raw.prepare(`SELECT source, price_per_pack_cents FROM pk_v_benchmark_current`).get(),
+      { source: "tcgplayer", price_per_pack_cents: 1300 }
+    );
+  } finally {
+    raw.close();
+  }
 });
 
 test("round-trip inserts on every table", async () => {
@@ -85,6 +132,14 @@ test("round-trip inserts on every table", async () => {
   assert.equal(obsRow.includes_shipping, 1);
   assert.equal(obsRow.includes_tax, 0);
 
+  ops.insertPriceObservation({
+    observed_date: "2026-07-03",
+    source: "tcgplayer",
+    product_id: productId,
+    price_per_pack_cents: 1200,
+    listing_ref: "tcg-market-roundtrip",
+  });
+
   const lotId = ops.insertPurchaseLot({
     purchase_date: "2026-07-05",
     source: "ebay_sold",
@@ -98,8 +153,8 @@ test("round-trip inserts on every table", async () => {
   const lot = ops.getPurchaseLot(lotId);
   assert.ok(lot);
   assert.equal(lot.landed_cost_per_pack_cents, 900);
-  assert.equal(lot.benchmark_price_cents, 1000);
-  assert.equal(lot.benchmark_delta_cents, -100);
+  assert.equal(lot.benchmark_price_cents, 1200);
+  assert.equal(lot.benchmark_delta_cents, -300);
   assert.equal(lot.status, "received");
   assert.equal(ops.listPurchaseLots()[0].set_name, "RT Set");
 
@@ -207,23 +262,72 @@ test("stock math: audit_count resets the baseline, deltas and sales apply after 
   assert.equal(ops.currentStockForSlot(mId, 3), 11);
 });
 
-test("pk_v_benchmark_current returns latest carddistro observation by date then id", async () => {
-  const { ops } = await mods();
+test("external benchmark prefers latest TCGplayer market, then falls back to eBay sold", async () => {
+  const { ops, metrics } = await mods();
   const productId = ops.ensureProduct({ set_name: "Bench Set", form: "booster", tier: "premium" });
   ops.insertPriceObservation({ observed_date: "2026-07-01", source: "carddistro", product_id: productId, price_per_pack_cents: 111 });
-  ops.insertPriceObservation({ observed_date: "2026-07-10", source: "carddistro", product_id: productId, price_per_pack_cents: 222 });
-  // Newer non-carddistro observation must not become the benchmark.
+  ops.insertPriceObservation({ observed_date: "2026-07-02", source: "ebay_sold", product_id: productId, price_per_pack_cents: 222 });
+  // Actionable offers and supplier quotes never define the benchmark.
   ops.insertPriceObservation({ observed_date: "2026-07-12", source: "ebay_active", product_id: productId, price_per_pack_cents: 999 });
   let benchmark = ops.latestBenchmarkForProduct(productId);
   assert.ok(benchmark);
   assert.equal(benchmark.price_per_pack_cents, 222);
-  assert.equal(benchmark.observed_date, "2026-07-10");
+  assert.equal(benchmark.source, "ebay_sold");
 
-  // Same date, distinct listing_ref: higher id wins the tie.
-  ops.insertPriceObservation({ observed_date: "2026-07-10", source: "carddistro", product_id: productId, price_per_pack_cents: 333, listing_ref: "ref-b" });
+  // Once any TCGplayer market observation exists, it is primary even when an
+  // eBay sold observation is newer. Same-date TCGplayer ties use highest id.
+  ops.insertPriceObservation({ observed_date: "2026-07-03", source: "tcgplayer", product_id: productId, price_per_pack_cents: 333 });
+  ops.insertPriceObservation({ observed_date: "2026-07-10", source: "ebay_sold", product_id: productId, price_per_pack_cents: 444, listing_ref: "sold-newer" });
+  ops.insertPriceObservation({ observed_date: "2026-07-03", source: "tcgplayer", product_id: productId, price_per_pack_cents: 555, listing_ref: "tcg-tie" });
   benchmark = ops.latestBenchmarkForProduct(productId);
-  assert.equal(benchmark!.price_per_pack_cents, 333);
+  assert.equal(benchmark!.price_per_pack_cents, 555);
+  assert.equal(benchmark!.source, "tcgplayer");
   assert.equal(ops.listBenchmarks().filter((b) => b.product_id === productId).length, 1);
+
+  const series = metrics.benchmarkDeltaSeries(productId);
+  const ebayFallbackPoint = series.find((p) => p.source === "ebay_sold" && p.observed_date === "2026-07-02")!;
+  assert.equal(ebayFallbackPoint.benchmark_price_cents, 222);
+  const latestOfferPoint = series.find((p) => p.source === "ebay_active")!;
+  assert.equal(latestOfferPoint.benchmark_price_cents, 555);
+  assert.equal(latestOfferPoint.benchmark_delta_cents, 444);
+});
+
+test("purchase snapshots use the eligible external benchmark at or before purchase date", async () => {
+  const { ops } = await mods();
+  const productId = ops.ensureProduct({ set_name: "Dated Bench Set", form: "booster", tier: "mid" });
+  ops.insertPriceObservation({ observed_date: "2026-07-01", source: "ebay_sold", product_id: productId, price_per_pack_cents: 900 });
+  ops.insertPriceObservation({ observed_date: "2026-07-04", source: "tcgplayer", product_id: productId, price_per_pack_cents: 1100 });
+  ops.insertPriceObservation({ observed_date: "2026-07-10", source: "tcgplayer", product_id: productId, price_per_pack_cents: 1300, listing_ref: "future" });
+
+  const fallbackLot = ops.getPurchaseLot(ops.insertPurchaseLot({
+    purchase_date: "2026-07-03", source: "target", product_id: productId,
+    pack_count: 2, total_cost_cents: 1600,
+  }))!;
+  assert.equal(fallbackLot.benchmark_price_cents, 900);
+  assert.equal(fallbackLot.benchmark_delta_cents, -100);
+
+  const tcgLot = ops.getPurchaseLot(ops.insertPurchaseLot({
+    purchase_date: "2026-07-05", source: "target", product_id: productId,
+    pack_count: 2, total_cost_cents: 2000,
+  }))!;
+  assert.equal(tcgLot.benchmark_price_cents, 1100);
+  assert.equal(tcgLot.benchmark_delta_cents, -100);
+});
+
+test("market indicators and carddistro quotes are not actionable sourcing offers", async () => {
+  const { ops } = await mods();
+  const productId = ops.ensureProduct({ set_name: "Offer Separation Set", form: "booster", tier: "entry" });
+  ops.insertPriceObservation({ observed_date: "2026-07-15", source: "tcgplayer", product_id: productId, price_per_pack_cents: 1000 });
+  ops.insertPriceObservation({ observed_date: "2026-07-16", source: "ebay_sold", product_id: productId, price_per_pack_cents: 500 });
+  ops.insertPriceObservation({ observed_date: "2026-07-16", source: "carddistro", product_id: productId, price_per_pack_cents: 400 });
+  ops.insertPriceObservation({ observed_date: "2026-07-16", source: "target", product_id: productId, price_per_pack_cents: 800 });
+
+  const offers = ops.listBestFreshOffers("2026-07-17T00:00:00.000Z", 30);
+  assert.equal(offers.find((o) => o.product_id === productId)?.source, "target");
+  assert.deepEqual(
+    ops.listPendingSourcingAlerts(15).filter((o) => o.product_id === productId).map((o) => o.source),
+    ["target"]
+  );
 });
 
 test("observation dedupe: '' listing_ref dedupes; NULL would silently not (regression demo)", async () => {

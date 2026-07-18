@@ -1,5 +1,5 @@
 // Phase 1 seed for pokemon-ops: Fixture Corner Store machine row, the 16 catalog products,
-// and the carddistro 2026-07-17 mentor benchmark import. Idempotent — lookup-first
+// and the carddistro 2026-07-17 supplier/mentor quote import. Idempotent — lookup-first
 // / receipt-gated everywhere; safe to run twice.
 import path from "node:path";
 import { get, getDb } from "@/db";

@@ -9,7 +9,7 @@ export function SourcingFeed({ rows }: { rows: PokemonOpsSourcingRow[] }) {
     return (
       <EmptyState
         title="no price observations yet"
-        hint="drop the carddistro benchmark CSV or log an observation below"
+        hint="log a sourcing offer or external market observation below"
       />
     );
   }

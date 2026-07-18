@@ -25,8 +25,9 @@ Machine") and `slot_number` (1).
 
 ## Sourcing observations (pk_price_observations)
 
-Benchmark (carddistro): id 1, `bench1`, 2026-07-15, price 1000 (=$10.00). This
-is `pk_v_benchmark_current` for Alpha (only carddistro row for the product).
+External benchmark: `tcgplayer` row `meh1`, 2026-07-16, price 1000 (=$10.00).
+The newer `ebay_sold` row at 700 is only a fallback, so TCGplayer remains
+`pk_v_benchmark_current`. Carddistro `bench1` is a supplier quote, not a benchmark.
 
 threshold = `alert_threshold_pct` 15 → fires when `price <= benchmark × (1 −
 15/100)` = `1000 × 0.85` = 850.
@@ -34,17 +35,13 @@ threshold = `alert_threshold_pct` 15 → fires when `price <= benchmark × (1 �
 | id | ref | source | price | vs 850 | fires? |
 |----|-----|--------|-------|--------|--------|
 | 2 | good1 | ebay_active | 800 | 800 ≤ 850 | YES |
-| 3 | meh1 | tcgplayer | 900 | 900 > 850 | no |
+| 3 | meh1 | tcgplayer | 1000 | indicator only | no |
+| 4 | sold-indicator | ebay_sold | 700 | fallback indicator only | no |
 
 `beats_pct` for id 2 = `(1 − 800/1000) × 100` = 20.0% (exact in floating
-point up to the usual binary-fraction noise; `.toFixed(1)` → "20.0"). id 3 is
-excluded by the SQL filter entirely (900 > 850) so it never reaches the
-beats_pct computation — this is "beating benchmark by <15%: no alert" from the
-build brief (900 is 10% below 1000, under the 15% bar).
-
-carddistro rows are excluded from the sourcing-alert query by `source !=
-'carddistro'` regardless of price, so the benchmark row itself (id 1) can
-never alert — this is the fixture's "1 carddistro (no alert)" case.
+point up to the usual binary-fraction noise; `.toFixed(1)` → "20.0").
+TCGplayer, eBay sold, and Carddistro rows are all excluded from sourcing alerts:
+the first two are valuation indicators and Carddistro is the supplier quote.
 
 ## expected-immediate.txt
 
@@ -77,8 +74,9 @@ engine as the dashboard:
 - **Open recommendations**: all 3 seeded rows have `status = 'open'`
   regardless of `alerted_at` (alerting doesn't change status) → 2 action (recA,
   recC) + 1 info (recB) + 0 urgent = **3 total**.
-- **Best fresh sourcing offer**: among non-carddistro observations with
-  `observed_date >= asOf − 30d` (both good1 and meh1 qualify, both dated
-  2026-07-16), the cheapest is good1 at 800. Benchmark is bench1 at 1000.
+- **Best fresh sourcing offer**: among actionable observations with
+  `observed_date >= asOf − 30d`, good1 at 800 is the only eligible offer.
+  TCGplayer and eBay sold rows are indicators, not offers. Benchmark is the
+  TCGplayer market row at 1000.
   `(1000 − 800) / 1000 × 100` = 20.0%, direction "below" since 800 ≤ 1000 →
   "Alpha: $8.00 from ebay_active (benchmark $10.00, 20.0% below)".

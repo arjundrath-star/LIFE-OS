@@ -32,7 +32,14 @@
       "product": "Alpha",
       "observed_date": "2026-07-16",
       "source": "tcgplayer",
-      "price_per_pack_cents": 900
+      "price_per_pack_cents": 1000
+    },
+    {
+      "ref": "sold-indicator",
+      "product": "Alpha",
+      "observed_date": "2026-07-16",
+      "source": "ebay_sold",
+      "price_per_pack_cents": 700
     }
   ],
   "lots": [

@@ -114,13 +114,13 @@ then `slot_number` (null sorts as 0), then insertion order.
   (Infinity slots excluded). Fewer than 2 finite values → `null`.
 - **totalInvested()**: Σ `total_cost_cents` over ALL purchase lots, all-time,
   every status included (in_transit and depleted count).
-- **benchmarkDeltaSeries(product)**: all observations (every source, carddistro
+- **benchmarkDeltaSeries(product)**: all observations (every source, Carddistro
   included), ordered `observed_date` ASC then id ASC. Each point carries the
-  benchmark current at its date: the carddistro observation with the max
-  `observed_date ≤` the point's date, ties on date broken by max id (same-date
-  carddistro rows count, regardless of relative id). No such row → benchmark
-  and delta are `null`. `benchmark_delta_cents = price − benchmark` (negative =
-  cheaper than the mentor list).
+  external-market benchmark current at its date: latest eligible TCGplayer market
+  observation (`observed_date ≤` point date, tie → max id), or latest eligible
+  eBay sold observation only when no TCGplayer row exists. Carddistro never defines
+  the benchmark. No eligible external indicator → benchmark and delta are `null`.
+  `benchmark_delta_cents = price − benchmark` (negative = cheaper than market).
 
 ## Rules engine (`runRules(asOf)`)
 
@@ -195,8 +195,9 @@ days of supply — all as defined above.
      `observed_date < date(asOf − 30 days)` (an observation EXACTLY 30 days
      old is still fresh; comparison on YYYY-MM-DD strings). Among the fresh
      ones pick the cheapest `price_per_pack_cents`; ties → most recent
-     observed_date, then source name ascending alphabetically. All sources
-     participate, carddistro included. The observation price IS the expected
+     observed_date, then source name ascending alphabetically. TCGplayer and eBay
+     sold are valuation indicators and do not participate; Carddistro remains an
+     actionable supplier quote. The observation price IS the expected
      landed cost per pack (includes_shipping / includes_tax ignored in v1).
      No fresh source → product recorded in `skipped` with reason
      `"no_fresh_observation"`.
@@ -211,9 +212,10 @@ days of supply — all as defined above.
   5. Item fields: `{ product_id, set_name, slot_numbers (insertion order),
      need, days_of_supply (product min; null if Infinity), qty, source,
      observed_date, unit_cost_cents, line_total_cents,
-     expected_margin_per_pack_cents, benchmark_delta_cents (unit_cost −
-     current benchmark = latest carddistro observation any age; null if
-     none) }`.
+     expected_margin_per_pack_cents, benchmark_delta_cents (unit_cost − current
+     external benchmark = latest TCGplayer observation any age, with latest eBay
+     sold as fallback only if no TCGplayer observation exists; null if neither
+     exists) }`.
   6. Payload: `{ budget_cents, spent_cents, remaining_cents, items, skipped }`
      with items in walk order and skipped in walk order. Emitted ONLY when
      `items` is non-empty (skipped-only results emit nothing).

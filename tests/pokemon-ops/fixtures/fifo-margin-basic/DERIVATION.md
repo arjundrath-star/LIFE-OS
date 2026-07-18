@@ -26,13 +26,14 @@ Sale price is 1500 c on every sale.
 
 ## benchmarkDeltaSeries (Alpha)
 
-Observations in (observed_date, id) ASC order. Benchmark at date D = carddistro
-row with max observed_date ≤ D (tie: max id).
+Observations in (observed_date, id) ASC order. Benchmark at date D = latest
+TCGplayer row with observed_date ≤ D (tie: max id); eBay sold is used only when
+no eligible TCGplayer row exists. Carddistro is a supplier quote, not a benchmark.
 
 | obs | date | source | price | benchmark current at date | delta |
 |---|---|---|---|---|---|
-| o1 | 2026-05-20 | tcgplayer | 850 | none before 05-20 → null | null |
-| o2 | 2026-06-01 | carddistro | 900 | o2 itself (≤ 06-01) → 900 | 900 − 900 = 0 |
-| o3 | 2026-06-05 | ebay_sold | 800 | o2 → 900 | 800 − 900 = −100 |
-| o4 | 2026-06-10 | carddistro | 950 | o4 itself → 950 | 0 |
-| o5 | 2026-06-15 | ebay_sold | 1000 | o4 → 950 | 1000 − 950 = +50 |
+| o1 | 2026-05-20 | tcgplayer | 850 | o1 itself → 850 | 0 |
+| o2 | 2026-06-01 | carddistro | 900 | o1 → 850 | 900 − 850 = +50 |
+| o3 | 2026-06-05 | ebay_sold | 800 | o1 wins by source priority → 850 | 800 − 850 = −50 |
+| o4 | 2026-06-10 | carddistro | 950 | o1 → 850 | 950 − 850 = +100 |
+| o5 | 2026-06-15 | ebay_sold | 1000 | o1 wins by source priority → 850 | 1000 − 850 = +150 |

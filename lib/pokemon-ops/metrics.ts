@@ -284,20 +284,20 @@ export interface BenchmarkDeltaPoint {
   source: string;
   observed_date: string;
   price_per_pack_cents: number;
-  /** Latest carddistro price with observed_date ≤ this point's observed_date
-   *  (tie on date: highest id wins — same rule as pk_v_benchmark_current).
-   *  null when no carddistro observation exists on or before that date. */
+  /** External market benchmark at this point's date: latest TCGplayer market
+   *  observation, or latest eBay sold observation only when no eligible
+   *  TCGplayer observation exists. Same-date ties use highest id. */
   benchmark_price_cents: number | null;
-  /** price − benchmark (negative = cheaper than the mentor list). null when
+  /** price − benchmark (negative = cheaper than external market). null when
    *  benchmark is null. */
   benchmark_delta_cents: number | null;
 }
 
 /**
- * Per-source price history vs the carddistro benchmark that was current at
- * each observed_date. ALL sources are included (carddistro rows compare to
- * the then-current benchmark, normally themselves → delta 0). Ordered by
- * observed_date ASC, then id ASC; callers group by source as needed.
+ * Per-source price history vs the external market benchmark at each
+ * observed_date. ALL sources remain visible, but only TCGplayer market and the
+ * eBay sold fallback can define benchmark value. Ordered by observed_date ASC,
+ * then id ASC; callers group by source as needed.
  */
 export function benchmarkDeltaSeries(productId: number): BenchmarkDeltaPoint[] {
   const observations = all<PkPriceObservation>(
@@ -305,26 +305,30 @@ export function benchmarkDeltaSeries(productId: number): BenchmarkDeltaPoint[] {
      ORDER BY observed_date, id`,
     productId
   );
-  const benchmarks = observations
-    .filter((o) => o.source === "carddistro")
-    // already date ASC, id ASC
-    .map((o) => ({ observed_date: o.observed_date, id: o.id, price: o.price_per_pack_cents }));
+  const tcgBenchmarks = observations.filter((o) => o.source === "tcgplayer");
+  const ebaySoldBenchmarks = observations.filter((o) => o.source === "ebay_sold");
 
   return observations.map((o) => {
-    let current: { price: number } | null = null;
-    // benchmark current at date D = carddistro row with max observed_date ≤ D,
-    // tie broken by max id (scan keeps the last match in ASC order).
-    for (const b of benchmarks) {
+    let current: PkPriceObservation | null = null;
+    // Scan in date/id ascending order so the final eligible row is the latest.
+    // TCGplayer is primary for this date; eBay sold is consulted only if none exists.
+    for (const b of tcgBenchmarks) {
       if (b.observed_date <= o.observed_date) current = b;
       else break;
+    }
+    if (!current) {
+      for (const b of ebaySoldBenchmarks) {
+        if (b.observed_date <= o.observed_date) current = b;
+        else break;
+      }
     }
     return {
       observation_id: o.id,
       source: o.source,
       observed_date: o.observed_date,
       price_per_pack_cents: o.price_per_pack_cents,
-      benchmark_price_cents: current ? current.price : null,
-      benchmark_delta_cents: current ? o.price_per_pack_cents - current.price : null,
+      benchmark_price_cents: current ? current.price_per_pack_cents : null,
+      benchmark_delta_cents: current ? o.price_per_pack_cents - current.price_per_pack_cents : null,
     };
   });
 }
