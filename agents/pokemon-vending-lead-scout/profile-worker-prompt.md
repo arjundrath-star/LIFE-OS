@@ -40,16 +40,17 @@ Use the run id in `POKEMON_AGENT_RUN_ID`. Emit progress through:
 
 `/home/Arjun/command-center/Pokemon Machines/agent_event.sh`
 
-Minimum milestones for a real run:
+The deterministic dispatcher owns its terminal event and emits these minimum milestones:
 
 1. `started running`
 2. `context_loaded running`
 3. `sheet_build running`
 4. `dedupe running`
-5. `found running`
-6. `qualified running`
-7. `drive_sync running`
-8. `review_packet waiting_for_review` or `completed completed`
+5. `crm_sync running` when CRM sync is enabled
+6. `drive_sync running` when Drive sync is enabled
+7. `completed completed` or `failed failed`
+
+For an agentic discovery pass, emit `found running`, `qualified running`, and `review_packet waiting_for_review` only when those milestones actually occur. Do not duplicate the dispatcher's terminal event.
 
 ## Required run sequence
 

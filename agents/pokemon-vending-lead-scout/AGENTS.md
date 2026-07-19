@@ -103,18 +103,19 @@ Every real run must emit dashboard events using one run id. The profile worker e
 export POKEMON_AGENT_RUN_ID="pokemon-leads-$(date -u +%Y%m%dT%H%M%SZ)"
 ```
 
-Emit at least:
+The deterministic dispatcher emits the sink-oriented lifecycle below and owns the terminal event:
 
 ```bash
 /home/Arjun/command-center/Pokemon\ Machines/agent_event.sh started running "Pokemon vending lead scout started"
 /home/Arjun/command-center/Pokemon\ Machines/agent_event.sh context_loaded running "Loaded course context and initial lead sheet"
+/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh sheet_build running "Built Pokemon vending staging mirrors"
 /home/Arjun/command-center/Pokemon\ Machines/agent_event.sh dedupe running "Built dedupe index from initial leads"
-/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh found running "Found N candidate locations"
-/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh qualified running "Qualified N non-duplicate Pokemon-fit leads"
-/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh review_packet waiting_for_review "Prepared Pokemon lead review packet for Arjun"
+/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh crm_sync running "CRM sink action: ..."
+/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh drive_sync running "Drive sink action: ..."
+/home/Arjun/command-center/Pokemon\ Machines/agent_event.sh completed completed "Pokemon staging validated"
 ```
 
-If blocked or failing, emit `blocked` or `failed` with a clear summary.
+Agentic discovery runs should additionally emit `found`, `qualified`, and `review_packet` when they actually discover candidates or prepare a review packet. If blocked or failing, emit `blocked` or `failed` with a clear summary.
 
 ## Durable archive requirement
 

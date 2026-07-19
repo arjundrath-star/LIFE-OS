@@ -28,6 +28,49 @@ CRM_ACTION="not_started"
 DRIVE_ACTION="not_started"
 TERMINAL_EVENT_EMITTED=0
 
+usage() {
+  cat <<'EOF'
+Usage: pokemon_machines_profile_worker.sh [--check|--help]
+
+With no arguments, run the deterministic Pokemon lead-scout worker.
+  --check  Validate local prerequisites without creating a run or contacting Drive.
+  --help   Show this help without creating a run.
+EOF
+}
+
+case "${1:-}" in
+  "")
+    [[ $# -eq 0 ]] || { printf 'Unexpected empty argument.\n' >&2; usage >&2; exit 64; }
+    ;;
+  --help|-h)
+    [[ $# -eq 1 ]] || { printf 'Too many arguments.\n' >&2; usage >&2; exit 64; }
+    usage
+    exit 0
+    ;;
+  --check)
+    [[ $# -eq 1 ]] || { printf 'Too many arguments.\n' >&2; usage >&2; exit 64; }
+    HERMES_CHECK="${HERMES_BIN:-$(command -v hermes || true)}"
+    if [[ -z "$HERMES_CHECK" && -x /home/Arjun/.local/bin/hermes ]]; then HERMES_CHECK="/home/Arjun/.local/bin/hermes"; fi
+    missing=0
+    [[ -d "$PROJECT_DIR" ]] || { printf 'Missing project directory: %s\n' "$PROJECT_DIR" >&2; missing=1; }
+    [[ -d "$RATH_DIR" ]] || { printf 'Missing Rathworkspace directory: %s\n' "$RATH_DIR" >&2; missing=1; }
+    [[ -f "$PROMPT_FILE" ]] || { printf 'Missing prompt file: %s\n' "$PROMPT_FILE" >&2; missing=1; }
+    [[ -n "$HERMES_CHECK" && -x "$HERMES_CHECK" ]] || { printf 'Hermes CLI not found.\n' >&2; missing=1; }
+    [[ -x "$EVENT" ]] || { printf 'Missing executable event helper: %s\n' "$EVENT" >&2; missing=1; }
+    [[ -f "$SCRAPER" || -x "$SCRAPER" ]] || { printf 'Missing scraper: %s\n' "$SCRAPER" >&2; missing=1; }
+    [[ -f "$SYNC" || -x "$SYNC" ]] || { printf 'Missing Drive sync: %s\n' "$SYNC" >&2; missing=1; }
+    [[ -x "$GOOGLE_PY" ]] || { printf 'Missing Python runtime: %s\n' "$GOOGLE_PY" >&2; missing=1; }
+    [[ $missing -eq 0 ]] || exit 1
+    printf 'OK: Pokemon lead-scout prerequisites are available; no run was created.\n'
+    exit 0
+    ;;
+  *)
+    printf 'Unknown argument: %s\n' "$1" >&2
+    usage >&2
+    exit 64
+    ;;
+esac
+
 export POKEMON_SCOUT_RUN_ID="$RUN_ID"
 export POKEMON_AGENT_RUN_ID="$RUN_ID"
 export POKEMON_AGENT_TRIGGER_TYPE="${POKEMON_AGENT_TRIGGER_TYPE:-manual}"
