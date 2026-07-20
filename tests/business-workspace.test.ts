@@ -80,6 +80,18 @@ test("Miscellaneous Leads inbox columns normalize into operator fields", async (
   assert.match(row.notesSummary, /Strong dwell time.*Large busy store.*Keep rough/);
 });
 
+test("Miscellaneous Leads preserves routed source-trail rows", async () => {
+  const { normalizeCrmCsv } = await import("../lib/business/crm-sheets");
+  const csv = [
+    "Capture ID,Normalized Venue Name,Inbox Status,Route Decision,Processing Notes",
+    "misc-stone,Stone Meadow Golf,Routed,Portable Charging MAIN,Keep original row forever as source trail",
+    "misc-tommy,Tommy's Value,Routed,Pokemon CRM,Keep original row forever as source trail",
+  ].join("\n");
+  const rows = normalizeCrmCsv(csv);
+  assert.deepEqual(rows.map((row) => row.venue), ["Stone Meadow Golf", "Tommy's Value"]);
+  assert.ok(rows.every((row) => row.status === "Routed"));
+});
+
 test("CRM server filtering covers the full source before deterministic pagination", async () => {
   const { normalizeCrmCsv, filterCrmRows } = await import("../lib/business/crm-sheets");
   const csv = ["Venue,Status", ...Array.from({length:470},(_,i)=>`Venue ${i+1},${i===469?"Needle status":"New"}`)].join("\n");
