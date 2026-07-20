@@ -1,2 +1,3 @@
 import { redirect } from "next/navigation";
-export default function LegacyPokemonCrmRoute() { redirect("/business/crm"); }
+import { LEGACY_BUSINESS_REDIRECTS } from "@/lib/business-workspace";
+export default function LegacyPokemonCrmRoute() { redirect(LEGACY_BUSINESS_REDIRECTS["/pokemon-crm"]); }

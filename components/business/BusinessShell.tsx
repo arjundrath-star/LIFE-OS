@@ -5,17 +5,18 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { BarChart3, Bot, Boxes, Building2, ChevronLeft, CircleDollarSign, ContactRound, LogOut, Menu, PackageSearch, Plug, X } from "lucide-react";
-import { BUSINESS_UNITS, BusinessProvider, useBusinessUnit } from "./BusinessContext";
+import { BusinessProvider, useBusinessUnit } from "./BusinessContext";
+import { BUSINESS_ROUTES, BUSINESS_UNITS } from "@/lib/business-workspace";
 
 const NAV = [
-  { href: "/business", label: "Overview", Icon: BarChart3, exact: true },
-  { href: "/business/crm", label: "CRM", Icon: ContactRound },
-  { href: "/business/locations", label: "Locations", Icon: Building2 },
-  { href: "/business/inventory", label: "Inventory", Icon: Boxes },
-  { href: "/business/sourcing", label: "Sourcing", Icon: PackageSearch },
-  { href: "/business/finance", label: "Finance", Icon: CircleDollarSign },
-  { href: "/business/agents", label: "Agents", Icon: Bot },
-  { href: "/business/integrations", label: "Integrations", Icon: Plug },
+  { ...BUSINESS_ROUTES[0], Icon: BarChart3 },
+  { ...BUSINESS_ROUTES[1], Icon: ContactRound },
+  { ...BUSINESS_ROUTES[2], Icon: Building2 },
+  { ...BUSINESS_ROUTES[3], Icon: Boxes },
+  { ...BUSINESS_ROUTES[4], Icon: PackageSearch },
+  { ...BUSINESS_ROUTES[5], Icon: CircleDollarSign },
+  { ...BUSINESS_ROUTES[6], Icon: Bot },
+  { ...BUSINESS_ROUTES[7], Icon: Plug },
 ];
 
 type User = { email?: string | null; name?: string | null; picture?: string | null };
@@ -25,7 +26,7 @@ function UnitSelect() {
   return (
     <label className="business-unit-control">
       <span>Business unit</span>
-      <select value={unit} onChange={(event) => setUnit(event.target.value as any)}>
+      <select value={unit} onChange={(event) => setUnit(event.target.value as typeof unit)}>
         {BUSINESS_UNITS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
       </select>
     </label>
@@ -48,8 +49,8 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
     <aside ref={drawer} tabIndex={-1} className="business-rail" aria-label="Business navigation">
       <div className="business-brand"><span>R</span><div><strong>Rathworkspace</strong><small>Business</small></div><button className="business-drawer-close" onClick={() => setOpen(false)} aria-label="Close navigation"><X /></button></div>
       <nav>
-        {NAV.map(({ href, label, Icon, exact }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href);
+        {NAV.map(({ href, label, Icon }) => {
+          const active = href === "/business" ? pathname === href : pathname.startsWith(href);
           return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={active ? "active" : ""}><Icon aria-hidden="true" /><span>{label}</span></Link>;
         })}
       </nav>
@@ -57,7 +58,7 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
     </aside>
   );
 
-  const current = NAV.find((item) => item.exact ? pathname === item.href : pathname.startsWith(item.href));
+  const current = NAV.find((item) => item.href === "/business" ? pathname === item.href : pathname.startsWith(item.href));
   return (
     <div className="business-mode">
       <div className="business-desktop-rail">{nav}</div>

@@ -1,30 +1,35 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { BUSINESS_UNITS, resolveBusinessUnit, type BusinessUnit } from "@/lib/business-workspace";
 
-export type BusinessUnit = "all" | "pokemon" | "portable-charging" | "subtap";
+export { BUSINESS_UNITS, type BusinessUnit } from "@/lib/business-workspace";
 
 const BusinessContext = createContext<{
   unit: BusinessUnit;
   setUnit: (unit: BusinessUnit) => void;
 }>({ unit: "all", setUnit: () => {} });
 
-export const BUSINESS_UNITS: Array<{ value: BusinessUnit; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "pokemon", label: "Pokemon Vending" },
-  { value: "portable-charging", label: "Portable Charging" },
-  { value: "subtap", label: "Subtap" },
-];
+const STORAGE_KEY = "rathworkspace.business-unit";
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const [unit, setUnitState] = useState<BusinessUnit>("all");
   useEffect(() => {
-    const saved = localStorage.getItem("rathworkspace.business-unit") as BusinessUnit | null;
-    if (BUSINESS_UNITS.some((item) => item.value === saved)) setUnitState(saved!);
+    const syncFromLocation = () => {
+      const next = resolveBusinessUnit(window.location.search, localStorage.getItem(STORAGE_KEY));
+      setUnitState(next);
+      if (new URLSearchParams(window.location.search).has("unit")) localStorage.setItem(STORAGE_KEY, next);
+    };
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
   }, []);
   const setUnit = (next: BusinessUnit) => {
     setUnitState(next);
-    localStorage.setItem("rathworkspace.business-unit", next);
+    localStorage.setItem(STORAGE_KEY, next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("unit", next);
+    window.history.replaceState(window.history.state, "", url);
   };
   return <BusinessContext.Provider value={{ unit, setUnit }}>{children}</BusinessContext.Provider>;
 }

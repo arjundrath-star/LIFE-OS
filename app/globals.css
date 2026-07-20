@@ -59,8 +59,8 @@ body::before {
 /* Existing CRM/Ops/Connections components are composed here unchanged. Remap their
    established utility tokens inside Business mode without recoloring Personal. */
 .business-mode [class*="bg-base"] { background-color: #f8fafc !important; }
-.business-mode [class*="bg-panel-2"] { background-color: #f8fafc !important; }
-.business-mode [class*="bg-panel"] { background-color: #fff !important; }
+.business-mode [class~="bg-panel"], .business-mode [class*="bg-panel/"] { background-color: #fff !important; }
+.business-mode [class~="bg-panel-2"], .business-mode [class*="bg-panel-2/"] { background-color: #f8fafc !important; }
 .business-mode [class*="text-txt-primary"] { color: #0f172a !important; }
 .business-mode [class*="text-txt-muted"] { color: #475569 !important; }
 .business-mode [class*="text-txt-faint"] { color: #64748b !important; }
@@ -69,6 +69,8 @@ body::before {
 .business-mode .bg-accent { background-color: #f97316 !important; }
 .business-mode [class*="bg-accent/"] { background-color: #fff7ed !important; }
 .business-mode [class*="border-accent"] { border-color: #fb923c !important; }
+.business-mode [class~="text-accent-glow"], .business-mode [class*="text-accent-glow/"] { color: #f97316 !important; }
+.business-mode [class~="border-accent-glow"], .business-mode [class*="border-accent-glow/"] { border-color: #fb923c !important; }
 .business-mode [class*="focus:border-accent"]:focus { border-color: #f97316 !important; }
 .business-mode [class*="shadow-glow"], .business-mode [class*="text-glow"] { box-shadow: none !important; text-shadow: none !important; }
 .business-desktop-rail { display: none; width: 244px; flex: none; }
