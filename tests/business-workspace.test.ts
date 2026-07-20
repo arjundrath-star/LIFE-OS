@@ -43,6 +43,34 @@ test("CRM CSV normalization keeps operator fields and truncates giant notes", as
   assert.equal(rows[0].notesSummary.length, 240);
 });
 
+test("CRM server filtering covers the full source before deterministic pagination", async () => {
+  const { normalizeCrmCsv, filterCrmRows } = await import("../lib/business/crm-sheets");
+  const csv = ["Venue,Status", ...Array.from({length:470},(_,i)=>`Venue ${i+1},${i===469?"Needle status":"New"}`)].join("\n");
+  const rows=normalizeCrmCsv(csv); assert.equal(rows.length,470);
+  assert.equal(rows.slice(0,100).length,100); const filtered=filterCrmRows(rows,"needle");
+  assert.equal(filtered.length,1); assert.equal(filtered.slice(0,100)[0].venue,"Venue 470");
+});
+
+test("Misc Sheets token helper keeps fresh tokens and refreshes expired installed credentials", async () => {
+  const { freshGoogleAccessToken } = await import("../lib/business/crm-sheets");
+  assert.equal(await freshGoogleAccessToken({access_token:"fresh",expiry_date:200000},{installed:{}},1000),"fresh");
+  let requestBody=""; const mocked=async (_url:any,init:any)=>{requestBody=String(init.body);return new Response(JSON.stringify({access_token:"renewed"}),{status:200,headers:{"content-type":"application/json"}})};
+  const token=await freshGoogleAccessToken({access_token:"old",expiry_date:1,refresh_token:"fixture-refresh",token_uri:"https://example.test/token",client_id:"fixture-id"},{installed:{client_secret:"fixture-secret"}},1000,mocked as typeof fetch);
+  assert.equal(token,"renewed"); assert.match(requestBody,/grant_type=refresh_token/); assert.match(requestBody,/client_secret=fixture-secret/);
+});
+
+test("Discord validation checks bot identity and each watched channel without returning credentials", async () => {
+  const {validateDiscordBot}=await import("../lib/connections/discord"); const urls:string[]=[];
+  const mocked=async(url:any)=>{urls.push(String(url));return new Response(JSON.stringify(urls.length===1?{bot:true,username:"FixtureBot"}:{id:"channel"}),{status:200,headers:{"content-type":"application/json"}})};
+  assert.deepEqual(await validateDiscordBot("fixture-token",["111111111111111","222222222222222"],mocked as typeof fetch),{botName:"FixtureBot",channelCount:2});
+  assert.deepEqual(urls.map(u=>new URL(u).pathname),["/api/v10/users/@me","/api/v10/channels/111111111111111","/api/v10/channels/222222222222222"]);
+});
+
+test("multi-source CRM page does not have a page-wide Pokemon boundary", () => {
+  const source=fs.readFileSync(path.join(ROOT,"app/business/crm/page.tsx"),"utf8"); assert.doesNotMatch(source,/PokemonDataBoundary/);
+  const workspace=fs.readFileSync(path.join(ROOT,"components/business/CrmWorkspace.tsx"),"utf8"); assert.match(workspace,/<PokemonDataBoundary><PokemonCrmWorkspace/);
+});
+
 test("Total Invested numeric text has an explicit high-contrast semantic class", () => {
   const source = fs.readFileSync(path.join(ROOT, "components/pokemon-ops/KpiBand.tsx"), "utf8");
   assert.match(source, /text-slate-950 dark:text-white text-txt-primary/);

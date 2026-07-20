@@ -166,11 +166,8 @@ export const REGISTRY: ConnectionDef[] = [
       const token = secret("DISCORD_BOT_TOKEN");
       const channels = secret("DISCORD_WATCH_CHANNEL_IDS");
       if (!token || !channels) return { ok: false, detail: "bot token and watched channel IDs required" };
-      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
-      try { const res = await fetch("https://discord.com/api/v10/users/@me", { headers: { authorization: `Bot ${token}` }, signal: controller.signal });
-        if (!res.ok) return { ok: false, detail: res.status === 401 ? "bot token rejected" : `Discord API returned ${res.status}` };
-        const body = await res.json() as { username?:string }; return { ok: true, detail: `official bot verified${body.username ? ` · ${body.username}` : ""} · ${channels.split(",").filter(Boolean).length} watched channel(s)` };
-      } catch { return { ok: false, detail: "Discord API health check timed out or failed" }; } finally { clearTimeout(timer); }
+      try { const {validateDiscordBot}=await import("@/lib/connections/discord"); const result=await validateDiscordBot(token,channels.split(",").filter(Boolean)); return {ok:true,detail:`official bot verified · ${result.botName} · ${result.channelCount} watched channel(s)`}; }
+      catch(e) { return {ok:false,detail:e instanceof Error?e.message:"Discord validation failed"}; }
     },
   },
   {

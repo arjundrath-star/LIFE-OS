@@ -217,6 +217,7 @@ async function main() {
     const newTotalCents = expectedTotalInvestedCents + addedCents;
     const expectedNewTotal = `$${(newTotalCents / 100).toFixed(2)}`;
 
+    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Record Activity") as HTMLButtonElement|null;if(!button)throw new Error("Record Activity tab not found");button.click(); });
     await page.waitForSelector('[data-testid="lot-form-product"]', { timeout: 10000 });
     const alphaValue = await page.$eval('[data-testid="lot-form-product"]', (el) => {
       const select = el as HTMLSelectElement;
@@ -238,6 +239,7 @@ async function main() {
       btn.click();
     });
 
+    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Active Inventory") as HTMLButtonElement|null;if(!button)throw new Error("Active Inventory tab not found");button.click(); });
     await waitFor(
       async () => {
         const text = await page.$eval('[data-testid="kpi-total-invested"]', (el) => el.textContent || "");
@@ -248,6 +250,7 @@ async function main() {
     );
     ok(`total invested increased by the entered amount (now ${expectedNewTotal})`);
 
+    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Purchase Lots") as HTMLButtonElement|null;if(!button)throw new Error("Purchase Lots tab not found");button.click(); });
     await waitFor(
       async () => {
         const el = await page.$('[data-testid="recent-lots"]');

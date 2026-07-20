@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 PRICE_RE = re.compile(r"(?<![\w$])\$\s*(\d{1,5}(?:\.\d{1,2})?)\b")
 URL_RE = re.compile(r"https://[^\s<>]+")
 RELEVANCE = re.compile(r"\b(pok[eé]mon|pokemon|booster|elite trainer box|\betb\b|sealed|scarlet|violet|prismatic|151|surging sparks|destined rivals|journey together|white flare|black bolt|ascended heroes)\b", re.I)
+MAX_PAGES = 5
 
 def parse_price(text: str) -> int | None:
     match = PRICE_RE.search(text)
@@ -36,7 +37,7 @@ def load_secret_file() -> dict[str,str]:
     return values
 
 def ensure_schema(db: sqlite3.Connection) -> None:
-    db.executescript("""CREATE TABLE IF NOT EXISTS pk_discord_deals(id INTEGER PRIMARY KEY AUTOINCREMENT,source_guild_id TEXT,channel_id TEXT NOT NULL,message_id TEXT NOT NULL,product_text TEXT NOT NULL,price_cents INTEGER,url TEXT,observed_at TEXT NOT NULL,matching_status TEXT NOT NULL DEFAULT 'unmatched',raw_excerpt TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),UNIQUE(channel_id,message_id));CREATE TABLE IF NOT EXISTS pk_discord_cursors(channel_id TEXT PRIMARY KEY,last_message_id TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));""")
+    db.executescript("""CREATE TABLE IF NOT EXISTS pk_discord_deals(id INTEGER PRIMARY KEY AUTOINCREMENT,source_guild_id TEXT,channel_id TEXT NOT NULL,message_id TEXT NOT NULL,product_text TEXT NOT NULL,price_cents INTEGER,url TEXT,observed_at TEXT NOT NULL,matching_status TEXT NOT NULL DEFAULT 'unmatched' CHECK (matching_status IN ('unmatched','matched','ignored')),raw_excerpt TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),UNIQUE(channel_id,message_id));CREATE INDEX IF NOT EXISTS idx_pk_discord_deals_observed ON pk_discord_deals(observed_at DESC);CREATE TABLE IF NOT EXISTS pk_discord_cursors(channel_id TEXT PRIMARY KEY,last_message_id TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));""")
 
 def fetch_messages(token: str, channel: str, after: str | None) -> list[dict]:
     query={"limit":"100"}
@@ -57,6 +58,18 @@ def store_messages(db: sqlite3.Connection, channel: str, messages: list[dict]) -
         db.execute("INSERT INTO pk_discord_cursors(channel_id,last_message_id) VALUES(?,?) ON CONFLICT(channel_id) DO UPDATE SET last_message_id=excluded.last_message_id,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')",(channel,newest))
     return added
 
+def drain_channel(db: sqlite3.Connection, token: str, channel: str, after: str | None, max_pages: int = MAX_PAGES) -> int:
+    total=0; cursor=after
+    for _ in range(max_pages):
+        messages=fetch_messages(token,channel,cursor)
+        if not messages: break
+        total += store_messages(db,channel,messages)
+        newest=max((str(m["id"]) for m in messages),key=int)
+        if cursor is not None and int(newest) <= int(cursor): break
+        cursor=newest
+        if len(messages) < 100: break
+    return total
+
 def main() -> int:
     secrets=load_secret_file(); token=secrets.get("DISCORD_BOT_TOKEN","").strip(); channels=[c.strip() for c in secrets.get("DISCORD_WATCH_CHANNEL_IDS","").split(",") if c.strip()]
     if not token or not channels: return 0
@@ -66,7 +79,7 @@ def main() -> int:
         db=sqlite3.connect(db_path); ensure_schema(db); total=0
         for channel in channels:
             row=db.execute("SELECT last_message_id FROM pk_discord_cursors WHERE channel_id=?",(channel,)).fetchone()
-            total += store_messages(db,channel,fetch_messages(token,channel,row[0] if row else None))
+            total += drain_channel(db,token,channel,row[0] if row else None)
         db.commit(); db.close()
         if total: print(f"{total} new Pokemon deal{'s' if total != 1 else ''} found on Discord.")
         return 0

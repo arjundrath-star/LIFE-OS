@@ -206,7 +206,7 @@ export function pokemonOpsSnapshot(asOf: string): PokemonOpsSnapshot {
     slots = assignments.map((a) => {
       const stock = currentStockForSlot(machine.id, a.slot_number);
       const dos = daysOfSupply(machine.id, a.slot_number, asOf);
-      const lot = all<{ id:number; source:string; landed_cost_per_pack_cents:number }>(`SELECT l.id,l.source,l.landed_cost_per_pack_cents FROM pk_stock_events e JOIN pk_purchase_lots l ON l.id=e.lot_id WHERE e.machine_id=? AND e.slot_number=? AND e.lot_id IS NOT NULL ORDER BY e.at DESC,e.id DESC LIMIT 1`, machine.id, a.slot_number)[0];
+      const lot = all<{ id:number|null; source:string|null; landed_cost_per_pack_cents:number|null }>(`SELECT l.id,l.source,l.landed_cost_per_pack_cents FROM pk_stock_events e LEFT JOIN pk_purchase_lots l ON l.id=e.lot_id AND l.product_id=? WHERE e.machine_id=? AND e.slot_number=? AND e.at>=? ORDER BY e.at DESC,e.id DESC LIMIT 1`, a.product_id, machine.id, a.slot_number, a.assigned_at)[0];
       const transit = all<{ qty:number }>(`SELECT COALESCE(SUM(pack_count),0) qty FROM pk_purchase_lots WHERE product_id=? AND status='in_transit'`, a.product_id)[0].qty;
       return {
         slot_number: a.slot_number,

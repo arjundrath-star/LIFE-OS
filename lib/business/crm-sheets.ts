@@ -32,6 +32,24 @@ const FIELDS: CrmSheetResult["fields"] = [
   { key: "nextAction", label: "Next action" }, { key: "notesSummary", label: "Notes" },
 ];
 
+type GoogleToken = { access_token?:string; token?:string; refresh_token?:string; expiry?:string; expiry_date?:number; token_uri?:string; client_id?:string };
+type GoogleClientConfig = { installed?:Record<string,unknown>; web?:Record<string,unknown> };
+export async function freshGoogleAccessToken(token: GoogleToken, clientConfig: GoogleClientConfig, now = Date.now(), request: typeof fetch = fetch): Promise<string> {
+  const current = token.access_token || token.token || "";
+  const expiry = token.expiry_date || (token.expiry ? Date.parse(token.expiry) : 0);
+  if (current && expiry > now + 60_000) return current;
+  const client = (clientConfig.installed || clientConfig.web || {}) as {client_id?:string;client_secret?:string;token_uri?:string};
+  const clientId = token.client_id || client.client_id;
+  const tokenUri = token.token_uri || client.token_uri || "https://oauth2.googleapis.com/token";
+  if (!token.refresh_token || !clientId || !client.client_secret) throw new Error("Google refresh credentials are incomplete.");
+  const controller = new AbortController(); const timer = setTimeout(()=>controller.abort(),5000);
+  try {
+    const res = await request(tokenUri,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:clientId,client_secret:client.client_secret,refresh_token:token.refresh_token,grant_type:"refresh_token"}),signal:controller.signal});
+    if(!res.ok) throw new Error(`Google token refresh failed (${res.status}).`);
+    const body=await res.json() as {access_token?:string}; if(!body.access_token) throw new Error("Google token refresh returned no access token."); return body.access_token;
+  } finally { clearTimeout(timer); }
+}
+
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []; let row: string[] = []; let cell = ""; let quoted = false;
   for (let i = 0; i < text.length; i++) {
@@ -88,7 +106,8 @@ async function googleRows(): Promise<{ rows: CrmSheetRow[]; freshness: string | 
     try {
       const tokenPath = "/home/Arjun/.hermes/google_token.json";
       const tokenJson = JSON.parse(fs.readFileSync(tokenPath, "utf8"));
-      const token = tokenJson.access_token || tokenJson.token;
+      const clientJson = JSON.parse(fs.readFileSync("/home/Arjun/.hermes/google_client_secret.json", "utf8"));
+      const token = await freshGoogleAccessToken(tokenJson, clientJson);
       if (token) {
         const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5000);
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}`;
@@ -108,12 +127,19 @@ export async function listCrmSources(): Promise<CrmSheetSource[]> {
   return [{ id: "pokemon-crm", label: "Pokemon CRM", editable: true, available: true, freshness: null, count: null, error: null }, ...csv, misc];
 }
 
-export async function readCrmSource(id: CrmSourceId, limit = 200, offset = 0): Promise<CrmSheetResult> {
+export function filterCrmRows(rows: CrmSheetRow[], query = ""): CrmSheetRow[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => [row.venue,row.category,row.cityRegion,row.contact,row.status,row.lastTouch,row.nextAction,row.notesSummary,...Object.values(row.details)].join(" ").toLocaleLowerCase().includes(q));
+}
+
+export async function readCrmSource(id: CrmSourceId, limit = 100, offset = 0, query = ""): Promise<CrmSheetResult> {
   if (id === "pokemon-crm") return { id, label: "Pokemon CRM", editable: true, available: true, freshness: null, count: null, error: null, fields: FIELDS, rows: [], total: 0, limit, offset };
   try {
     let rows: CrmSheetRow[]; let freshness: string | null;
     if (id === "misc-leads") ({ rows, freshness } = await googleRows());
     else { const def = CSV_SOURCES[id]; const st = fs.statSync(def.file); freshness = st.mtime.toISOString(); rows = normalizeCrmCsv(fs.readFileSync(def.file, "utf8")); }
-    return { id, label: id === "misc-leads" ? "Miscellaneous Leads" : CSV_SOURCES[id as keyof typeof CSV_SOURCES].label, editable: false, available: true, freshness, count: rows.length, error: null, fields: FIELDS, rows: rows.slice(offset, offset + limit), total: rows.length, limit, offset };
+    const filtered = filterCrmRows(rows, query);
+    return { id, label: id === "misc-leads" ? "Miscellaneous Leads" : CSV_SOURCES[id as keyof typeof CSV_SOURCES].label, editable: false, available: true, freshness, count: rows.length, error: null, fields: FIELDS, rows: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset };
   } catch (e) { const label = id === "misc-leads" ? "Miscellaneous Leads" : CSV_SOURCES[id as keyof typeof CSV_SOURCES].label; return { id, label, editable: false, available: false, freshness: null, count: null, error: e instanceof Error ? e.message : "Source unavailable.", fields: FIELDS, rows: [], total: 0, limit, offset }; }
 }
