@@ -73,20 +73,24 @@ export function normalizeCrmCsv(text: string): CrmSheetRow[] {
   const headers = parsed[0].map(h => h.replace(/^\uFEFF/, "").trim());
   return parsed.slice(1).map((cells, index) => {
     const r = Object.fromEntries(headers.map((h, i) => [h, cells[i] || ""]));
-    const name = first(r, "Venue", "Name", "Business");
-    const person = first(r, "Decision-maker name", "Owner name candidate", "Owner/operator status");
+    const name = first(r, "Venue", "Name", "Business", "Normalized Venue Name", "Raw Venue Name");
+    const person = first(r, "Decision-maker name", "Owner name candidate", "Owner/operator status", "Owner / Contact Known?");
     const role = first(r, "Decision-maker role", "Owner title/role");
     const phone = first(r, "Phone", "Public contact phone", "Owner phone");
     const email = first(r, "Email", "Owner email", "Public contact email");
-    const notes = first(r, "Owner notes", "Notes", "Email Enrichment Notes");
+    const notes = [
+      first(r, "Owner notes", "Notes", "Email Enrichment Notes", "Fit Hypothesis"),
+      first(r, "Why It Caught Attention"),
+      first(r, "Processing Notes"),
+    ].filter(Boolean).join(" · ");
     return {
-      id: first(r, "Lead ID") || `${index + 1}`,
-      venue: name || "Unnamed row", category: first(r, "Category", "Type"),
-      cityRegion: [first(r, "City"), first(r, "State"), first(r, "Region")].filter(Boolean).join(" · "),
+      id: first(r, "Lead ID", "Capture ID") || `${index + 1}`,
+      venue: name || "Unnamed row", category: first(r, "Category", "Type", "Business Type", "Product Lane Guess"),
+      cityRegion: [first(r, "City"), first(r, "State"), first(r, "Region", "Neighborhood / Area", "Route Cluster")].filter(Boolean).join(" · "),
       contact: [[person, role].filter(Boolean).join(" — "), phone, email].filter(Boolean).join(" · "),
-      status: first(r, "Active Outreach Status", "Status", "Status (New)", "Email first status", "Active Lead"),
-      lastTouch: [first(r, "Last touch method"), first(r, "Last touch at")].filter(Boolean).join(" · "),
-      nextAction: first(r, "Next action", "Suggested first move"), notesSummary: summary(notes),
+      status: first(r, "Active Outreach Status", "Status", "Status (New)", "Email first status", "Active Lead", "Inbox Status", "Route Decision"),
+      lastTouch: [first(r, "Last touch method", "Captured By / Source"), first(r, "Last touch at", "Captured Date")].filter(Boolean).join(" · "),
+      nextAction: first(r, "Next action", "Suggested first move", "Next Tiny Action", "Verification Needed"), notesSummary: summary(notes),
       details: Object.fromEntries(Object.entries(r).filter(([,v]) => v.trim()).slice(0, 24).map(([k,v]) => [k, summary(v)])),
     };
   }).filter(r => r.venue !== "Unnamed row" || Object.keys(r.details).length);
@@ -101,7 +105,7 @@ function csvSource(id: keyof typeof CSV_SOURCES): CrmSheetSource {
 async function googleRows(): Promise<{ rows: CrmSheetRow[]; freshness: string | null }> {
   const cache = secret("MISC_LEADS_CACHE_PATH");
   const sheetId = secret("GOOGLE_SHEETS_MISC_LEADS_SPREADSHEET_ID") || secret("GOOGLE_SHEETS_CRM_SPREADSHEET_ID");
-  const range = secret("GOOGLE_SHEETS_MISC_LEADS_RANGE") || "Miscellaneous Leads!A1:Z1000";
+  const range = secret("GOOGLE_SHEETS_MISC_LEADS_RANGE") || "Inbox!A1:Z1000";
   if (sheetId) {
     try {
       const tokenPath = "/home/Arjun/.hermes/google_token.json";

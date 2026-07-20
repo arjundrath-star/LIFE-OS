@@ -43,6 +43,22 @@ test("CRM CSV normalization keeps operator fields and truncates giant notes", as
   assert.equal(rows[0].notesSummary.length, 240);
 });
 
+test("Miscellaneous Leads inbox columns normalize into operator fields", async () => {
+  const { normalizeCrmCsv } = await import("../lib/business/crm-sheets");
+  const csv = "Capture ID,Captured Date,Captured By / Source,Raw Venue Name,Normalized Venue Name,Business Type,Product Lane Guess,Neighborhood / Area,City,State,Why It Caught Attention,Fit Hypothesis,Owner / Contact Known?,Verification Needed,Next Tiny Action,Inbox Status,Route Decision,Processing Notes\n" +
+    "misc-1,2026-07-18,drive-by,Raw Market,University Market,Convenience Store,Both,Harvard Square,Cambridge,MA,Large busy store,Strong dwell time,Staff contact only,Owner name,Ask for owner,Needs verification,Hold,Keep rough";
+  const [row] = normalizeCrmCsv(csv);
+  assert.equal(row.id, "misc-1");
+  assert.equal(row.venue, "University Market");
+  assert.equal(row.category, "Convenience Store");
+  assert.match(row.cityRegion, /Cambridge.*MA.*Harvard Square/);
+  assert.match(row.contact, /Staff contact only/);
+  assert.equal(row.status, "Needs verification");
+  assert.match(row.lastTouch, /drive-by.*2026-07-18/);
+  assert.equal(row.nextAction, "Ask for owner");
+  assert.match(row.notesSummary, /Strong dwell time.*Large busy store.*Keep rough/);
+});
+
 test("CRM server filtering covers the full source before deterministic pagination", async () => {
   const { normalizeCrmCsv, filterCrmRows } = await import("../lib/business/crm-sheets");
   const csv = ["Venue,Status", ...Array.from({length:470},(_,i)=>`Venue ${i+1},${i===469?"Needle status":"New"}`)].join("\n");
