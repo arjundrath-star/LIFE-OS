@@ -34,3 +34,17 @@ test("Sourcing is a dedicated route backed by sourcing mode", () => {
   assert.match(source, /OpsWorkspace mode="sourcing"/);
   assert.notEqual(BUSINESS_ROUTES.find(({ label }) => label === "Sourcing")?.href, "/business/inventory");
 });
+
+test("CRM CSV normalization keeps operator fields and truncates giant notes", async () => {
+  const { normalizeCrmCsv } = await import("../lib/business/crm-sheets");
+  const rows = normalizeCrmCsv('Venue,Category,City,Region,Phone,Email,Status,Last touch at,Next action,Notes\n"Example, Hall",Arcade,Boston,Greater Boston,617-555-0100,owner@example.com,Warm,2026-07-19,Call owner,"' + "x".repeat(400) + '"');
+  assert.equal(rows.length, 1); assert.equal(rows[0].venue, "Example, Hall");
+  assert.match(rows[0].contact, /617-555-0100/); assert.equal(rows[0].nextAction, "Call owner");
+  assert.equal(rows[0].notesSummary.length, 240);
+});
+
+test("Total Invested numeric text has an explicit high-contrast semantic class", () => {
+  const source = fs.readFileSync(path.join(ROOT, "components/pokemon-ops/KpiBand.tsx"), "utf8");
+  assert.match(source, /text-slate-950 dark:text-white text-txt-primary/);
+  assert.match(source, /testId="kpi-total-invested"/);
+});

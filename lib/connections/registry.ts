@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
-import { hasSecret } from "@/lib/secrets";
+import { hasSecret, secret } from "@/lib/secrets";
 import { run } from "@/lib/shell";
 import { all } from "@/db";
 
@@ -152,6 +152,25 @@ export const REGISTRY: ConnectionDef[] = [
     check: async () => {
       const mod = await import("@/lib/sources/whoop");
       return mod.healthCheck();
+    },
+  },
+  {
+    id: "discord",
+    label: "Discord deals bot",
+    surfaces: ["dashboard"],
+    reconnect: "api_key",
+    defaultEnabled: false,
+    configured: () => hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"),
+    note: "Official guild bot · watched channels only",
+    check: async () => {
+      const token = secret("DISCORD_BOT_TOKEN");
+      const channels = secret("DISCORD_WATCH_CHANNEL_IDS");
+      if (!token || !channels) return { ok: false, detail: "bot token and watched channel IDs required" };
+      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
+      try { const res = await fetch("https://discord.com/api/v10/users/@me", { headers: { authorization: `Bot ${token}` }, signal: controller.signal });
+        if (!res.ok) return { ok: false, detail: res.status === 401 ? "bot token rejected" : `Discord API returned ${res.status}` };
+        const body = await res.json() as { username?:string }; return { ok: true, detail: `official bot verified${body.username ? ` · ${body.username}` : ""} · ${channels.split(",").filter(Boolean).length} watched channel(s)` };
+      } catch { return { ok: false, detail: "Discord API health check timed out or failed" }; } finally { clearTimeout(timer); }
     },
   },
   {

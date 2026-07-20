@@ -45,10 +45,12 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
   const [wSecret, setWSecret] = useState("");
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [callbackUri, setCallbackUri] = useState("/api/whoop/callback");
+  const [discordForm,setDiscordForm]=useState(false); const [discordToken,setDiscordToken]=useState(""); const [discordChannels,setDiscordChannels]=useState(""); const [discordMeta,setDiscordMeta]=useState<any>(null);
 
   // Surface the OAuth round-trip result (callback redirects back with a query flag).
   useEffect(() => {
     setCallbackUri(`${window.location.origin}/api/whoop/callback`);
+    fetch("/api/connections/discord").then(r=>r.ok?r.json():null).then(setDiscordMeta).catch(()=>{});
     const p = new URLSearchParams(window.location.search);
     const ok = p.get("whoop_connected");
     const err = p.get("whoop_error");
@@ -100,6 +102,7 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
     setWhoopForm(false);
     window.location.href = "/api/whoop/connect"; // start the WHOOP authorize flow
   };
+  const saveDiscord=async()=>{setBusy(true);const r=await post("/api/connections/discord",{token:discordToken,channelIds:discordChannels});setBusy(false);if(r?.error){setNotice({tone:"err",text:r.error});return;}setDiscordToken("");setDiscordChannels("");setDiscordForm(false);setNotice({tone:"ok",text:"Discord bot verified and watched channels saved."});};
 
   return (
     <Panel
@@ -141,6 +144,7 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
                   conn={first}
                   onKey={() => setKeyFor(keyFor === service ? null : service)}
                   onWhoopSetup={() => setWhoopForm((v) => !v)}
+                  onDiscordSetup={() => setDiscordForm(v=>!v)}
                 />
               </div>
 
@@ -220,6 +224,7 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
                   </Button>
                 </div>
               )}
+              {service === "discord" && discordForm && <div className="mt-2 space-y-2"><p className="text-[11px] leading-relaxed text-txt-faint">Use an official Discord application bot already invited to each watched channel with View Channel and Read Message History. User accounts and self-bots are not supported.</p>{discordMeta?.installUrl?<a className="inline-flex text-xs text-accent underline" href={discordMeta.installUrl} target="_blank" rel="noreferrer">Install bot in a guild</a>:<a className="inline-flex text-xs text-accent underline" href={discordMeta?.developerUrl||"https://discord.com/developers/applications"} target="_blank" rel="noreferrer">Create or configure a Discord application</a>}<label className="block text-[11px] text-txt-muted">Bot token<input type="password" value={discordToken} onChange={e=>setDiscordToken(e.target.value)} autoComplete="off" className="mt-1 w-full rounded-inner border border-border bg-base px-2 py-1.5 font-mono text-xs text-txt-primary"/></label><label className="block text-[11px] text-txt-muted">Watched numeric channel IDs<input value={discordChannels} onChange={e=>setDiscordChannels(e.target.value)} placeholder="123…, 456…" className="mt-1 w-full rounded-inner border border-border bg-base px-2 py-1.5 font-mono text-xs text-txt-primary"/></label><Button size="sm" variant="accent" disabled={busy||discordToken.length<20||!discordChannels.trim()} onClick={saveDiscord}>save &amp; verify</Button></div>}
             </div>
           );
         })
@@ -228,7 +233,8 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
   );
 }
 
-function ReconnectAction({ conn, onKey, onWhoopSetup }: { conn: Conn; onKey: () => void; onWhoopSetup: () => void }) {
+function ReconnectAction({ conn, onKey, onWhoopSetup, onDiscordSetup }: { conn: Conn; onKey: () => void; onWhoopSetup: () => void; onDiscordSetup:()=>void }) {
+  if(conn.service==="discord") return <Button variant="outline" size="sm" onClick={onDiscordSetup}><KeyRound size={12}/>{conn.configured?"update bot":"set up bot"}</Button>;
   if (conn.reconnect === "api_key") {
     return (
       <Button variant="outline" size="sm" onClick={onKey}>
