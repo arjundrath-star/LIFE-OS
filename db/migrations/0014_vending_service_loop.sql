@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS vending_service_lines (
   resulting_verified_stock INTEGER NOT NULL CHECK (resulting_verified_stock >= 0),
   inferred_dispensed_quantity INTEGER NOT NULL CHECK (inferred_dispensed_quantity >= 0),
   sale_price_cents INTEGER,
-  landed_cost_cents INTEGER,
+  refill_unit_cost_cents INTEGER,
   source_lot_id INTEGER REFERENCES pk_purchase_lots(id),
   estimated_revenue_cents INTEGER,
   estimated_cost_cents INTEGER,
