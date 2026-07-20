@@ -1,6 +1,5 @@
 "use client";
-
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useLiveData } from "@/hooks/useLiveData";
 import { BusinessPage, BusinessSection, SourceStamp } from "./Page";
@@ -9,42 +8,47 @@ import { KpiBand } from "@/components/pokemon-ops/KpiBand";
 import { SlotTable } from "@/components/pokemon-ops/SlotTable";
 import { RecommendationsList } from "@/components/pokemon-ops/RecommendationsList";
 import { RecentSales } from "@/components/pokemon-ops/RecentSales";
-import { SourcingFeed } from "@/components/pokemon-ops/SourcingFeed";
 import { RecentLots } from "@/components/pokemon-ops/RecentLots";
 import { EntryForms } from "@/components/pokemon-ops/EntryForms";
+import { formatCents } from "@/lib/pokemon-ops/format";
 import type { PokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
 import type { PkProduct } from "@/lib/pokemon-ops/types";
 
-export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
-  const live = useLiveData<PokemonOpsSnapshot>("pokemon_ops");
-  const { data, refetch } = useApi<PokemonOpsSnapshot>("/api/pokemon-ops");
-  const { data: productData, refetch: refetchProducts } = useApi<{ products: PkProduct[] }>("/api/pokemon-ops/products");
-  const snapshot = useMemo(() => !live ? data : !data || Date.parse(live.asOf) >= Date.parse(data.asOf) ? live : data, [live, data]);
-  const refresh = () => { refetch(); refetchProducts(); };
-  const products = productData?.products ?? [];
-  const inventory = mode === "inventory";
+type SourcingOps = { offers:any[]; benchmarks:any[]; vendors:any[]; local:{provenance:any;spots:any[]}; discord:any[]; connector:any; monitors:any[] };
+const INVENTORY_VIEWS = ["Active Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
+const SOURCING_VIEWS = ["Deals","Market Prices","Vendors","Local Spots","Sources / Monitors","Discord Deals"] as const;
 
-  return <PokemonDataBoundary><BusinessPage
-    title={inventory ? "Inventory" : "Sourcing"}
-    description={inventory ? "Real machine stock, slot assignments, purchase lots, sales, and cost-backed entry workflows." : "Live price observations, benchmark comparisons, recommendations, purchase decisions, and the existing sourcing ingestion workflow."}
-    actions={snapshot && <SourceStamp>pk_* read model · as of {new Date(snapshot.asOf).toLocaleString()}</SourceStamp>}
-  >
-    {!snapshot ? <div className="business-empty"><h2>Loading Pokemon Ops</h2><p>Reading the existing authenticated snapshot.</p></div> : inventory ? <>
-      <KpiBand snapshot={snapshot} />
-      <BusinessSection title="Machine slots" note={<SourceStamp>{snapshot.machine?.name ?? "No machine configured"}</SourceStamp>}><SlotTable slots={snapshot.slots} /></BusinessSection>
-      <div className="business-grid-2">
-        <BusinessSection title="Recent sales"><RecentSales sales={snapshot.recent_sales} /></BusinessSection>
-        <BusinessSection title="Purchase lots"><RecentLots lots={snapshot.recent_lots} /></BusinessSection>
-      </div>
-      <BusinessSection title="Inventory entry and import"><EntryForms products={products} machineId={snapshot.machine?.id ?? null} onSubmitted={refresh} /></BusinessSection>
-    </> : <>
-      <div className="business-grid-2">
-        <BusinessSection title="Price observations" note={<SourceStamp>{snapshot.sourcing_feed.length} latest source observations</SourceStamp>}><SourcingFeed rows={snapshot.sourcing_feed} /></BusinessSection>
-        <BusinessSection title="Recommendations" note={<SourceStamp>{snapshot.open_recommendations.length} open</SourceStamp>}><RecommendationsList recommendations={snapshot.open_recommendations} onChanged={refresh} /></BusinessSection>
-      </div>
-      <BusinessSection title="Purchase lots"><RecentLots lots={snapshot.recent_lots} /></BusinessSection>
-      <BusinessSection title="Sourcing ingestion and purchase entry"><EntryForms products={products} machineId={snapshot.machine?.id ?? null} onSubmitted={refresh} /></BusinessSection>
-      <div className="business-empty"><h2>Scheduled sourcing engine</h2><p>The existing worker fetches TCGplayer and eBay observations, imports them idempotently, runs recommendation rules, and records agent events. It is scheduled through Hermes; manual server trigger: <code>agents/pokemon-sourcing-scout/scripts/pokemon_sourcing_worker.sh</code>. This UI reads its real output and does not duplicate the engine.</p></div>
+function ViewTabs({ values, active, onChange, id }:{values:readonly string[];active:string;onChange:(v:string)=>void;id:string}) { const refs=useRef<Array<HTMLButtonElement|null>>([]);const move=(index:number)=>{onChange(values[index]);refs.current[index]?.focus()};return <div className="business-view-tabs" role="tablist" aria-label={`${id} views`}>{values.map((v,index)=><button ref={el=>{refs.current[index]=el}} id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`} tabIndex={active===v?0:-1} onKeyDown={e=>{let n:number|null=null;if(e.key==="ArrowRight")n=(index+1)%values.length;if(e.key==="ArrowLeft")n=(index-1+values.length)%values.length;if(e.key==="Home")n=0;if(e.key==="End")n=values.length-1;if(n!==null){e.preventDefault();move(n)}}} key={v} role="tab" aria-selected={active===v} className={active===v?"active":""} onClick={()=>onChange(v)}>{v}</button>)}</div>; }
+function Fresh({ value }:{value:string|null}) { return <span title={value||undefined}>{value ? new Date(value).toLocaleString() : "No observation"}</span>; }
+function PriceTable({ rows, actionable=false }:{rows:any[];actionable?:boolean}) { return rows.length===0?<p className="text-sm text-txt-muted">No evidence-backed rows are available for this view.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Product</th><th>Source</th><th>Price / pack</th><th>Benchmark</th>{actionable&&<><th>Delta</th><th>Decision</th><th>Action</th></>}<th>Freshness</th><th>Provenance</th></tr></thead><tbody>{rows.map(r=><tr key={`${r.observation_id}-${r.source}`}><td><strong>{r.display_name||r.set_name}</strong></td><td>{r.source}</td><td>{formatCents(r.price_per_pack_cents)}</td><td>{r.benchmark_cents==null?"No benchmark":`${formatCents(r.benchmark_cents)} · ${r.benchmark_source}`}</td>{actionable&&<><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td><td><span className={`ops-decision ${r.decision}`}>{r.decision}</span></td><td><a className="text-accent underline" href={`/business/inventory?view=record&product=${encodeURIComponent(r.product_id)}&source=${encodeURIComponent(r.source)}&price=${encodeURIComponent(r.price_per_pack_cents)}`}>Record purchase</a></td></>}<td><Fresh value={r.observed_date}/></td><td>{r.listing_ref?<a href={r.listing_ref.startsWith("http")?r.listing_ref:undefined} rel="noreferrer" target="_blank">{r.listing_ref.startsWith("http")?"Open source":"Recorded reference"}</a>:"Database observation"}</td></tr>)}</tbody></table></div>; }
+function VendorTable({rows}:{rows:any[]}){return rows.length===0?<p className="text-sm text-txt-muted">No supplier quotes are available.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Provider</th><th>Products covered</th><th>Latest quote</th><th>Best / current</th><th>Delta</th></tr></thead><tbody>{rows.map(r=><tr key={r.source}><td><strong>{r.provider_name}</strong></td><td>{r.products_covered.join(", ")}</td><td><Fresh value={r.latest_quote}/></td><td>{formatCents(r.best_price_cents)}</td><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td></tr>)}</tbody></table></div>}
+
+export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
+  const live=useLiveData<PokemonOpsSnapshot>("pokemon_ops"); const {data,refetch,error}=useApi<PokemonOpsSnapshot>("/api/pokemon-ops");
+  const {data:productData,refetch:refetchProducts}=useApi<{products:PkProduct[]}>("/api/pokemon-ops/products"); const {data:sourcing,error:sourcingError,refetch:refetchSourcing}=useApi<SourcingOps>("/api/business/sourcing");
+  const {data:serviceData}=useApi<any>("/api/business/service");
+  const snapshot=useMemo(()=>!live?data:!data||Date.parse(live.asOf)>=Date.parse(data.asOf)?live:data,[live,data]);
+  const refresh=()=>{refetch();refetchProducts();}; const products=productData?.products??[]; const inventory=mode==="inventory";
+  const [inventoryView,setInventoryView]=useState<string>(INVENTORY_VIEWS[0]); const [sourcingView,setSourcingView]=useState<string>(SOURCING_VIEWS[0]);
+  const [prefill,setPrefill]=useState<{productId?:number;source?:string;priceCents?:number}>({});useEffect(()=>{if(mode!=="inventory")return;const q=new URLSearchParams(window.location.search);if(q.get("view")==="record"){setInventoryView("Record Activity");setPrefill({productId:Number(q.get("product"))||undefined,source:q.get("source")||undefined,priceCents:Number(q.get("price"))||undefined});}},[mode]);
+  return <PokemonDataBoundary><BusinessPage title={inventory?"Inventory":"Sourcing"} description={inventory?"Operate available, allocated, and in-transit stock first; review history or record activity in dedicated views.":"Compare actionable offers with market evidence, supplier decisions, local call-ahead routes, and connector health."} actions={snapshot&&<SourceStamp>Pokemon Ops · <Fresh value={snapshot.asOf}/></SourceStamp>}>
+    {!snapshot?<div className="business-empty" role={error?"alert":"status"}><h2>{error?"Could not load Pokemon Ops":"Loading Pokemon Ops"}</h2><p>{error||"Reading the authenticated operational snapshot."}</p>{error&&<button onClick={refetch}>Retry</button>}</div>:inventory?<>
+      <ViewTabs id="inventory" values={INVENTORY_VIEWS} active={inventoryView} onChange={setInventoryView}/><div role="tabpanel" id={`inventory-panel-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`} aria-labelledby={`inventory-tab-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`}>
+      {inventoryView==="Active Inventory"&&<><KpiBand snapshot={snapshot}/><BusinessSection title="Active inventory" note={<SourceStamp>{snapshot.machine?.name??"No machine configured"}</SourceStamp>}><SlotTable slots={snapshot.slots}/></BusinessSection></>}
+      {inventoryView==="Service History"&&<BusinessSection title="Service history" note={<SourceStamp>Physical count evidence · estimates separate</SourceStamp>}>{!serviceData?.history?.length?<p className="text-sm text-txt-muted">No completed physical-count visits yet.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Machine</th><th>Verified at</th><th>Actor</th><th>Physical count</th><th>Estimated dispensed / revenue</th><th>Exact cash</th><th>Condition</th></tr></thead><tbody>{serviceData.history.map((v:any)=><tr key={v.id}><td><strong>{v.machine_name}</strong>Visit {v.id}</td><td>{new Date(v.completed_at).toLocaleString()}</td><td>{v.actor_email}</td><td>{v.slot_count} slots · {v.verified_units} verified units</td><td>{v.estimated_dispensed} units · {formatCents(v.estimated_revenue_cents)} estimated</td><td>{v.cash_collected_cents==null?"Unknown":`${formatCents(v.cash_collected_cents)} exact`}</td><td>{v.condition_before.replaceAll("_"," ")} → {v.condition_after.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>}</BusinessSection>}
+      {inventoryView==="Purchase Lots"&&<BusinessSection title="Purchase lots" note={<SourceStamp>landed cost + status history</SourceStamp>}><RecentLots lots={snapshot.recent_lots}/></BusinessSection>}
+      {inventoryView==="Sales"&&<BusinessSection title="Recent sales" note={<SourceStamp>recorded transactions</SourceStamp>}><RecentSales sales={snapshot.recent_sales}/></BusinessSection>}
+      {inventoryView==="Record Activity"&&<BusinessSection title="Record activity or import" note={<SourceStamp>existing write APIs preserved</SourceStamp>}><EntryForms products={products} machineId={snapshot.machine?.id??null} onSubmitted={refresh} purchasePrefill={prefill}/></BusinessSection>}</div>
+    </>:<>
+      <ViewTabs id="sourcing" values={SOURCING_VIEWS} active={sourcingView} onChange={setSourcingView}/><div role="tabpanel" id={`sourcing-panel-${SOURCING_VIEWS.indexOf(sourcingView as any)}`} aria-labelledby={`sourcing-tab-${SOURCING_VIEWS.indexOf(sourcingView as any)}`}>
+      {!sourcing?<div className="business-empty" role={sourcingError?"alert":"status"}><h2>{sourcingError?"Could not load sourcing evidence":"Loading sourcing evidence"}</h2><p>{sourcingError||"Grouping observations, recommendations, and source health."}</p>{sourcingError&&<button onClick={refetchSourcing}>Retry</button>}</div>:<>
+        {sourcingView==="Deals"&&<><div className="business-grid-2"><BusinessSection title="Actionable offers"><PriceTable rows={sourcing.offers} actionable/></BusinessSection><BusinessSection title="Recommendations"><RecommendationsList recommendations={snapshot.open_recommendations} onChanged={refresh}/></BusinessSection></div></>}
+        {sourcingView==="Market Prices"&&<BusinessSection title="Market benchmarks" note={<SourceStamp>TCGplayer and eBay evidence</SourceStamp>}><PriceTable rows={sourcing.benchmarks}/></BusinessSection>}
+        {sourcingView==="Vendors"&&<BusinessSection title="Vendors and retailers" note={<SourceStamp>grouped by observed provider</SourceStamp>}><VendorTable rows={sourcing.vendors}/></BusinessSection>}
+        {sourcingView==="Local Spots"&&<BusinessSection title="Call-ahead routes" note={<SourceStamp>checked {sourcing.local.provenance.checked_at} · inventory not confirmed</SourceStamp>}><div className="local-spots">{sourcing.local.spots.map(s=><article key={s.name}><span>{s.route}</span><h3>{s.name}</h3><p>{s.address}</p><p>{s.phone||"Phone not recorded"}</p><strong>Not confirmed — call/check</strong><small>{s.note}</small></article>)}</div></BusinessSection>}
+        {sourcingView==="Sources / Monitors"&&<BusinessSection title="Sources and monitors"><div className="monitor-list">{sourcing.monitors.map(m=><div key={m.id}><span className={`monitor-state ${m.state}`}>{m.state.replaceAll("_"," ")}</span><strong>{m.label}</strong><small>{m.row_count} rows · latest: <Fresh value={m.latest}/></small></div>)}</div></BusinessSection>}
+        {sourcingView==="Discord Deals"&&<BusinessSection title="Discord deals" note={<SourceStamp>{sourcing.connector.configured?"Official bot configured":"Not connected"}</SourceStamp>}>{!sourcing.connector.configured?<div className="business-empty !my-0"><h2>Discord is not connected</h2><p>Install an official Discord bot in the guild and watched channels, then add its bot token and numeric channel IDs in Integrations. The bot needs View Channel and Read Message History. Ordinary user login and self-bots are not supported.</p></div>:sourcing.discord.length===0?<p className="text-sm text-txt-muted">Connected, but no relevant normalized deal messages have been stored.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Product text</th><th>Price</th><th>Observed</th><th>Channel</th><th>Match</th><th>Excerpt</th></tr></thead><tbody>{sourcing.discord.map(d=><tr key={d.id}><td><strong>{d.product_text}</strong>{d.url&&<a href={d.url} target="_blank" rel="noreferrer"> Open message</a>}</td><td>{d.price_cents==null?"Not parsed":formatCents(d.price_cents)}</td><td><Fresh value={d.observed_at}/></td><td>{d.channel_id}</td><td>{d.matching_status}</td><td>{d.raw_excerpt}</td></tr>)}</tbody></table></div>}</BusinessSection>}
+      </>}</div>
     </>}
   </BusinessPage></PokemonDataBoundary>;
 }

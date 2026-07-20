@@ -465,3 +465,15 @@ test("seed is idempotent: two runs leave identical row counts", () => {
   assert.equal(second.status, 0, `second seed run failed: ${second.stderr}`);
   assert.deepEqual(counts(), afterFirst);
 });
+
+test("active inventory provenance uses only the latest post-assignment event and exact product lot", async () => {
+  const {ops}=await mods(); const {pokemonOpsSnapshot}=await import("../lib/pokemon-ops/snapshot"); const machine=await testMachine();
+  const productA=ops.ensureProduct({set_name:"Provenance A",display_name:"Provenance A",form:"booster",tier:"mid",reprint_status:"none"}); const productB=ops.ensureProduct({set_name:"Provenance B",display_name:"Provenance B",form:"booster",tier:"mid",reprint_status:"none"});
+  const lotA=ops.insertPurchaseLot({purchase_date:"2026-07-01",source:"target",product_id:productA,pack_count:10,total_cost_cents:10000,status:"received"});
+  ops.reassignSku({machine_id:machine,slot_number:987,product_id:productA,price_cents:2000,capacity:20,assigned_at:"2026-07-10T00:00:00Z"});
+  ops.insertStockEvent({machine_id:machine,slot_number:987,event:"refill",qty_delta:10,lot_id:lotA,at:"2026-07-11T00:00:00Z"});
+  ops.insertStockEvent({machine_id:machine,slot_number:987,event:"audit_count",qty_delta:9,at:"2026-07-12T00:00:00Z"});
+  let slot=pokemonOpsSnapshot("2026-07-13T00:00:00Z").slots.find(s=>s.slot_number===987)!; assert.equal(slot.source_lot_id,null); assert.equal(slot.landed_cost_per_pack_cents,null);
+  ops.reassignSku({machine_id:machine,slot_number:987,product_id:productB,price_cents:2200,capacity:20,assigned_at:"2026-07-14T00:00:00Z"});
+  slot=pokemonOpsSnapshot("2026-07-15T00:00:00Z").slots.find(s=>s.slot_number===987)!; assert.equal(slot.product_id,productB); assert.equal(slot.source_lot_id,null);
+});

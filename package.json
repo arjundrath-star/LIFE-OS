@@ -25,6 +25,7 @@
     "import:pokemon-ops": "tsx scripts/pokemon-ops-import.ts",
     "smoke:pokemon-ops": "bash scripts/pokemon-ops-smoke.sh",
     "e2e:pokemon-ops": "tsx scripts/pokemon-ops-e2e.ts"
+    ,"e2e:vending-service": "tsx scripts/vending-service-e2e.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

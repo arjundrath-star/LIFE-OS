@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
-import { hasSecret } from "@/lib/secrets";
+import { hasSecret, secret } from "@/lib/secrets";
 import { run } from "@/lib/shell";
 import { all } from "@/db";
 
@@ -152,6 +152,22 @@ export const REGISTRY: ConnectionDef[] = [
     check: async () => {
       const mod = await import("@/lib/sources/whoop");
       return mod.healthCheck();
+    },
+  },
+  {
+    id: "discord",
+    label: "Discord deals bot",
+    surfaces: ["dashboard"],
+    reconnect: "api_key",
+    defaultEnabled: false,
+    configured: () => hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"),
+    note: "Official guild bot · watched channels only",
+    check: async () => {
+      const token = secret("DISCORD_BOT_TOKEN");
+      const channels = secret("DISCORD_WATCH_CHANNEL_IDS");
+      if (!token || !channels) return { ok: false, detail: "bot token and watched channel IDs required" };
+      try { const {validateDiscordBot}=await import("@/lib/connections/discord"); const result=await validateDiscordBot(token,channels.split(",").filter(Boolean)); return {ok:true,detail:`official bot verified · ${result.botName} · ${result.channelCount} watched channel(s)`}; }
+      catch(e) { return {ok:false,detail:e instanceof Error?e.message:"Discord validation failed"}; }
     },
   },
   {

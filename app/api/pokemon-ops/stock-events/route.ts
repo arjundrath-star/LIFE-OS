@@ -47,6 +47,9 @@ export async function POST(req: Request) {
   if (body.event === "audit_count" && qtyDelta < 0) {
     return NextResponse.json({ error: "audit_count qty_delta (absolute count) must be >= 0" }, { status: 400 });
   }
+  if (body.event === "refill" && qtyDelta <= 0) {
+    return NextResponse.json({ error: "refill qty_delta must be a positive integer; use shrink_adjust for reductions" }, { status: 400 });
+  }
 
   try {
     const id = insertStockEvent({

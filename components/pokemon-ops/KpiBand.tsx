@@ -38,7 +38,7 @@ function Tile({
         <div
           className={cn(
             "mt-1 font-mono text-3xl font-semibold tabular leading-none",
-            primary ? "text-accent text-glow" : "text-txt-primary"
+            primary ? "text-accent text-glow" : "text-slate-950 dark:text-white text-txt-primary"
           )}
         >
           {value}

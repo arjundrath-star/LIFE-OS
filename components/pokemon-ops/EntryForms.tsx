@@ -76,12 +76,15 @@ function Result({ msg }: { msg: string | null }) {
   );
 }
 
-function LotForm({ products, onSubmitted }: { products: PkProduct[]; onSubmitted: () => void }) {
-  const [productId, setProductId] = useState("");
+type PurchasePrefill={productId?:number;source?:string;priceCents?:number};
+function LotForm({ products, onSubmitted, prefill }: { products: PkProduct[]; onSubmitted: () => void; prefill?:PurchasePrefill }) {
+  const validProduct=prefill?.productId&&products.some(p=>p.id===prefill.productId)?String(prefill.productId):"";
+  const validSource=prefill?.source&&OBSERVATION_SOURCES.includes(prefill.source as typeof OBSERVATION_SOURCES[number])?prefill.source:"ebay_sold";
+  const [productId, setProductId] = useState(validProduct);
   const [purchaseDate, setPurchaseDate] = useState(todayIso());
-  const [source, setSource] = useState<string>("ebay_sold");
-  const [packCount, setPackCount] = useState("10");
-  const [totalUsd, setTotalUsd] = useState("");
+  const [source, setSource] = useState<string>(validSource);
+  const [packCount, setPackCount] = useState(prefill?.priceCents?"1":"10");
+  const [totalUsd, setTotalUsd] = useState(prefill?.priceCents&&prefill.priceCents>0?(prefill.priceCents/100).toFixed(2):"");
   const [status, setStatus] = useState<string>("in_transit");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -644,10 +647,12 @@ export function EntryForms({
   products,
   machineId,
   onSubmitted,
+  purchasePrefill,
 }: {
   products: PkProduct[];
   machineId: number | null;
   onSubmitted: () => void;
+  purchasePrefill?: PurchasePrefill;
 }) {
   return (
     <Tabs defaultValue="lot">
@@ -660,7 +665,7 @@ export function EntryForms({
         <TabsTrigger value="csv">CSV upload</TabsTrigger>
       </TabsList>
       <TabsContent value="lot" className="pt-4">
-        <LotForm products={products} onSubmitted={onSubmitted} />
+        <LotForm products={products} onSubmitted={onSubmitted} prefill={purchasePrefill} />
       </TabsContent>
       <TabsContent value="observation" className="pt-4">
         <ObservationForm products={products} onSubmitted={onSubmitted} />

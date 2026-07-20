@@ -2,7 +2,7 @@
 // Pokemon CRM — manual call/visit pipeline for Pokemon machine placements.
 // Lead pool from PeopleFinder CSV imports; leads flip active on first touchpoint.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, CircleDot, Upload } from "lucide-react";
+import { AlertCircle, CircleDot, Database, Upload } from "lucide-react";
 import { ProjectPage, HeroStat, Section } from "@/components/shell/ProjectPage";
 import { Button, Dialog, DialogContent, DialogTrigger } from "@/components/ui";
 import { EmptyState } from "@/components/Panel";
@@ -11,6 +11,8 @@ import { LeadFilterChips, filterMatches, type FilterKey } from "@/components/pok
 import { PokemonLeadTable } from "@/components/pokemon-crm/PokemonLeadTable";
 import { LeadDetailPage } from "@/components/pokemon-crm/LeadDetailPage";
 import type { EmailStatus, LeadDetail, PhoneStatus, Snapshot, Stage } from "@/components/pokemon-crm/types";
+import type { CrmSheetResult, CrmSheetSource, CrmSourceId } from "@/lib/business/crm-sheets";
+import { PokemonDataBoundary } from "./BusinessContext";
 
 const ACTOR_KEY = "pokemon-crm.actor";
 const IMPORT_CMD =
@@ -40,9 +42,8 @@ function ImportCsvDialog({ trigger }: { trigger: React.ReactNode }) {
   );
 }
 
-export default function CrmWorkspace() {
+function PokemonCrmWorkspace({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
   const { data: snap, refetch } = useApi<Snapshot>("/api/pokemon-crm");
-  const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selId, setSelId] = useState<number | null>(null);
@@ -304,4 +305,45 @@ export default function CrmWorkspace() {
       )}
     </ProjectPage>
   );
+}
+
+function ReadOnlyCrm({ source, query }: { source: CrmSheetSource; query: string }) {
+  const [offset, setOffset] = useState(0); const limit = 100;
+  useEffect(() => setOffset(0), [source.id, query]);
+  const url = `/api/business/crm-sheets?source=${encodeURIComponent(source.id)}&query=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+  const { data, loading, error, refetch } = useApi<CrmSheetResult>(url);
+  if (!data) return <div className="business-empty" role={error ? "alert" : "status"}><h2>{loading ? `Loading ${source.label}` : `Could not load ${source.label}`}</h2><p>{loading ? "Reading the server-side source." : error || "The source request failed."}</p>{error&&<Button onClick={refetch}>Retry</Button>}</div>;
+  if (!data.available) return <div className="business-empty" role="status"><h2>{source.label} unavailable</h2><p>{data.error || "The source could not be read."}</p></div>;
+  const start = data.total ? data.offset + 1 : 0; const end = Math.min(data.offset + data.rows.length, data.total);
+  return <>
+    <div className="business-facts crm-sheet-kpis">
+      <div className="business-fact"><span>Rows</span><strong>{data.total}</strong><small>read-only evidence</small></div>
+      <div className="business-fact"><span>Visible</span><strong>{data.rows.length}</strong><small>current page</small></div>
+      <div className="business-fact"><span>Freshness</span><strong className="!text-base">{data.freshness ? new Date(data.freshness).toLocaleString() : "Unknown"}</strong><small title={data.freshness || undefined}>server source timestamp</small></div>
+      <div className="business-fact"><span>Access</span><strong className="!text-base">Read-only</strong><small>edit at the source</small></div>
+    </div>
+    <section className="business-section"><header><h2>{source.label}</h2><span className="business-source">{start}–{end} of {data.total}</span></header><div className="business-section-body !p-0">
+      {data.rows.length === 0 ? <div className="p-6 text-sm text-txt-muted">{query ? "No rows match this search." : "This source has no rows."}</div> : <div className="business-table-wrap"><table className="business-ops-table"><thead><tr>{data.fields.slice(0, 7).map(f => <th key={f.key}>{f.label}</th>)}</tr></thead><tbody>{data.rows.map(row => <tr key={row.id}><td><strong>{row.venue}</strong>{row.notesSummary && <small>{row.notesSummary}</small>}</td><td>{row.category || "—"}</td><td>{row.cityRegion || "—"}</td><td>{row.contact || "—"}</td><td>{row.status || "—"}</td><td>{row.lastTouch || "—"}</td><td>{row.nextAction || "—"}</td></tr>)}</tbody></table></div>}
+      <div className="flex items-center justify-between gap-3 border-t border-border p-3"><Button disabled={offset===0||loading} onClick={()=>setOffset(Math.max(0,offset-limit))}>Previous</Button><span className="text-xs text-txt-muted">Rows {start}–{end} of {data.total}</span><Button disabled={end>=data.total||loading} onClick={()=>setOffset(offset+limit)}>Next</Button></div>
+    </div></section>
+  </>;
+}
+
+export default function CrmWorkspace() {
+  const { data } = useApi<{ sources: CrmSheetSource[] }>("/api/business/crm-sheets");
+  const [active, setActive] = useState<CrmSourceId>("pokemon-crm"); const [query, setQuery] = useState("");
+  const sources = data?.sources || [{ id: "pokemon-crm", label: "Pokemon CRM", editable: true, available: true, freshness: null, count: null, error: null } as CrmSheetSource];
+  const selected = sources.find(s => s.id === active) || sources[0];
+  const tabRefs = useRef<Array<HTMLButtonElement|null>>([]);
+  const selectTab = (index:number) => { const source=sources[index]; if(source){setActive(source.id);tabRefs.current[index]?.focus();} };
+  const onTabKey=(e:React.KeyboardEvent,index:number)=>{let next:number|null=null;if(e.key==="ArrowRight")next=(index+1)%sources.length;if(e.key==="ArrowLeft")next=(index-1+sources.length)%sources.length;if(e.key==="Home")next=0;if(e.key==="End")next=sources.length-1;if(next!==null){e.preventDefault();selectTab(next);}};
+  const panelId=`crm-panel-${active}`;
+  return <div className="business-page crm-connected">
+    <div className="business-page-heading"><div><h1>CRM</h1><p>Switch between the editable Pokemon operator pipeline and evidence-backed lead sheets without leaving this workspace.</p></div><label className="crm-global-search"><span>Search active source</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="venue, contact, status…" /></label></div>
+    <div className="business-source-tabs" role="tablist" aria-label="CRM source">
+      {sources.map((source,index) => <button ref={el=>{tabRefs.current[index]=el}} id={`crm-tab-${source.id}`} aria-controls={`crm-panel-${source.id}`} tabIndex={active===source.id?0:-1} onKeyDown={e=>onTabKey(e,index)} key={source.id} role="tab" aria-selected={active === source.id} className={active === source.id ? "active" : ""} onClick={() => setActive(source.id)}><Database /> <span>{source.label}</span><small>{source.editable ? "Editable" : source.available ? `${source.count ?? "—"} · Read-only` : "Unavailable"}</small></button>)}
+    </div>
+    <div className="business-active-source"><strong>{selected.label}</strong><span>{selected.editable ? "Editable SQLite pipeline — lead detail and mutations remain enabled." : "Read-only source — changes must be made upstream."}</span></div>
+    <div key={active} id={panelId} role="tabpanel" aria-labelledby={`crm-tab-${active}`}>{active === "pokemon-crm" ? <PokemonDataBoundary><PokemonCrmWorkspace query={query} setQuery={setQuery} /></PokemonDataBoundary> : <ReadOnlyCrm source={selected} query={query} />}</div>
+  </div>;
 }

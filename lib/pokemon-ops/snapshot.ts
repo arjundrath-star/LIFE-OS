@@ -47,6 +47,11 @@ export interface PokemonOpsSlotRow {
   /** Sum of FIFO-allocated sale margin for this slot / VELOCITY_WINDOW_DAYS. */
   margin_per_slot_day_cents: number;
   projected_sellout_date: string | null;
+  /** Proven only when the latest stock event for this slot references a lot. */
+  source_lot_id: number | null;
+  landed_cost_per_pack_cents: number | null;
+  source_lot_name: string | null;
+  in_transit_units: number;
 }
 
 export interface PokemonOpsRecommendation extends Omit<PkRecommendation, "payload_json"> {
@@ -201,6 +206,8 @@ export function pokemonOpsSnapshot(asOf: string): PokemonOpsSnapshot {
     slots = assignments.map((a) => {
       const stock = currentStockForSlot(machine.id, a.slot_number);
       const dos = daysOfSupply(machine.id, a.slot_number, asOf);
+      const lot = all<{ id:number|null; source:string|null; landed_cost_per_pack_cents:number|null }>(`SELECT l.id,l.source,l.landed_cost_per_pack_cents FROM pk_stock_events e LEFT JOIN pk_purchase_lots l ON l.id=e.lot_id AND l.product_id=? WHERE e.machine_id=? AND e.slot_number=? AND e.at>=? ORDER BY e.at DESC,e.id DESC LIMIT 1`, a.product_id, machine.id, a.slot_number, a.assigned_at)[0];
+      const transit = all<{ qty:number }>(`SELECT COALESCE(SUM(pack_count),0) qty FROM pk_purchase_lots WHERE product_id=? AND status='in_transit'`, a.product_id)[0].qty;
       return {
         slot_number: a.slot_number,
         product_id: a.product_id,
@@ -212,6 +219,10 @@ export function pokemonOpsSnapshot(asOf: string): PokemonOpsSnapshot {
         days_of_supply: Number.isFinite(dos) ? dos : null,
         margin_per_slot_day_cents: marginPerSlotDay(machine.id, a.slot_number, VELOCITY_WINDOW_DAYS, asOf),
         projected_sellout_date: projectedSelloutDate(machine.id, a.slot_number, asOf),
+        source_lot_id: lot?.id ?? null,
+        landed_cost_per_pack_cents: lot?.landed_cost_per_pack_cents ?? null,
+        source_lot_name: lot?.source ?? null,
+        in_transit_units: transit,
       };
     });
     marginPerSlotDayTotal = slots.length > 0
