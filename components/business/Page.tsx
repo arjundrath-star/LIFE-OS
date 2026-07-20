@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 export function BusinessPage({ title, description, actions, children }: { title: string; description: string; actions?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="business-page"><div className="business-page-heading"><div><h1>{title}</h1><p>{description}</p></div>{actions}</div>{children}</div>;
+  const serviceBack = title.startsWith("Service ·") ? <Link className="business-primary-action mb-4" href="/business/locations">← Back to locations</Link> : null;
+  return <div className="business-page"><div className="business-page-heading"><div><h1>{title}</h1><p>{description}</p></div>{actions}</div>{serviceBack}{children}</div>;
 }
 
 export function BusinessSection({ title, note, children, className = "" }: { title: string; note?: React.ReactNode; children: React.ReactNode; className?: string }) {

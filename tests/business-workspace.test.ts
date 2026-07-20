@@ -35,6 +35,27 @@ test("Sourcing is a dedicated route backed by sourcing mode", () => {
   assert.notEqual(BUSINESS_ROUTES.find(({ label }) => label === "Sourcing")?.href, "/business/inventory");
 });
 
+test("mutation and Locations error-state contracts reject false success", () => {
+  const api = fs.readFileSync(path.join(ROOT, "hooks/useApi.ts"), "utf8");
+  const locations = fs.readFileSync(path.join(ROOT, "components/business/LocationsWorkspace.tsx"), "utf8");
+  assert.match(api, /if \(!r\.ok\)/);
+  assert.match(api, /payload\.error/);
+  assert.match(locations, /savingMachine/);
+  assert.match(locations, /role="alert" aria-live="assertive"/);
+  assert.match(locations, /data-testid="vending-load-error"/);
+  assert.match(locations, /serviceLoading/);
+  assert.match(locations, /setMachine\(""\).*setLocation\(""\)/s);
+});
+
+test("vending service E2E builds by default and creates machines only through Locations UI", () => {
+  const e2e = fs.readFileSync(path.join(ROOT, "scripts/vending-service-e2e.ts"), "utf8");
+  assert.match(e2e, /E2E_SKIP_BUILD!=="1"/);
+  assert.match(e2e, /run\("npm",\["run","build"\]\)/);
+  assert.doesNotMatch(e2e, /INSERT INTO machines/);
+  assert.match(e2e, /add-machine-error/);
+  assert.match(e2e, /duplicate submission did not preserve fields/);
+});
+
 test("CRM CSV normalization keeps operator fields and truncates giant notes", async () => {
   const { normalizeCrmCsv } = await import("../lib/business/crm-sheets");
   const rows = normalizeCrmCsv('Venue,Category,City,Region,Phone,Email,Status,Last touch at,Next action,Notes\n"Example, Hall",Arcade,Boston,Greater Boston,617-555-0100,owner@example.com,Warm,2026-07-19,Call owner,"' + "x".repeat(400) + '"');

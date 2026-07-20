@@ -32,5 +32,12 @@ export async function apiPost(url: string, body: any) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  return r.json();
+  const payload = await r.json().catch(() => null);
+  if (!r.ok) {
+    const message = payload && typeof payload.error === "string"
+      ? payload.error
+      : `Request failed (${r.status})`;
+    throw new Error(message);
+  }
+  return payload;
 }
