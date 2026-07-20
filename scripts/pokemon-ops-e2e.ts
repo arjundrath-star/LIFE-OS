@@ -198,6 +198,8 @@ async function main() {
     );
     console.log(`cookie method that worked: ${cookieMethod}`);
 
+    await page.waitForSelector('[data-testid="general-inventory-summary"]', { timeout: 15000 });
+    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Machine Inventory") as HTMLButtonElement|null;if(!button)throw new Error("Machine Inventory tab not found");button.click(); });
     await page.waitForSelector('[data-testid="kpi-total-invested"]', { timeout: 15000 });
 
     const expectedInitial = `$${(expectedTotalInvestedCents / 100).toFixed(2)}`;
@@ -239,7 +241,7 @@ async function main() {
       btn.click();
     });
 
-    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Active Inventory") as HTMLButtonElement|null;if(!button)throw new Error("Active Inventory tab not found");button.click(); });
+    await page.evaluate(() => { const button=Array.from(document.querySelectorAll('[role="tab"]')).find(el=>el.textContent?.trim()==="Machine Inventory") as HTMLButtonElement|null;if(!button)throw new Error("Machine Inventory tab not found");button.click(); });
     await waitFor(
       async () => {
         const text = await page.$eval('[data-testid="kpi-total-invested"]', (el) => el.textContent || "");

@@ -477,3 +477,81 @@ test("active inventory provenance uses only the latest post-assignment event and
   ops.reassignSku({machine_id:machine,slot_number:987,product_id:productB,price_cents:2200,capacity:20,assigned_at:"2026-07-14T00:00:00Z"});
   slot=pokemonOpsSnapshot("2026-07-15T00:00:00Z").slots.find(s=>s.slot_number===987)!; assert.equal(slot.product_id,productB); assert.equal(slot.source_lot_id,null);
 });
+
+test("general inventory reports unassigned on-hand units and honest cost and market values", async () => {
+  const { ops } = await mods();
+  const { pokemonOpsSnapshot } = await import("../lib/pokemon-ops/snapshot");
+  const machine = await testMachine();
+  const productId = ops.ensureProduct({
+    set_name: "Warehouse Set",
+    display_name: "Warehouse Set",
+    form: "booster",
+    tier: "mid",
+    reprint_status: "none",
+  });
+  ops.insertPriceObservation({
+    observed_date: "2026-07-18",
+    source: "tcgplayer",
+    product_id: productId,
+    price_per_pack_cents: 900,
+    listing_ref: "warehouse-market",
+  });
+  const receivedLot = ops.insertPurchaseLot({
+    purchase_date: "2026-07-18",
+    source: "target",
+    product_id: productId,
+    pack_count: 10,
+    total_cost_cents: 5000,
+    status: "received",
+  });
+  ops.insertPurchaseLot({
+    purchase_date: "2026-07-19",
+    source: "target",
+    product_id: productId,
+    pack_count: 5,
+    total_cost_cents: 3000,
+    status: "in_transit",
+  });
+  ops.insertPurchaseLot({
+    purchase_date: "2026-07-17",
+    source: "target",
+    product_id: productId,
+    pack_count: 4,
+    total_cost_cents: 1600,
+    status: "depleted",
+  });
+  ops.reassignSku({
+    machine_id: machine,
+    slot_number: 986,
+    product_id: productId,
+    price_cents: 1500,
+    capacity: 20,
+    assigned_at: "2026-07-18T00:00:00Z",
+  });
+  ops.insertStockEvent({
+    machine_id: machine,
+    slot_number: 986,
+    event: "refill",
+    qty_delta: 3,
+    lot_id: receivedLot,
+    at: "2026-07-19T00:00:00Z",
+  });
+
+  const snapshot = pokemonOpsSnapshot("2026-07-20T00:00:00Z");
+  const row = snapshot.general_inventory.find((item) => item.product_id === productId)!;
+  assert.deepEqual(row, {
+    product_id: productId,
+    set_name: "Warehouse Set",
+    on_hand_units: 7,
+    cost_value_cents: 3500,
+    estimated_market_value_cents: 6300,
+    market_price_per_pack_cents: 900,
+    market_source: "tcgplayer",
+    market_observed_date: "2026-07-18",
+    in_transit_units: 5,
+    in_transit_cost_cents: 3000,
+  });
+  assert.ok(snapshot.kpis.general_inventory_units >= 7);
+  assert.ok(snapshot.kpis.general_inventory_cost_cents >= 3500);
+  assert.ok(snapshot.kpis.in_transit_units >= 5);
+});

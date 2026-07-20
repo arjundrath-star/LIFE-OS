@@ -1,9 +1,7 @@
 "use client";
-// KPI band: margin $/slot/day (PRIMARY), total invested, sell-through, days-of-supply
-// spread. Tremor tiles per rathworkspace-ui skill; JetBrains Mono numbers via <CountUp>.
-// All four numbers arrive pre-computed on the snapshot (lib/pokemon-ops/snapshot.ts) —
-// this component only formats and renders, it never computes margin/sell-through/spread.
-import { Card, Grid, Text } from "@tremor/react";
+// Machine-only KPI band. Values arrive pre-computed on the snapshot; this
+// component only formats and renders them with explicit light-theme contrast.
+import { Grid } from "@tremor/react";
 import { CountUp } from "@/components/CountUp";
 import { cn } from "@/lib/cn";
 import type { PokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
@@ -22,29 +20,20 @@ function Tile({
   testId: string;
 }) {
   return (
-    // data-testid lives on the plain wrapping div — Tremor's CardProps has no
-    // index signature for arbitrary data-* attributes, so it goes on the div,
-    // an intrinsic element (TS allows data-* there unconditionally).
-    <div data-testid={testId}>
-      <Card
-        className={cn(
-          "!rounded-panel !border !border-border !bg-panel !shadow-panel",
-          primary && "!border-accent/30"
-        )}
-      >
-        <Text className="!font-mono !text-[10px] !uppercase !tracking-[0.18em] !text-tremor-content-subtle">
-          {label}
-        </Text>
-        <div
-          className={cn(
-            "mt-1 font-mono text-3xl font-semibold tabular leading-none",
-            primary ? "text-accent text-glow" : "text-slate-950 dark:text-white text-txt-primary"
-          )}
-        >
-          {value}
-        </div>
-        {sub && <Text className="!mt-1.5 !text-xs !text-tremor-content">{sub}</Text>}
-      </Card>
+    <div
+      data-testid={testId}
+      className={cn(
+        "rounded-lg border border-slate-300 !bg-white p-6 shadow-sm",
+        primary && "border-orange-400"
+      )}
+    >
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] !text-[#475569]">
+        {label}
+      </p>
+      <div className="mt-2 font-mono text-3xl font-semibold leading-none tabular !text-[#0a1f3d]">
+        {value}
+      </div>
+      {sub && <p className="mt-2 text-xs !text-[#475569]">{sub}</p>}
     </div>
   );
 }
@@ -72,9 +61,9 @@ export function KpiBand({ snapshot }: { snapshot: PokemonOpsSnapshot }) {
       />
       <Tile
         testId="kpi-total-invested"
-        label="Total invested"
+        label="Lifetime purchases"
         value={<CountUp value={kpis.total_invested_cents / 100} decimals={2} prefix="$" />}
-        sub="all purchase lots, all-time"
+        sub="all purchase lots, including sold stock"
       />
       <Tile
         testId="kpi-sell-through"

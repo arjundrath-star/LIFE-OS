@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useLiveData } from "@/hooks/useLiveData";
-import { BusinessPage, BusinessSection, SourceStamp } from "./Page";
+import { BusinessPage, BusinessSection, Fact, SourceStamp } from "./Page";
 import { PokemonDataBoundary } from "./BusinessContext";
 import { KpiBand } from "@/components/pokemon-ops/KpiBand";
 import { SlotTable } from "@/components/pokemon-ops/SlotTable";
@@ -10,18 +10,33 @@ import { RecommendationsList } from "@/components/pokemon-ops/RecommendationsLis
 import { RecentSales } from "@/components/pokemon-ops/RecentSales";
 import { RecentLots } from "@/components/pokemon-ops/RecentLots";
 import { EntryForms } from "@/components/pokemon-ops/EntryForms";
-import { formatCents } from "@/lib/pokemon-ops/format";
+import { formatCents, formatDate } from "@/lib/pokemon-ops/format";
 import type { PokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
 import type { PkProduct } from "@/lib/pokemon-ops/types";
 
 type SourcingOps = { offers:any[]; benchmarks:any[]; vendors:any[]; local:{provenance:any;spots:any[]}; discord:any[]; connector:any; monitors:any[] };
-const INVENTORY_VIEWS = ["Active Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
+const INVENTORY_VIEWS = ["General Inventory","Machine Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
 const SOURCING_VIEWS = ["Deals","Market Prices","Vendors","Local Spots","Sources / Monitors","Discord Deals"] as const;
 
 function ViewTabs({ values, active, onChange, id }:{values:readonly string[];active:string;onChange:(v:string)=>void;id:string}) { const refs=useRef<Array<HTMLButtonElement|null>>([]);const move=(index:number)=>{onChange(values[index]);refs.current[index]?.focus()};return <div className="business-view-tabs" role="tablist" aria-label={`${id} views`}>{values.map((v,index)=><button ref={el=>{refs.current[index]=el}} id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`} tabIndex={active===v?0:-1} onKeyDown={e=>{let n:number|null=null;if(e.key==="ArrowRight")n=(index+1)%values.length;if(e.key==="ArrowLeft")n=(index-1+values.length)%values.length;if(e.key==="Home")n=0;if(e.key==="End")n=values.length-1;if(n!==null){e.preventDefault();move(n)}}} key={v} role="tab" aria-selected={active===v} className={active===v?"active":""} onClick={()=>onChange(v)}>{v}</button>)}</div>; }
 function Fresh({ value }:{value:string|null}) { return <span title={value||undefined}>{value ? new Date(value).toLocaleString() : "No observation"}</span>; }
 function PriceTable({ rows, actionable=false }:{rows:any[];actionable?:boolean}) { return rows.length===0?<p className="text-sm text-txt-muted">No evidence-backed rows are available for this view.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Product</th><th>Source</th><th>Price / pack</th><th>Benchmark</th>{actionable&&<><th>Delta</th><th>Decision</th><th>Action</th></>}<th>Freshness</th><th>Provenance</th></tr></thead><tbody>{rows.map(r=><tr key={`${r.observation_id}-${r.source}`}><td><strong>{r.display_name||r.set_name}</strong></td><td>{r.source}</td><td>{formatCents(r.price_per_pack_cents)}</td><td>{r.benchmark_cents==null?"No benchmark":`${formatCents(r.benchmark_cents)} · ${r.benchmark_source}`}</td>{actionable&&<><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td><td><span className={`ops-decision ${r.decision}`}>{r.decision}</span></td><td><a className="text-accent underline" href={`/business/inventory?view=record&product=${encodeURIComponent(r.product_id)}&source=${encodeURIComponent(r.source)}&price=${encodeURIComponent(r.price_per_pack_cents)}`}>Record purchase</a></td></>}<td><Fresh value={r.observed_date}/></td><td>{r.listing_ref?<a href={r.listing_ref.startsWith("http")?r.listing_ref:undefined} rel="noreferrer" target="_blank">{r.listing_ref.startsWith("http")?"Open source":"Recorded reference"}</a>:"Database observation"}</td></tr>)}</tbody></table></div>; }
 function VendorTable({rows}:{rows:any[]}){return rows.length===0?<p className="text-sm text-txt-muted">No supplier quotes are available.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Provider</th><th>Products covered</th><th>Latest quote</th><th>Best / current</th><th>Delta</th></tr></thead><tbody>{rows.map(r=><tr key={r.source}><td><strong>{r.provider_name}</strong></td><td>{r.products_covered.join(", ")}</td><td><Fresh value={r.latest_quote}/></td><td>{formatCents(r.best_price_cents)}</td><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td></tr>)}</tbody></table></div>}
+
+function GeneralInventoryPanel({snapshot}:{snapshot:PokemonOpsSnapshot}) {
+  const {kpis}=snapshot;
+  return <>
+    <div className="business-facts" data-testid="general-inventory-summary">
+      <Fact label="Unassigned packs" value={kpis.general_inventory_units} detail="received stock not loaded into a machine"/>
+      <Fact label="Cost basis" value={formatCents(kpis.general_inventory_cost_cents)} detail="what the unassigned stock cost"/>
+      <Fact label="Est. market value" value={formatCents(kpis.general_inventory_market_cents)} detail={kpis.general_inventory_market_cents==null?"missing a market benchmark":"latest TCGplayer / eBay sold prices"}/>
+      <Fact label="In transit" value={`${kpis.in_transit_units} packs`} detail={`${formatCents(kpis.in_transit_cost_cents)} cost basis`}/>
+    </div>
+    <BusinessSection title="General inventory" note={<SourceStamp>not assigned to a machine</SourceStamp>}>
+      {snapshot.general_inventory.length===0?<p className="text-sm text-txt-muted">No unassigned or in-transit inventory is recorded.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Product</th><th>Unassigned packs</th><th>Cost basis</th><th>Est. market value</th><th>Market benchmark</th><th>In transit</th></tr></thead><tbody>{snapshot.general_inventory.map(row=><tr key={row.product_id} data-testid={`general-inventory-row-${row.product_id}`}><td><strong>{row.set_name}</strong></td><td><strong>{row.on_hand_units}</strong></td><td>{formatCents(row.cost_value_cents)}</td><td>{formatCents(row.estimated_market_value_cents)}</td><td>{row.market_price_per_pack_cents==null?"No benchmark":<><strong>{formatCents(row.market_price_per_pack_cents)} / pack</strong><small>{row.market_source} · {formatDate(row.market_observed_date)}</small></>}</td><td><strong>{row.in_transit_units} packs</strong><small>{formatCents(row.in_transit_cost_cents)} cost</small></td></tr>)}</tbody></table></div>}
+    </BusinessSection>
+  </>;
+}
 
 export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
   const live=useLiveData<PokemonOpsSnapshot>("pokemon_ops"); const {data,refetch,error}=useApi<PokemonOpsSnapshot>("/api/pokemon-ops");
@@ -34,7 +49,8 @@ export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
   return <PokemonDataBoundary><BusinessPage title={inventory?"Inventory":"Sourcing"} description={inventory?"Operate available, allocated, and in-transit stock first; review history or record activity in dedicated views.":"Compare actionable offers with market evidence, supplier decisions, local call-ahead routes, and connector health."} actions={snapshot&&<SourceStamp>Pokemon Ops · <Fresh value={snapshot.asOf}/></SourceStamp>}>
     {!snapshot?<div className="business-empty" role={error?"alert":"status"}><h2>{error?"Could not load Pokemon Ops":"Loading Pokemon Ops"}</h2><p>{error||"Reading the authenticated operational snapshot."}</p>{error&&<button onClick={refetch}>Retry</button>}</div>:inventory?<>
       <ViewTabs id="inventory" values={INVENTORY_VIEWS} active={inventoryView} onChange={setInventoryView}/><div role="tabpanel" id={`inventory-panel-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`} aria-labelledby={`inventory-tab-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`}>
-      {inventoryView==="Active Inventory"&&<><KpiBand snapshot={snapshot}/><BusinessSection title="Active inventory" note={<SourceStamp>{snapshot.machine?.name??"No machine configured"}</SourceStamp>}><SlotTable slots={snapshot.slots}/></BusinessSection></>}
+      {inventoryView==="General Inventory"&&<GeneralInventoryPanel snapshot={snapshot}/>}
+      {inventoryView==="Machine Inventory"&&<><KpiBand snapshot={snapshot}/><BusinessSection title="Machine inventory" note={<SourceStamp>{snapshot.machine?.name??"No machine configured"}</SourceStamp>}><SlotTable slots={snapshot.slots}/></BusinessSection></>}
       {inventoryView==="Service History"&&<BusinessSection title="Service history" note={<SourceStamp>Physical count evidence · estimates separate</SourceStamp>}>{!serviceData?.history?.length?<p className="text-sm text-txt-muted">No completed physical-count visits yet.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Machine</th><th>Verified at</th><th>Actor</th><th>Physical count</th><th>Estimated dispensed / revenue</th><th>Exact cash</th><th>Condition</th></tr></thead><tbody>{serviceData.history.map((v:any)=><tr key={v.id}><td><strong>{v.machine_name}</strong>Visit {v.id}</td><td>{new Date(v.completed_at).toLocaleString()}</td><td>{v.actor_email}</td><td>{v.slot_count} slots · {v.verified_units} verified units</td><td>{v.estimated_dispensed} units · {formatCents(v.estimated_revenue_cents)} estimated</td><td>{v.cash_collected_cents==null?"Unknown":`${formatCents(v.cash_collected_cents)} exact`}</td><td>{v.condition_before.replaceAll("_"," ")} → {v.condition_after.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>}</BusinessSection>}
       {inventoryView==="Purchase Lots"&&<BusinessSection title="Purchase lots" note={<SourceStamp>landed cost + status history</SourceStamp>}><RecentLots lots={snapshot.recent_lots}/></BusinessSection>}
       {inventoryView==="Sales"&&<BusinessSection title="Recent sales" note={<SourceStamp>recorded transactions</SourceStamp>}><RecentSales sales={snapshot.recent_sales}/></BusinessSection>}

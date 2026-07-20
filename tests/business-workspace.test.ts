@@ -120,8 +120,17 @@ test("multi-source CRM page does not have a page-wide Pokemon boundary", () => {
   const workspace=fs.readFileSync(path.join(ROOT,"components/business/CrmWorkspace.tsx"),"utf8"); assert.match(workspace,/<PokemonDataBoundary><PokemonCrmWorkspace/);
 });
 
-test("Total Invested numeric text has an explicit high-contrast semantic class", () => {
+test("inventory KPI cards use explicit high-contrast light-theme colors", () => {
   const source = fs.readFileSync(path.join(ROOT, "components/pokemon-ops/KpiBand.tsx"), "utf8");
-  assert.match(source, /text-slate-950 dark:text-white text-txt-primary/);
+  assert.match(source, /!bg-white/);
+  assert.match(source, /!text-\[#0a1f3d\]/);
+  assert.doesNotMatch(source, /dark:text-white/);
   assert.match(source, /testId="kpi-total-invested"/);
+});
+
+test("Inventory workspace separates general unassigned stock from machine inventory", () => {
+  const source = fs.readFileSync(path.join(ROOT, "components/business/OpsWorkspace.tsx"), "utf8");
+  assert.match(source, /General Inventory/);
+  assert.match(source, /Machine Inventory/);
+  assert.match(source, /GeneralInventoryPanel/);
 });
