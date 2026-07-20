@@ -60,6 +60,7 @@ export interface PokemonOpsSourcingRow {
   source: string;
   observed_date: string;
   price_per_pack_cents: number;
+  listing_ref: string;
   /** price − current external market benchmark; null if no benchmark yet. */
   benchmark_delta_cents: number | null;
 }
@@ -174,6 +175,7 @@ function sourcingFeed(): PokemonOpsSourcingRow[] {
       source: r.source,
       observed_date: r.observed_date,
       price_per_pack_cents: r.price_per_pack_cents,
+      listing_ref: r.listing_ref,
       benchmark_delta_cents: benchmark ? r.price_per_pack_cents - benchmark.price_per_pack_cents : null,
     };
   });

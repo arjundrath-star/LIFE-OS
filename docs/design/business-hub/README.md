@@ -4,4 +4,7 @@ Open `OPEN_THIS_BUSINESS_HUB_CONCEPT.html` directly in a browser. No server or n
 
 Approval questions: Is the workspace boundary clear? Is the information architecture right for daily operations? Is the visual density comfortable? Which tab should be implemented first after approval?
 
-This packet is design only. It does not alter or connect to production systems.
+This packet is design history. The implemented product uses the direct route labels
+Overview, CRM, Locations, Inventory, Sourcing, Finance, Agents, and Integrations under
+`/business`, composing the existing Pokemon CRM/Ops/sourcing/vending and control-plane
+systems rather than the static prototype.

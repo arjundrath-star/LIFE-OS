@@ -7,8 +7,7 @@ import {
   Bot,
   Mail,
   Calendar,
-  Boxes,
-  CircleDot,
+  BriefcaseBusiness,
   Clapperboard,
   GraduationCap,
   Activity,
@@ -18,7 +17,6 @@ import {
   FolderOpen,
   Link2,
   BrainCircuit,
-  PackageSearch,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,9 +36,7 @@ export const NAV: NavItem[] = [
   { key: "agentmemory", label: "AgentMemory", href: "/agentmemory", Icon: BrainCircuit },
   { key: "email", label: "Email", href: "/email", Icon: Mail },
   { key: "calendar", label: "Calendar", href: "/calendar", Icon: Calendar },
-  { key: "vending", label: "Vending", href: "/vending", Icon: Boxes },
-  { key: "pokemon-crm", label: "Pokemon CRM", href: "/pokemon-crm", Icon: CircleDot },
-  { key: "pokemon-ops", label: "Pokemon Ops", href: "/pokemon-ops", Icon: PackageSearch },
+  { key: "business", label: "Business", href: "/business", Icon: BriefcaseBusiness },
   { key: "ad-agency", label: "Ad Agency", href: "/ad-agency", Icon: Clapperboard },
   { key: "school", label: "School", href: "/school", Icon: GraduationCap },
   { key: "health", label: "Health", href: "/health", Icon: Activity },

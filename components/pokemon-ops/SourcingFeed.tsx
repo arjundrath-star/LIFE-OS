@@ -18,7 +18,7 @@ export function SourcingFeed({ rows }: { rows: PokemonOpsSourcingRow[] }) {
       {rows.map((r) => (
         <div key={r.observation_id} className="flex items-center justify-between gap-3 text-xs">
           <span className="min-w-0 truncate text-txt-primary">
-            {r.set_name} <span className="text-txt-faint">· {r.source}</span>
+            {r.listing_ref && /^https?:\/\//i.test(r.listing_ref) ? <a href={r.listing_ref} target="_blank" rel="noreferrer" className="hover:text-accent hover:underline">{r.set_name}</a> : r.set_name} <span className="text-txt-faint">· {r.source}</span>
           </span>
           <span className="shrink-0 font-mono text-txt-muted">{formatCents(r.price_per_pack_cents)}</span>
           <span className="shrink-0">
