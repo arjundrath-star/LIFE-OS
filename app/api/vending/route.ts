@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { run } from "@/db";
+import { getDb, run } from "@/db";
 import { requireUser } from "@/lib/guard";
 import { getHub } from "@/server/live";
 import { vendingSnapshot } from "@/lib/vending";
@@ -27,8 +27,9 @@ export async function POST(req: Request) {
       run("DELETE FROM deals WHERE id=?", body.id);
       break;
     case "add_machine":
-      run("INSERT INTO machines (name, location, status, note) VALUES (?,?,?,?)",
-        body.name, body.location || null, body.status || "prospect", body.note || null);
+      if (!body.name?.trim() || !body.location?.trim()) return NextResponse.json({ error: "machine name and site/location required" }, { status: 400 });
+      if (getDb().prepare("SELECT 1 FROM machines WHERE lower(name)=lower(?) OR (? IS NOT NULL AND asset_code=?)").get(body.name.trim(),body.assetCode||null,body.assetCode||null)) return NextResponse.json({error:"machine name or asset code already exists"},{status:409});
+      run("INSERT INTO machines (name, location, status, note, asset_code, access_notes) VALUES (?,?,?,?,?,?)",body.name.trim(),body.location.trim(),"prospect",body.note || null,body.assetCode?.trim()||null,body.accessNotes?.trim()||null);
       break;
     case "toggle_refill":
       run("UPDATE machines SET needs_refill = CASE WHEN needs_refill=1 THEN 0 ELSE 1 END WHERE id=?", body.id);

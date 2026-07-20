@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS vending_service_visits (
   counter_after INTEGER CHECK (counter_after IS NULL OR counter_after >= 0),
   notes TEXT,
   idempotency_key TEXT NOT NULL UNIQUE,
+  request_fingerprint TEXT NOT NULL,
   snapshot_token TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -64,5 +65,6 @@ CREATE TABLE IF NOT EXISTS vending_machine_issues (
 );
 
 CREATE INDEX IF NOT EXISTS idx_service_visits_machine_completed ON vending_service_visits(machine_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_service_visits_idempotency_binding ON vending_service_visits(idempotency_key, machine_id, actor_email, request_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_service_lines_visit ON vending_service_lines(visit_id);
 CREATE INDEX IF NOT EXISTS idx_machine_issues_open ON vending_machine_issues(machine_id, status, severity);
