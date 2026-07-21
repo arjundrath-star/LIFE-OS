@@ -245,6 +245,26 @@ if [[ "${POKEMON_SCOUT_SMOKE:-}" == "1" ]]; then
   exit 0
 fi
 
+if [[ "${POKEMON_FIELD_PACKET_RUN:-}" == "1" ]]; then
+  STAGE="weekly_field_packet"
+  USER_PROMPT="$(cat <<EOF
+Run id: $RUN_ID
+Project dir: $PROJECT_DIR
+Archive dir: $ARCHIVE_DIR
+Stable pointer: $PROJECT_DIR/OPEN_THIS_WEEKLY_FIELD_PACKET.md
+Terminal workdir symlink: /home/Arjun/command-center/Pokemon_Machines
+The dispatcher owns the single terminal dashboard event. Emit progress events only, never completed/failed/blocked.
+
+$(cat "$PROMPT_FILE")
+EOF
+)"
+  "$HERMES_BIN" -p pokemon-scout chat --quiet --source pokemon-weekly-field-packet --toolsets web,file,terminal,skills,session_search,todo --skills pokemon-vending-lead-scout --max-turns 90 --query "$USER_PROMPT"
+  [[ -s "$ARCHIVE_DIR/WEEKLY_FIELD_PACKET.md" ]] || { SUMMARY="Weekly field packet was not created"; exit 1; }
+  [[ -s "$PROJECT_DIR/OPEN_THIS_WEEKLY_FIELD_PACKET.md" ]] || { SUMMARY="Stable weekly field-packet pointer was not created"; exit 1; }
+  SUMMARY="Weekly Pokemon call/walk-in field packet completed"
+  exit 0
+fi
+
 if [[ "${POKEMON_AGENTIC_RUN:-}" == "1" ]]; then
   STAGE="agentic_worker"
   USER_PROMPT="$(cat <<EOF
