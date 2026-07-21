@@ -16,6 +16,13 @@ GRACE_SECONDS="${POKEMON_SOURCING_DISPATCH_GRACE_SECONDS:-5}"
   printf 'Pokemon sourcing dispatch failed: worker is not executable: %s\n' "$WORKER" >&2
   exit 1
 }
+
+if [[ "${1:-}" == "--check" ]]; then
+  bash -n "$WORKER"
+  printf 'OK: Pokemon sourcing dispatcher and worker are available; no scan was started.\n'
+  exit 0
+fi
+
 mkdir -p "$LOG_DIR"
 umask 077
 
