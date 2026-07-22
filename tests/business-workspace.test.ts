@@ -35,6 +35,18 @@ test("Sourcing is a dedicated route backed by sourcing mode", () => {
   assert.notEqual(BUSINESS_ROUTES.find(({ label }) => label === "Sourcing")?.href, "/business/inventory");
 });
 
+test("Sourcing exposes dated sealed-product pack economics and coverage", () => {
+  const workspace = fs.readFileSync(path.join(ROOT, "components/business/OpsWorkspace.tsx"), "utf8");
+  const operator = fs.readFileSync(path.join(ROOT, "lib/pokemon-ops/operator.ts"), "utf8");
+  assert.match(workspace, /"Box Targets"/);
+  assert.match(workspace, /TCG sealed market/);
+  assert.match(workspace, /Low buy/);
+  assert.match(workspace, /Medium buy/);
+  assert.match(workspace, /High buy/);
+  assert.match(operator, /pk_v_source_product_current/);
+  assert.match(operator, /sourceProductCoverage/);
+});
+
 test("mutation and Locations error-state contracts reject false success", () => {
   const api = fs.readFileSync(path.join(ROOT, "hooks/useApi.ts"), "utf8");
   const locations = fs.readFileSync(path.join(ROOT, "components/business/LocationsWorkspace.tsx"), "utf8");

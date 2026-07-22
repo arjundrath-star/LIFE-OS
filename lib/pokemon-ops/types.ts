@@ -168,6 +168,41 @@ export interface PkRecommendation {
   alerted_at: string | null;
 }
 
+export interface PkSourceProductCurrent {
+  source_product_id: number;
+  pack_product_id: number;
+  set_name: string;
+  tcgplayer_product_id: number;
+  name: string;
+  form: string;
+  pack_count: number;
+  tcgplayer_url: string;
+  pack_count_source_url: string;
+  pack_count_note: string;
+  observed_date: string;
+  tcg_market_cents: number | null;
+  tcg_low_cents: number | null;
+  tcg_high_cents: number | null;
+  pack_tcg_cents: number;
+  carddistro_cents: number;
+  benchmark_ppp_cents: number;
+  low_total_cents: number;
+  medium_total_cents: number;
+  high_total_cents: number;
+  tcg_market_ppp_cents: number | null;
+  low_ppp_cents: number;
+  medium_ppp_cents: number;
+  high_ppp_cents: number;
+  methodology: string;
+}
+
+export interface PkSourceProductCoverage {
+  set_name: string;
+  carddistro_observed_date: string;
+  source_product_count: number;
+  valued_product_count: number;
+}
+
 export interface Machine {
   id: number;
   name: string;

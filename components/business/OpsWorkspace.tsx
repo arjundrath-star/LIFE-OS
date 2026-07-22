@@ -12,16 +12,42 @@ import { RecentLots } from "@/components/pokemon-ops/RecentLots";
 import { EntryForms } from "@/components/pokemon-ops/EntryForms";
 import { formatCents, formatDate } from "@/lib/pokemon-ops/format";
 import type { PokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
-import type { PkProduct } from "@/lib/pokemon-ops/types";
+import type { PkProduct, PkSourceProductCoverage, PkSourceProductCurrent } from "@/lib/pokemon-ops/types";
 
-type SourcingOps = { offers:any[]; benchmarks:any[]; vendors:any[]; local:{provenance:any;spots:any[]}; discord:any[]; connector:any; monitors:any[] };
+type SourcingOps = { offers:any[]; benchmarks:any[]; vendors:any[]; sourceProducts:PkSourceProductCurrent[]; sourceProductCoverage:PkSourceProductCoverage[]; local:{provenance:any;spots:any[]}; discord:any[]; connector:any; monitors:any[] };
 const INVENTORY_VIEWS = ["General Inventory","Machine Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
-const SOURCING_VIEWS = ["Deals","Market Prices","Vendors","Local Spots","Sources / Monitors","Discord Deals"] as const;
+const SOURCING_VIEWS = ["Box Targets","Deals","Market Prices","Vendors","Local Spots","Sources / Monitors","Discord Deals"] as const;
 
 function ViewTabs({ values, active, onChange, id }:{values:readonly string[];active:string;onChange:(v:string)=>void;id:string}) { const refs=useRef<Array<HTMLButtonElement|null>>([]);const move=(index:number)=>{onChange(values[index]);refs.current[index]?.focus()};return <div className="business-view-tabs" role="tablist" aria-label={`${id} views`}>{values.map((v,index)=><button ref={el=>{refs.current[index]=el}} id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`} tabIndex={active===v?0:-1} onKeyDown={e=>{let n:number|null=null;if(e.key==="ArrowRight")n=(index+1)%values.length;if(e.key==="ArrowLeft")n=(index-1+values.length)%values.length;if(e.key==="Home")n=0;if(e.key==="End")n=values.length-1;if(n!==null){e.preventDefault();move(n)}}} key={v} role="tab" aria-selected={active===v} className={active===v?"active":""} onClick={()=>onChange(v)}>{v}</button>)}</div>; }
 function Fresh({ value }:{value:string|null}) { return <span title={value||undefined}>{value ? new Date(value).toLocaleString() : "No observation"}</span>; }
 function PriceTable({ rows, actionable=false }:{rows:any[];actionable?:boolean}) { return rows.length===0?<p className="text-sm text-txt-muted">No evidence-backed rows are available for this view.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Product</th><th>Source</th><th>Price / pack</th><th>Benchmark</th>{actionable&&<><th>Delta</th><th>Decision</th><th>Action</th></>}<th>Freshness</th><th>Provenance</th></tr></thead><tbody>{rows.map(r=><tr key={`${r.observation_id}-${r.source}`}><td><strong>{r.display_name||r.set_name}</strong></td><td>{r.source}</td><td>{formatCents(r.price_per_pack_cents)}</td><td>{r.benchmark_cents==null?"No benchmark":`${formatCents(r.benchmark_cents)} · ${r.benchmark_source}`}</td>{actionable&&<><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td><td><span className={`ops-decision ${r.decision}`}>{r.decision}</span></td><td><a className="text-accent underline" href={`/business/inventory?view=record&product=${encodeURIComponent(r.product_id)}&source=${encodeURIComponent(r.source)}&price=${encodeURIComponent(r.price_per_pack_cents)}`}>Record purchase</a></td></>}<td><Fresh value={r.observed_date}/></td><td>{r.listing_ref?<a href={r.listing_ref.startsWith("http")?r.listing_ref:undefined} rel="noreferrer" target="_blank">{r.listing_ref.startsWith("http")?"Open source":"Recorded reference"}</a>:"Database observation"}</td></tr>)}</tbody></table></div>; }
 function VendorTable({rows}:{rows:any[]}){return rows.length===0?<p className="text-sm text-txt-muted">No supplier quotes are available.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Provider</th><th>Products covered</th><th>Latest quote</th><th>Best / current</th><th>Delta</th></tr></thead><tbody>{rows.map(r=><tr key={r.source}><td><strong>{r.provider_name}</strong></td><td>{r.products_covered.join(", ")}</td><td><Fresh value={r.latest_quote}/></td><td>{formatCents(r.best_price_cents)}</td><td>{r.delta_cents==null?"Unknown":formatCents(r.delta_cents)}</td></tr>)}</tbody></table></div>}
+
+function SourceProductTargets({rows,coverage}:{rows:PkSourceProductCurrent[];coverage:PkSourceProductCoverage[]}) {
+  const [setFilter,setSetFilter]=useState("all");
+  const sets=Array.from(new Set(rows.map(row=>row.set_name))).sort();
+  const visible=setFilter==="all"?rows:rows.filter(row=>row.set_name===setFilter);
+  const money=(cents:number|null)=>cents==null?"Not listed":formatCents(Math.round(cents));
+  return <>
+    <div className="business-facts" data-testid="source-product-summary">
+      <Fact label="Valued products" value={rows.length} detail="exact English sealed forms"/>
+      <Fact label="Sets covered" value={`${coverage.filter(row=>row.valued_product_count>0).length}/${coverage.length}`} detail="Carddistro-observed sets"/>
+      <Fact label="High ceiling" value="15% below" detail="lower of TCGplayer pack and Carddistro"/>
+      <Fact label="Extras value" value="$0" detail="promos, sleeves, tins, posters, binders"/>
+    </div>
+    <BusinessSection title="Box and sealed-product buy targets" note={<SourceStamp>append-only dated snapshots · pack economics only</SourceStamp>}>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="text-sm font-semibold" htmlFor="source-product-set">Set</label>
+        <select id="source-product-set" className="rounded-md border border-white/20 bg-surface px-3 py-2 text-sm text-txt" value={setFilter} onChange={event=>setSetFilter(event.target.value)}>
+          <option value="all">All sets</option>{sets.map(set=><option key={set} value={set}>{set}</option>)}
+        </select>
+        <span className="text-sm text-txt-muted">Low / medium / high are all acceptable; low is preferred. All-in deal cost must include tax, shipping, fees, and travel.</span>
+      </div>
+      {visible.length===0?<p className="text-sm text-txt-muted">No dated sealed-product values are available for this filter.</p>:<div className="business-table-wrap"><table className="business-ops-table" data-testid="source-product-targets"><thead><tr><th>Exact product</th><th>Packs</th><th>TCG sealed market</th><th>Pack benchmarks</th><th>Low buy</th><th>Medium buy</th><th>High buy</th><th>Snapshot</th></tr></thead><tbody>{visible.map(row=><tr key={row.source_product_id}><td><a className="text-accent underline" href={row.tcgplayer_url} rel="noreferrer" target="_blank"><strong>{row.name}</strong></a><small>{row.set_name} · {row.form.replaceAll("_"," ")}</small></td><td><strong>{row.pack_count}</strong><small title={row.pack_count_note}>verified count</small></td><td><strong>{money(row.tcg_market_cents)}</strong><small>{row.tcg_market_ppp_cents==null?"No sealed market":`${money(row.tcg_market_ppp_cents)} / pack`}</small></td><td><strong>{money(row.benchmark_ppp_cents)} / pack</strong><small>TCG {money(row.pack_tcg_cents)} · Carddistro {money(row.carddistro_cents)}</small></td><td><strong>{money(row.low_total_cents)}</strong><small>{money(row.low_ppp_cents)} / pack</small></td><td><strong>{money(row.medium_total_cents)}</strong><small>{money(row.medium_ppp_cents)} / pack</small></td><td><strong>{money(row.high_total_cents)}</strong><small>{money(row.high_ppp_cents)} / pack</small></td><td><strong>{formatDate(row.observed_date)}</strong><small>historical row preserved</small></td></tr>)}</tbody></table></div>}
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-txt-muted">{coverage.map(row=><span key={row.set_name} className={`rounded-full border px-2 py-1 ${row.valued_product_count>0?"border-emerald-500/40":"border-amber-500/50 text-amber-300"}`}>{row.set_name}: {row.valued_product_count}/{row.source_product_count||0}</span>)}</div>
+    </BusinessSection>
+  </>;
+}
 
 function GeneralInventoryPanel({snapshot}:{snapshot:PokemonOpsSnapshot}) {
   const {kpis}=snapshot;
@@ -58,6 +84,7 @@ export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
     </>:<>
       <ViewTabs id="sourcing" values={SOURCING_VIEWS} active={sourcingView} onChange={setSourcingView}/><div role="tabpanel" id={`sourcing-panel-${SOURCING_VIEWS.indexOf(sourcingView as any)}`} aria-labelledby={`sourcing-tab-${SOURCING_VIEWS.indexOf(sourcingView as any)}`}>
       {!sourcing?<div className="business-empty" role={sourcingError?"alert":"status"}><h2>{sourcingError?"Could not load sourcing evidence":"Loading sourcing evidence"}</h2><p>{sourcingError||"Grouping observations, recommendations, and source health."}</p>{sourcingError&&<button onClick={refetchSourcing}>Retry</button>}</div>:<>
+        {sourcingView==="Box Targets"&&<SourceProductTargets rows={sourcing.sourceProducts??[]} coverage={sourcing.sourceProductCoverage??[]}/>}
         {sourcingView==="Deals"&&<><div className="business-grid-2"><BusinessSection title="Actionable offers"><PriceTable rows={sourcing.offers} actionable/></BusinessSection><BusinessSection title="Recommendations"><RecommendationsList recommendations={snapshot.open_recommendations} onChanged={refresh}/></BusinessSection></div></>}
         {sourcingView==="Market Prices"&&<BusinessSection title="Market benchmarks" note={<SourceStamp>TCGplayer and eBay evidence</SourceStamp>}><PriceTable rows={sourcing.benchmarks}/></BusinessSection>}
         {sourcingView==="Vendors"&&<BusinessSection title="Vendors and retailers" note={<SourceStamp>grouped by observed provider</SourceStamp>}><VendorTable rows={sourcing.vendors}/></BusinessSection>}

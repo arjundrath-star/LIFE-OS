@@ -18,5 +18,19 @@ export function sourcingOperations() {
   const monitor = (id:string,label:string, sources:string[]) => { const rows=sources.map(s=>sourceMap.get(s)).filter(Boolean); const latest=rows.map((r:any)=>r.latest).sort().at(-1)||null; const age=latest ? Date.now()-Date.parse(latest) : Infinity; return { id,label,configured:rows.length>0,state:rows.length===0?"not_configured":age>7*86400000?"stale":"running",latest,row_count:rows.reduce((n:number,r:any)=>n+r.row_count,0) }; };
   const local = JSON.parse(fs.readFileSync(path.join(process.cwd(),"config/pokemon-local-spots.json"),"utf8"));
   const discord = discordDeals();
-  return { offers, benchmarks, vendors, local, discord, connector: { configured: hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"), channelsConfigured: hasSecret("DISCORD_WATCH_CHANNEL_IDS"), applicationConfigured: hasSecret("DISCORD_APPLICATION_ID") }, monitors: [monitor("tcgplayer","TCGplayer",["tcgplayer"]),monitor("ebay","eBay",["ebay_sold","ebay_active"]),monitor("providers","Provider quotes",["carddistro","supplier_other"]),monitor("retail","Retail restock",["costco","target","walmart","sams","amazon","retail_restock"]),{id:"local",label:"Local spots",configured:true,state:"configured",latest:local.provenance.checked_at,row_count:local.spots.length},{id:"discord",label:"Discord",configured:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS"),state:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS")?"configured":"not_configured",latest:discord[0]?.observed_at||null,row_count:discord.length}] };
+  const sourceProducts = all<any>(`SELECT * FROM pk_v_source_product_current ORDER BY set_name, form, name`);
+  const sourceProductCoverage = all<any>(`
+    SELECT p.set_name,
+           MAX(o.observed_date) AS carddistro_observed_date,
+           COUNT(DISTINCT sp.id) AS source_product_count,
+           COUNT(DISTINCT current.source_product_id) AS valued_product_count
+    FROM pk_products p
+    JOIN pk_price_observations o ON o.product_id=p.id AND o.source='carddistro'
+    LEFT JOIN pk_source_products sp ON sp.pack_product_id=p.id AND sp.active=1
+    LEFT JOIN pk_v_source_product_current current ON current.source_product_id=sp.id
+    WHERE p.form='booster' AND p.active=1
+    GROUP BY p.set_name
+    ORDER BY p.set_name
+  `);
+  return { offers, benchmarks, vendors, sourceProducts, sourceProductCoverage, local, discord, connector: { configured: hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"), channelsConfigured: hasSecret("DISCORD_WATCH_CHANNEL_IDS"), applicationConfigured: hasSecret("DISCORD_APPLICATION_ID") }, monitors: [monitor("tcgplayer","TCGplayer",["tcgplayer"]),monitor("ebay","eBay",["ebay_sold","ebay_active"]),monitor("providers","Provider quotes",["carddistro","supplier_other"]),monitor("retail","Retail restock",["costco","target","walmart","sams","amazon","retail_restock"]),{id:"local",label:"Local spots",configured:true,state:"configured",latest:local.provenance.checked_at,row_count:local.spots.length},{id:"discord",label:"Discord",configured:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS"),state:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS")?"configured":"not_configured",latest:discord[0]?.observed_at||null,row_count:discord.length}] };
 }
