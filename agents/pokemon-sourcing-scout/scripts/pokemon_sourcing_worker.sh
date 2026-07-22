@@ -45,7 +45,9 @@ TRIGGER_TYPE="${POKEMON_SOURCING_TRIGGER_TYPE:-manual}"
 TRIGGER_SOURCE="${POKEMON_SOURCING_TRIGGER_SOURCE:-pokemon-sourcing-scout worker}"
 
 RUN_AGENTIC="${RUN_AGENTIC:-1}"
-HERMES_PROFILE="${POKEMON_SOURCING_HERMES_PROFILE:-pokemon-scout}"
+# The default production profile owns the canonical sourcing skill. The old
+# pokemon-scout profile is intentionally isolated and cannot resolve it.
+HERMES_PROFILE="${POKEMON_SOURCING_HERMES_PROFILE:-default}"
 HERMES_SKILL="${POKEMON_SOURCING_HERMES_SKILL:-pokemon-sourcing-scout}"
 STAGING_CSV="$ARCHIVE_DIR/retail_restock_staging.csv"
 
