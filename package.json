@@ -21,6 +21,7 @@
     "test:pokemon-ops-rules": "tsx --test tests/pokemon-ops-rules.test.ts",
     "test:pokemon-ops-alerts": "tsx --test tests/pokemon-ops-alerts.test.ts",
     "test:pokemon-source-products": "tsx --test tests/pokemon-source-products.test.ts",
+    "test:pokemon-benchmark-refresh": "bash agents/pokemon-sourcing-scout/tests/test_pokemon_benchmark_refresh.sh && bash agents/pokemon-sourcing-scout/tests/test_pokemon_benchmark_dispatch.sh",
     "test:business-workspace": "tsx --test tests/business-workspace.test.ts",
     "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts",
     "import:pokemon-ops": "tsx scripts/pokemon-ops-import.ts",

@@ -196,6 +196,17 @@ export interface PkSourceProductCurrent {
   methodology: string;
 }
 
+export interface PkSourceProductBenchmark {
+  set_name: string;
+  medium_buy_ppp_cents: number | null;
+  tcgplayer_ppp_cents: number | null;
+  tcgplayer_observed_date: string | null;
+  tcgplayer_observed_at: string | null;
+  carddistro_ppp_cents: number | null;
+  carddistro_observed_date: string | null;
+  carddistro_observed_at: string | null;
+}
+
 export interface PkSourceProductCoverage {
   set_name: string;
   carddistro_observed_date: string;

@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { classifySourceProduct, computeSourceProductTargets, refreshSourceProducts } from "@/lib/pokemon-ops/source-products";
 
 const repoRoot = path.join(__dirname, "..");
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pokemon-source-products-test-"));
+process.env.RATHWORKSPACE_DB = path.join(tmpDir, "test.db");
 
-test("known exact sealed formats map to verified pack counts", () => {
+function sourceProducts() {
+  return import("@/lib/pokemon-ops/source-products");
+}
+
+after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+test("known exact sealed formats map to verified pack counts", async () => {
+  const { classifySourceProduct } = await sourceProducts();
   const cases: Array<[string, string, number, string]> = [
     ["Prismatic Evolutions", "Prismatic Evolutions Booster Bundle", 6, "booster_bundle"],
     ["Prismatic Evolutions", "Prismatic Evolutions Booster Bundle Display", 60, "booster_bundle_display"],
@@ -30,7 +39,8 @@ test("known exact sealed formats map to verified pack counts", () => {
   }
 });
 
-test("an exact TCGplayer product description can verify a same-set collection", () => {
+test("an exact TCGplayer product description can verify a same-set collection", async () => {
+  const { classifySourceProduct } = await sourceProducts();
   const classified = classifySourceProduct(
     "Ascended Heroes",
     "Ascended Heroes Mega Meganium ex Box",
@@ -40,7 +50,8 @@ test("an exact TCGplayer product description can verify a same-set collection", 
   assert.equal(classified?.form, "described_sealed_product");
 });
 
-test("digital code cards and mixed-set products are excluded", () => {
+test("digital code cards and mixed-set products are excluded", async () => {
+  const { classifySourceProduct } = await sourceProducts();
   assert.equal(classifySourceProduct("151", "Code Card - 151 Elite Trainer Box"), null);
   assert.equal(classifySourceProduct("Black Bolt", "Unova Victini Illustration Collection"), null);
   assert.equal(classifySourceProduct("White Flare", "White Flare Binder & Unova Poster Collection (Sam's Club)"), null);
@@ -48,13 +59,15 @@ test("digital code cards and mixed-set products are excluded", () => {
 });
 
 test("live current TCGCSV prices cannot be mislabeled as a historical snapshot", async () => {
+  const { refreshSourceProducts } = await sourceProducts();
   await assert.rejects(
     refreshSourceProducts({ observedDate: "2020-01-01" }),
     /live TCGCSV prices can only be recorded for UTC today/,
   );
 });
 
-test("low medium high totals use the lower benchmark and remain strictly below both", () => {
+test("low medium high totals use the lower benchmark and remain strictly below both", async () => {
+  const { computeSourceProductTargets } = await sourceProducts();
   assert.deepEqual(computeSourceProductTargets(6, 1463, 1566), {
     benchmarkPppCents: 1463,
     lowTotalCents: 6583,
@@ -70,6 +83,180 @@ test("low medium high totals use the lower benchmark and remain strictly below b
   });
   assert.ok(targets.highTotalCents < 9 * 1663);
   assert.ok(targets.highTotalCents < 9 * 1523);
+});
+
+test("a later mapped-set TCGCSV failure leaves all catalog and value rows unchanged", async () => {
+  const { refreshSourceProducts } = await sourceProducts();
+  const { getDb } = await import("@/db");
+  const db = getDb();
+  const fixtureDir = path.join(tmpDir, "late-failure-fixtures");
+  fs.mkdirSync(fixtureDir);
+
+  const insertProduct = db.prepare(
+    `INSERT INTO pk_products (set_name, display_name) VALUES (?, ?)`
+  );
+  const firstPackId = Number(insertProduct.run("151", "151 Booster").lastInsertRowid);
+  const laterPackId = Number(insertProduct.run("Mega Evolution", "Mega Evolution Booster").lastInsertRowid);
+  const insertObservation = db.prepare(
+    `INSERT INTO pk_price_observations
+       (observed_date, source, product_id, price_per_pack_cents, listing_ref)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  for (const [productId, label] of [[firstPackId, "first"], [laterPackId, "later"]] as const) {
+    insertObservation.run("2026-07-21", "tcgplayer", productId, 1000, `${label}-tcg`);
+    insertObservation.run("2026-07-21", "carddistro", productId, 1100, `${label}-carddistro`);
+  }
+
+  const insertSource = db.prepare(
+    `INSERT INTO pk_source_products
+       (pack_product_id, tcgplayer_product_id, name, form, pack_count,
+        tcgplayer_url, pack_count_source_url, pack_count_note)
+     VALUES (?, ?, ?, 'booster_bundle', 6, ?, ?, 'baseline')`
+  );
+  const firstSourceId = Number(insertSource.run(
+    firstPackId,
+    8001,
+    "Existing 151 Bundle",
+    "https://example.com/8001",
+    "https://example.com/8001",
+  ).lastInsertRowid);
+  const laterSourceId = Number(insertSource.run(
+    laterPackId,
+    8002,
+    "Existing Mega Evolution Bundle",
+    "https://example.com/8002",
+    "https://example.com/8002",
+  ).lastInsertRowid);
+  const insertValue = db.prepare(
+    `INSERT INTO pk_source_product_values
+       (source_product_id, observed_date, pack_count, tcg_market_cents,
+        tcg_low_cents, tcg_high_cents, pack_tcg_cents, carddistro_cents,
+        benchmark_ppp_cents, low_total_cents, medium_total_cents,
+        high_total_cents, methodology)
+     VALUES (?, '2026-07-20', 6, 6500, 6000, 7000, 1000, 1100,
+             1000, 4500, 4800, 5100, 'baseline')`
+  );
+  insertValue.run(firstSourceId);
+  insertValue.run(laterSourceId);
+
+  fs.writeFileSync(path.join(fixtureDir, "23237_products.json"), JSON.stringify({
+    results: [{
+      productId: 8101,
+      name: "151 Booster Bundle",
+      url: "https://example.com/8101",
+    }],
+  }));
+  fs.writeFileSync(path.join(fixtureDir, "23237_prices.json"), JSON.stringify({
+    results: [
+      { productId: 8101, subTypeName: "Reverse Holofoil", lowPrice: 1, highPrice: 2, marketPrice: 1.5 },
+      { productId: 8101, subTypeName: "Normal", lowPrice: 55, highPrice: 75, marketPrice: 65 },
+    ],
+  }));
+  fs.writeFileSync(path.join(fixtureDir, "24380_products.json"), JSON.stringify({
+    results: [{
+      productId: 8201,
+      name: "Mega Evolution Booster Box",
+      url: "https://example.com/8201",
+    }],
+  }));
+  fs.writeFileSync(path.join(fixtureDir, "24380_prices.json"), JSON.stringify({ results: null }));
+
+  const snapshot = () => ({
+    catalog: db.prepare(
+      `SELECT * FROM pk_source_products
+       WHERE pack_product_id IN (?, ?) ORDER BY id`
+    ).all(firstPackId, laterPackId),
+    values: db.prepare(
+      `SELECT v.* FROM pk_source_product_values v
+       JOIN pk_source_products sp ON sp.id = v.source_product_id
+       WHERE sp.pack_product_id IN (?, ?) ORDER BY v.id`
+    ).all(firstPackId, laterPackId),
+  });
+  const before = snapshot();
+
+  await assert.rejects(
+    refreshSourceProducts({ observedDate: "2026-07-22", fixtureDir }),
+    /TCGCSV prices group 24380 returned an invalid envelope/,
+  );
+
+  assert.deepEqual(snapshot(), before);
+  assert.equal(before.catalog.length, 2);
+  assert.equal(before.values.length, 2);
+});
+
+test("duplicate or non-positive TCGCSV product IDs are rejected before coverage and leave the DB unchanged", async () => {
+  const { refreshSourceProducts } = await sourceProducts();
+  const { getDb } = await import("@/db");
+  const db = getDb();
+  const fixtureDir = path.join(tmpDir, "duplicate-id-fixtures");
+  fs.mkdirSync(fixtureDir);
+
+  db.exec(`
+    DELETE FROM pk_source_product_values;
+    DELETE FROM pk_source_products;
+    DELETE FROM pk_price_observations;
+    DELETE FROM pk_products;
+  `);
+  const packId = Number(db.prepare(
+    `INSERT INTO pk_products (set_name, display_name) VALUES ('Journey Together', 'Journey Together Booster')`
+  ).run().lastInsertRowid);
+  const insertObservation = db.prepare(
+    `INSERT INTO pk_price_observations
+       (observed_date, source, product_id, price_per_pack_cents, listing_ref)
+     VALUES ('2026-07-22', ?, ?, ?, ?)`
+  );
+  insertObservation.run("tcgplayer", packId, 1000, "duplicate-id-tcg");
+  insertObservation.run("carddistro", packId, 1100, "duplicate-id-carddistro");
+  const insertSource = db.prepare(
+    `INSERT INTO pk_source_products
+       (pack_product_id, tcgplayer_product_id, name, form, pack_count,
+        tcgplayer_url, pack_count_source_url, pack_count_note)
+     VALUES (?, ?, ?, 'booster_bundle', 6, ?, ?, 'baseline')`
+  );
+  for (const productId of [9101, 9102]) {
+    const url = `https://example.com/${productId}`;
+    insertSource.run(packId, productId, `Existing Bundle ${productId}`, url, url);
+  }
+
+  const productsFile = path.join(fixtureDir, "24073_products.json");
+  fs.writeFileSync(productsFile, JSON.stringify({
+    results: [
+      { productId: 9201, name: "Journey Together Booster Bundle", url: "https://example.com/9201-a" },
+      { productId: 9201, name: "Journey Together Booster Bundle", url: "https://example.com/9201-b" },
+    ],
+  }));
+  fs.writeFileSync(path.join(fixtureDir, "24073_prices.json"), JSON.stringify({
+    results: [{ productId: 9201, lowPrice: 50, highPrice: 70, marketPrice: 60 }],
+  }));
+
+  const snapshot = () => ({
+    catalog: db.prepare(`SELECT * FROM pk_source_products ORDER BY id`).all(),
+    values: db.prepare(`SELECT * FROM pk_source_product_values ORDER BY id`).all(),
+  });
+  const before = snapshot();
+  await assert.rejects(
+    refreshSourceProducts({ observedDate: "2026-07-22", fixtureDir }),
+    /TCGCSV products group 24073 returned duplicate productId 9201/,
+  );
+  assert.deepEqual(snapshot(), before);
+  assert.equal(before.catalog.length, 2, "regression requires two active catalog rows");
+
+  fs.writeFileSync(productsFile, JSON.stringify({
+    results: [{ productId: 0, name: "Journey Together Booster Bundle", url: "https://example.com/invalid" }],
+  }));
+  await assert.rejects(
+    refreshSourceProducts({ observedDate: "2026-07-22", fixtureDir }),
+    /TCGCSV products group 24073 returned an invalid envelope/,
+  );
+  assert.deepEqual(snapshot(), before);
+});
+
+test("TCGCSV fetch timeout configuration must be a bounded positive integer", async () => {
+  const { refreshSourceProducts } = await sourceProducts();
+  await assert.rejects(
+    refreshSourceProducts({ observedDate: "2026-07-22", fixtureDir: tmpDir, fetchTimeoutMs: 0 }),
+    /TCGCSV fetch timeout must be a positive integer/,
+  );
 });
 
 test("migration enforces append-only date uniqueness and strict high-tier ceilings", () => {

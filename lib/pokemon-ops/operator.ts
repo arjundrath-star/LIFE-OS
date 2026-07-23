@@ -19,6 +19,35 @@ export function sourcingOperations() {
   const local = JSON.parse(fs.readFileSync(path.join(process.cwd(),"config/pokemon-local-spots.json"),"utf8"));
   const discord = discordDeals();
   const sourceProducts = all<any>(`SELECT * FROM pk_v_source_product_current ORDER BY set_name, form, name`);
+  // Set-level read model for the comparison strip. observed_date is upstream
+  // source precision; observed_at is when Rathworkspace actually stored the row.
+  const sourceProductBenchmarks = all<any>(`
+    SELECT p.set_name,
+           (SELECT MIN(v.medium_ppp_cents)
+              FROM pk_v_source_product_current v
+             WHERE v.pack_product_id=p.id) AS medium_buy_ppp_cents,
+           (SELECT o.price_per_pack_cents FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='tcgplayer'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS tcgplayer_ppp_cents,
+           (SELECT o.observed_date FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='tcgplayer'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS tcgplayer_observed_date,
+           (SELECT o.created_at FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='tcgplayer'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS tcgplayer_observed_at,
+           (SELECT o.price_per_pack_cents FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='carddistro'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS carddistro_ppp_cents,
+           (SELECT o.observed_date FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='carddistro'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS carddistro_observed_date,
+           (SELECT o.created_at FROM pk_price_observations o
+             WHERE o.product_id=p.id AND o.source='carddistro'
+             ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS carddistro_observed_at
+      FROM pk_products p
+     WHERE p.active=1 AND p.form='booster'
+     ORDER BY p.set_name
+  `);
   const sourceProductCoverage = all<any>(`
     SELECT p.set_name,
            MAX(o.observed_date) AS carddistro_observed_date,
@@ -32,5 +61,5 @@ export function sourcingOperations() {
     GROUP BY p.set_name
     ORDER BY p.set_name
   `);
-  return { offers, benchmarks, vendors, sourceProducts, sourceProductCoverage, local, discord, connector: { configured: hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"), channelsConfigured: hasSecret("DISCORD_WATCH_CHANNEL_IDS"), applicationConfigured: hasSecret("DISCORD_APPLICATION_ID") }, monitors: [monitor("tcgplayer","TCGplayer",["tcgplayer"]),monitor("ebay","eBay",["ebay_sold","ebay_active"]),monitor("providers","Provider quotes",["carddistro","supplier_other"]),monitor("retail","Retail restock",["costco","target","walmart","sams","amazon","retail_restock"]),{id:"local",label:"Local spots",configured:true,state:"configured",latest:local.provenance.checked_at,row_count:local.spots.length},{id:"discord",label:"Discord",configured:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS"),state:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS")?"configured":"not_configured",latest:discord[0]?.observed_at||null,row_count:discord.length}] };
+  return { offers, benchmarks, vendors, sourceProducts, sourceProductBenchmarks, sourceProductCoverage, local, discord, connector: { configured: hasSecret("DISCORD_BOT_TOKEN") && hasSecret("DISCORD_WATCH_CHANNEL_IDS"), channelsConfigured: hasSecret("DISCORD_WATCH_CHANNEL_IDS"), applicationConfigured: hasSecret("DISCORD_APPLICATION_ID") }, monitors: [monitor("tcgplayer","TCGplayer",["tcgplayer"]),monitor("ebay","eBay",["ebay_sold","ebay_active"]),monitor("providers","Provider quotes",["carddistro","supplier_other"]),monitor("retail","Retail restock",["costco","target","walmart","sams","amazon","retail_restock"]),{id:"local",label:"Local spots",configured:true,state:"configured",latest:local.provenance.checked_at,row_count:local.spots.length},{id:"discord",label:"Discord",configured:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS"),state:hasSecret("DISCORD_BOT_TOKEN")&&hasSecret("DISCORD_WATCH_CHANNEL_IDS")?"configured":"not_configured",latest:discord[0]?.observed_at||null,row_count:discord.length}] };
 }

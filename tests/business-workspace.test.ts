@@ -39,11 +39,23 @@ test("Sourcing exposes dated sealed-product pack economics and coverage", () => 
   const workspace = fs.readFileSync(path.join(ROOT, "components/business/OpsWorkspace.tsx"), "utf8");
   const operator = fs.readFileSync(path.join(ROOT, "lib/pokemon-ops/operator.ts"), "utf8");
   assert.match(workspace, /"Box Targets"/);
+  assert.match(workspace, /Medium buy level/);
+  assert.match(workspace, /TCGplayer/);
+  assert.match(workspace, /CardDistro/);
+  assert.match(workspace, /source-price-comparison-empty/);
   assert.match(workspace, /TCG sealed market/);
   assert.match(workspace, /Low buy/);
   assert.match(workspace, /Medium buy/);
   assert.match(workspace, /High buy/);
   assert.match(operator, /pk_v_source_product_current/);
+  assert.match(operator, /MIN\(v\.medium_ppp_cents\)/, "Medium buy level comes from existing MEDIUM values");
+  assert.match(workspace, /onClick=\{\(\)=>selectProduct\(row\)\}/, "clicking a product row selects its set and exact per-pack comparison");
+  assert.match(operator, /tcgplayer_observed_date/);
+  assert.match(operator, /tcgplayer_observed_at/);
+  assert.match(operator, /carddistro_observed_date/);
+  assert.match(operator, /carddistro_observed_at/);
+  assert.match(operator, /SELECT o\.created_at/);
+  assert.match(operator, /sourceProductBenchmarks/);
   assert.match(operator, /sourceProductCoverage/);
 });
 

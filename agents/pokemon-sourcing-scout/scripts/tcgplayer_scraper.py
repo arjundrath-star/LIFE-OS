@@ -262,6 +262,13 @@ def write_csv(rows: list[Row], out_path: Path) -> None:
             writer.writerow(row.as_csv_row())
 
 
+def missing_mapped_sets(rows: list[Row]) -> list[str]:
+    """Mapped/released sets that did not produce exactly one usable row."""
+    expected = {name for name, group_id in SET_NAME_TO_GROUP.items() if group_id is not None}
+    observed = {row.set_name for row in rows}
+    return sorted(expected - observed)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, help="output CSV path")
@@ -281,6 +288,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="override observed_date (default: today's UTC date, YYYY-MM-DD); "
         "mainly for deterministic testing",
     )
+    parser.add_argument(
+        "--require-complete",
+        action="store_true",
+        help="exit non-zero unless every mapped/released set produced one usable row",
+    )
     args = parser.parse_args(argv)
 
     if args.live and args.fixture_dir:
@@ -298,6 +310,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     write_csv(rows, out_path)
 
     print(f"wrote {len(rows)} rows to {out_path}", file=sys.stderr)
+    missing = missing_mapped_sets(rows)
+    if args.require_complete and missing:
+        print(
+            "fatal: incomplete TCGplayer coverage; missing mapped sets: " + ", ".join(missing),
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 

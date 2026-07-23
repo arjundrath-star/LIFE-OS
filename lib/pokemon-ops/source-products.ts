@@ -30,12 +30,16 @@ interface TcgProduct {
 }
 interface TcgPrice {
   productId: number;
+  subTypeName?: string | null;
   lowPrice?: number | null;
   midPrice?: number | null;
   highPrice?: number | null;
   marketPrice?: number | null;
 }
 interface TcgEnvelope<T> { results: T[] }
+
+export const DEFAULT_TCGCSV_FETCH_TIMEOUT_MS = 30_000;
+const MAX_ABORT_TIMEOUT_MS = 2_147_483_647;
 
 export interface ClassifiedSourceProduct {
   form: string;
@@ -252,20 +256,126 @@ function dollarsToCents(value: number | null | undefined): number | null {
   return Math.round(value * 100);
 }
 
-async function getJson<T>(groupId: number, kind: "products" | "prices", fixtureDir?: string): Promise<TcgEnvelope<T>> {
-  if (fixtureDir) {
-    const file = path.join(fixtureDir, `${groupId}_${kind}.json`);
-    return JSON.parse(fs.readFileSync(file, "utf8")) as TcgEnvelope<T>;
+function resolveFetchTimeoutMs(configured?: number): number {
+  const value = configured ?? (
+    process.env.POKEMON_SOURCE_PRODUCTS_FETCH_TIMEOUT_MS === undefined
+      ? DEFAULT_TCGCSV_FETCH_TIMEOUT_MS
+      : Number(process.env.POKEMON_SOURCE_PRODUCTS_FETCH_TIMEOUT_MS)
+  );
+  if (!Number.isInteger(value) || value <= 0 || value > MAX_ABORT_TIMEOUT_MS) {
+    throw new Error("TCGCSV fetch timeout must be a positive integer no greater than 2147483647 milliseconds");
   }
-  const response = await fetch(`https://tcgcsv.com/tcgplayer/3/${groupId}/${kind}`, {
-    headers: { "user-agent": "curl/8.5.0" },
-  });
-  if (!response.ok) throw new Error(`TCGCSV ${kind} group ${groupId}: HTTP ${response.status}`);
-  return await response.json() as TcgEnvelope<T>;
+  return value;
 }
 
-function latestPackPrice(productId: number, source: "tcgplayer" | "carddistro", onOrBefore: string): number | null {
-  const row = getDb().prepare(
+async function getJson(
+  groupId: number,
+  kind: "products" | "prices",
+  fixtureDir: string | undefined,
+  fetchTimeoutMs: number,
+): Promise<unknown> {
+  if (fixtureDir) {
+    const file = path.join(fixtureDir, `${groupId}_${kind}.json`);
+    return JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+  }
+  try {
+    const response = await fetch(`https://tcgcsv.com/tcgplayer/3/${groupId}/${kind}`, {
+      headers: { "user-agent": "curl/8.5.0" },
+      signal: AbortSignal.timeout(fetchTimeoutMs),
+    });
+    if (!response.ok) throw new Error(`TCGCSV ${kind} group ${groupId}: HTTP ${response.status}`);
+    return await response.json() as unknown;
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error(`TCGCSV ${kind} group ${groupId} timed out after ${fetchTimeoutMs}ms`, { cause: error });
+    }
+    throw error;
+  }
+}
+
+function validateEnvelope<T>(
+  payload: unknown,
+  groupId: number,
+  kind: "products" | "prices",
+  isValidRow: (row: unknown) => row is T,
+): TcgEnvelope<T> {
+  if (
+    typeof payload !== "object"
+    || payload === null
+    || !("results" in payload)
+    || !Array.isArray(payload.results)
+    || !payload.results.every(isValidRow)
+  ) {
+    throw new Error(`TCGCSV ${kind} group ${groupId} returned an invalid envelope`);
+  }
+  return { results: payload.results };
+}
+
+function isTcgProduct(row: unknown): row is TcgProduct {
+  if (typeof row !== "object" || row === null) return false;
+  const value = row as Partial<TcgProduct>;
+  return Number.isInteger(value.productId)
+    && (value.productId ?? 0) > 0
+    && typeof value.name === "string"
+    && typeof value.url === "string"
+    && (
+      value.extendedData === undefined
+      || (
+        Array.isArray(value.extendedData)
+        && value.extendedData.every((item) => (
+          typeof item === "object"
+          && item !== null
+          && (item.name === undefined || typeof item.name === "string")
+          && (item.value === undefined || typeof item.value === "string")
+        ))
+      )
+    );
+}
+
+function isTcgPrice(row: unknown): row is TcgPrice {
+  if (typeof row !== "object" || row === null) return false;
+  const value = row as Partial<TcgPrice>;
+  return Number.isInteger(value.productId)
+    && (value.productId ?? 0) > 0
+    && [value.lowPrice, value.midPrice, value.highPrice, value.marketPrice]
+      .every((price) => price === undefined || price === null || (typeof price === "number" && Number.isFinite(price)));
+}
+
+function assertUniqueProductIds<T extends { productId: number }>(rows: T[], groupId: number): void {
+  const seen = new Set<number>();
+  for (const row of rows) {
+    if (seen.has(row.productId)) {
+      throw new Error(`TCGCSV products group ${groupId} returned duplicate productId ${row.productId}`);
+    }
+    seen.add(row.productId);
+  }
+}
+
+function priceSubtypeRank(row: TcgPrice): number {
+  const subtype = row.subTypeName?.toLowerCase();
+  if (subtype === "normal") return 0;
+  if (!subtype) return 1;
+  if (subtype === "holofoil") return 2;
+  if (subtype === "reverse holofoil") return 3;
+  return 4;
+}
+
+function canonicalPricesByProduct(rows: TcgPrice[]): Map<number, TcgPrice> {
+  const selected = new Map<number, TcgPrice>();
+  for (const row of rows) {
+    const current = selected.get(row.productId);
+    if (!current || priceSubtypeRank(row) < priceSubtypeRank(current)) selected.set(row.productId, row);
+  }
+  return selected;
+}
+
+function latestPackPrice(
+  db: ReturnType<typeof getDb>,
+  productId: number,
+  source: "tcgplayer" | "carddistro",
+  onOrBefore: string,
+): number | null {
+  const row = db.prepare(
     `SELECT price_per_pack_cents
      FROM pk_price_observations
      WHERE product_id = ? AND source = ? AND observed_date <= ?
@@ -283,8 +393,34 @@ export interface RefreshSourceProductsResult {
   setsWithoutTcgGroup: string[];
 }
 
-export async function refreshSourceProducts(input: { observedDate: string; fixtureDir?: string }): Promise<RefreshSourceProductsResult> {
+interface PreparedSourceProduct {
+  product: TcgProduct;
+  classified: ClassifiedSourceProduct;
+  sourceUrl: string;
+  value: null | {
+    tcgMarketCents: number | null;
+    tcgLowCents: number | null;
+    tcgHighCents: number | null;
+    packTcgCents: number;
+    carddistroCents: number;
+    targets: ReturnType<typeof computeSourceProductTargets>;
+  };
+}
+
+interface PreparedSourceSet {
+  packProduct: { id: number; set_name: string };
+  groupId: number;
+  existingActiveCount: number;
+  products: PreparedSourceProduct[];
+}
+
+export async function refreshSourceProducts(input: {
+  observedDate: string;
+  fixtureDir?: string;
+  fetchTimeoutMs?: number;
+}): Promise<RefreshSourceProductsResult> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.observedDate)) throw new Error("observedDate must be YYYY-MM-DD");
+  const fetchTimeoutMs = resolveFetchTimeoutMs(input.fetchTimeoutMs);
   const utcToday = new Date().toISOString().slice(0, 10);
   if (!input.fixtureDir && input.observedDate !== utcToday) {
     throw new Error(`live TCGCSV prices can only be recorded for UTC today (${utcToday}); use fixtures for historical snapshots`);
@@ -307,16 +443,23 @@ export async function refreshSourceProducts(input: { observedDate: string; fixtu
      ORDER BY p.set_name`
   ).all() as Array<{ id: number; set_name: string }>;
 
+  // Preflight every participating mapped set completely before opening the
+  // mutation transaction. A late fetch, parse, coverage, or classification
+  // failure must not leave earlier sets refreshed and later sets stale.
+  const preparedSets: PreparedSourceSet[] = [];
   for (const packProduct of packProducts) {
     const groupId = SET_NAME_TO_TCG_GROUP[packProduct.set_name];
     if (!groupId) {
       result.setsWithoutTcgGroup.push(packProduct.set_name);
       continue;
     }
-    const [productEnvelope, priceEnvelope] = await Promise.all([
-      getJson<TcgProduct>(groupId, "products", input.fixtureDir),
-      getJson<TcgPrice>(groupId, "prices", input.fixtureDir),
+    const [productPayload, pricePayload] = await Promise.all([
+      getJson(groupId, "products", input.fixtureDir, fetchTimeoutMs),
+      getJson(groupId, "prices", input.fixtureDir, fetchTimeoutMs),
     ]);
+    const productEnvelope = validateEnvelope(productPayload, groupId, "products", isTcgProduct);
+    const priceEnvelope = validateEnvelope(pricePayload, groupId, "prices", isTcgPrice);
+    assertUniqueProductIds(productEnvelope.results, groupId);
     if (productEnvelope.results.length === 0 || priceEnvelope.results.length === 0) {
       throw new Error(`TCGCSV group ${groupId} returned an empty products/prices envelope; refusing to change ${packProduct.set_name}`);
     }
@@ -334,18 +477,59 @@ export async function refreshSourceProducts(input: { observedDate: string; fixtu
       );
     }
 
-    const priceByProduct = new Map(priceEnvelope.results.map((row) => [row.productId, row]));
-    const packTcg = latestPackPrice(packProduct.id, "tcgplayer", input.observedDate);
-    const carddistro = latestPackPrice(packProduct.id, "carddistro", input.observedDate);
-    const localSkipped: string[] = [];
-    let localUpserts = 0;
-    let localValueInserts = 0;
+    const priceByProduct = canonicalPricesByProduct(priceEnvelope.results);
+    const packTcg = latestPackPrice(db, packProduct.id, "tcgplayer", input.observedDate);
+    const carddistro = latestPackPrice(db, packProduct.id, "carddistro", input.observedDate);
+    const products = classifiedProducts.map(({ product, classified }): PreparedSourceProduct => {
+      const sourceUrl = product.url || `https://www.tcgplayer.com/product/${product.productId}`;
+      if (packTcg === null || carddistro === null) {
+        result.skippedNoBenchmark.push(`${packProduct.set_name}: ${product.name}`);
+        return { product, classified, sourceUrl, value: null };
+      }
+      const price = priceByProduct.get(product.productId);
+      return {
+        product,
+        classified,
+        sourceUrl,
+        value: {
+          tcgMarketCents: dollarsToCents(price?.marketPrice),
+          tcgLowCents: dollarsToCents(price?.lowPrice),
+          tcgHighCents: dollarsToCents(price?.highPrice),
+          packTcgCents: packTcg,
+          carddistroCents: carddistro,
+          targets: computeSourceProductTargets(classified.packCount, packTcg, carddistro),
+        },
+      };
+    });
+    preparedSets.push({ packProduct, groupId, existingActiveCount, products });
+  }
 
-    db.transaction(() => {
-      db.prepare(`UPDATE pk_source_products SET active=0, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE pack_product_id=?`).run(packProduct.id);
+  const mutationCounts = db.transaction(() => {
+    // Recheck all catalog coverage against the state visible to this write
+    // transaction before making its first mutation.
+    for (const prepared of preparedSets) {
+      const currentActiveCount = (db.prepare(
+        `SELECT COUNT(*) AS n FROM pk_source_products WHERE pack_product_id=? AND active=1`
+      ).get(prepared.packProduct.id) as { n: number }).n;
+      if (prepared.products.length === 0 || prepared.products.length < currentActiveCount) {
+        throw new Error(
+          `TCGCSV group ${prepared.groupId} produced ${prepared.products.length} classified products, below existing active count ${currentActiveCount}; refusing partial deactivation`
+        );
+      }
+      if (currentActiveCount !== prepared.existingActiveCount) {
+        throw new Error(
+          `source catalog changed during TCGCSV preflight for ${prepared.packProduct.set_name}; refusing stale refresh`
+        );
+      }
+    }
 
-      for (const { product, classified } of classifiedProducts) {
-        const sourceUrl = product.url || `https://www.tcgplayer.com/product/${product.productId}`;
+    let catalogUpserts = 0;
+    let valueInserts = 0;
+    for (const prepared of preparedSets) {
+      db.prepare(`UPDATE pk_source_products SET active=0, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE pack_product_id=?`)
+        .run(prepared.packProduct.id);
+
+      for (const { product, classified, sourceUrl, value } of prepared.products) {
         db.prepare(
           `INSERT INTO pk_source_products
              (pack_product_id, tcgplayer_product_id, name, form, pack_count,
@@ -362,7 +546,7 @@ export async function refreshSourceProducts(input: { observedDate: string; fixtu
              active = 1,
              updated_at = excluded.updated_at`
         ).run(
-          packProduct.id,
+          prepared.packProduct.id,
           product.productId,
           product.name,
           classified.form,
@@ -371,46 +555,58 @@ export async function refreshSourceProducts(input: { observedDate: string; fixtu
           sourceUrl,
           classified.packCountNote,
         );
-        localUpserts += 1;
+        catalogUpserts += 1;
 
-        if (packTcg === null || carddistro === null) {
-          localSkipped.push(`${packProduct.set_name}: ${product.name}`);
-          continue;
-        }
-        const targets = computeSourceProductTargets(classified.packCount, packTcg, carddistro);
-        const price = priceByProduct.get(product.productId);
+        if (value === null) continue;
         const sourceProduct = db.prepare(`SELECT id FROM pk_source_products WHERE tcgplayer_product_id = ?`)
           .get(product.productId) as { id: number };
         const insert = db.prepare(
-          `INSERT OR IGNORE INTO pk_source_product_values
+          `INSERT INTO pk_source_product_values
              (source_product_id, observed_date, pack_count, tcg_market_cents,
               tcg_low_cents, tcg_high_cents, pack_tcg_cents, carddistro_cents,
               benchmark_ppp_cents, low_total_cents, medium_total_cents,
               high_total_cents, methodology)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(source_product_id, observed_date) DO NOTHING`
         ).run(
           sourceProduct.id,
           input.observedDate,
           classified.packCount,
-          dollarsToCents(price?.marketPrice),
-          dollarsToCents(price?.lowPrice),
-          dollarsToCents(price?.highPrice),
-          packTcg,
-          carddistro,
-          targets.benchmarkPppCents,
-          targets.lowTotalCents,
-          targets.mediumTotalCents,
-          targets.highTotalCents,
+          value.tcgMarketCents,
+          value.tcgLowCents,
+          value.tcgHighCents,
+          value.packTcgCents,
+          value.carddistroCents,
+          value.targets.benchmarkPppCents,
+          value.targets.lowTotalCents,
+          value.targets.mediumTotalCents,
+          value.targets.highTotalCents,
           "Pack-only acquisition targets: low/medium/high are 25%/20%/15% below the lower of TCGplayer loose-pack market and Carddistro cost. Promos/accessories=$0.",
         );
-        localValueInserts += insert.changes;
+        valueInserts += insert.changes;
       }
-    })();
+    }
 
-    result.productsSeen += classifiedProducts.length;
-    result.catalogUpserts += localUpserts;
-    result.valueInserts += localValueInserts;
-    result.skippedNoBenchmark.push(...localSkipped);
-  }
+    // The deactivation/upsert sequence must leave exactly the unique preflighted
+    // IDs active for every set. Any cross-set conflict or count drift rolls back
+    // the entire all-set transaction.
+    for (const prepared of preparedSets) {
+      const active = db.prepare(
+        `SELECT COUNT(*) AS total, COUNT(DISTINCT tcgplayer_product_id) AS distinct_ids
+         FROM pk_source_products
+         WHERE pack_product_id=? AND active=1`
+      ).get(prepared.packProduct.id) as { total: number; distinct_ids: number };
+      if (active.total !== prepared.products.length || active.distinct_ids !== prepared.products.length) {
+        throw new Error(
+          `post-write source catalog invariant failed for ${prepared.packProduct.set_name}: expected ${prepared.products.length} distinct active products, found ${active.distinct_ids} distinct across ${active.total} active rows`
+        );
+      }
+    }
+    return { catalogUpserts, valueInserts };
+  })();
+
+  result.productsSeen = preparedSets.reduce((total, prepared) => total + prepared.products.length, 0);
+  result.catalogUpserts = mutationCounts.catalogUpserts;
+  result.valueInserts = mutationCounts.valueInserts;
   return result;
 }

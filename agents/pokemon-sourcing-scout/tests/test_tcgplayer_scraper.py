@@ -188,6 +188,26 @@ class TestDeterminism(unittest.TestCase):
             self.assertEqual(out_a.read_text(), out_b.read_text())
 
 
+class TestCompleteCoverageMode(unittest.TestCase):
+    def test_full_fixture_has_no_missing_mapped_sets(self):
+        rows = scraper.build_rows("2026-07-17", live=False, fixture_dir=FIXTURE_DIR)
+        self.assertEqual(scraper.missing_mapped_sets(rows), [])
+
+    def test_require_complete_exits_nonzero_for_partial_fetch(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "partial.csv"
+            rc = scraper.main([
+                "--fixture-dir", tmp,
+                "--observed-date", "2026-07-17",
+                "--require-complete",
+                "--out", str(out),
+            ])
+            self.assertEqual(rc, 2)
+            self.assertTrue(out.exists(), "partial evidence should remain archived for diagnosis")
+
+
 class TestMissingFixtureIsSkippedNotFatal(unittest.TestCase):
     def test_missing_fixture_file_for_a_group_is_skipped_with_stderr_note(self):
         import tempfile
