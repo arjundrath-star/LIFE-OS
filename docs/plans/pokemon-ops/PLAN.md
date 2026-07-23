@@ -135,6 +135,7 @@ sellout, refill-sync spread, FIFO lot allocation, benchmark deltas over time. Al
   days-of-supply spread); slot table; recommendations; recent sales; sourcing feed
   (recent observations with benchmark deltas); entry forms. Cyan Jarvis theme,
   JetBrains Mono numbers, per `rathworkspace-ui` skill.
+- **Highest-leverage sourcing initiative — first-party retail restock monitoring + bot-assisted MSRP purchase planning:** prioritize lawful monitoring of public first-party inventory/restock signals and operator-approved checkout automation design at MSRP. This initiative must respect retailer terms, rate limits, queues, purchase limits, CAPTCHAs, authentication, and anti-bot controls; it must never bypass protections or place a purchase without explicit operator approval. This build records and plans the initiative only — it performs no purchase.
 - **Hermes sourcing:** `agents/pokemon-sourcing-scout/` cloning the lead-scout dispatcher
   (deterministic Python scrapers + optional agentic phase + archive/idempotency/
   agent-event); skill `~/.hermes/skills/business/pokemon-sourcing-scout/`; `hermes cron`
