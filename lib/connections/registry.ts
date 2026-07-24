@@ -48,14 +48,14 @@ export const REGISTRY: ConnectionDef[] = [
   },
   {
     id: "telegram",
-    label: "Telegram listener",
-    surfaces: ["claude"],
+    label: "Telegram",
+    surfaces: ["dashboard", "hermes"],
     reconnect: "service",
     defaultEnabled: true,
     configured: () => true,
-    note: "Long-poll daemon for phone-driven work",
+    note: "Phone-driven work through the Hermes gateway",
     check: async () => {
-      const t = readTelegramActivity();
+      const t = readTelegramActivity(await fetchHermesStatus());
       if (t.state === "active" || t.state === "idle") return { ok: true, detail: t.detail };
       return { ok: false, detail: t.detail };
     },

@@ -27,7 +27,8 @@ function mergedActivity(limit = 14) {
 
 async function tickAgents() {
   const hub = getHub();
-  const [hermes, telegram] = [await fetchHermesStatus(), readTelegramActivity()];
+  const hermes = await fetchHermesStatus();
+  const telegram = readTelegramActivity(hermes);
 
   // --- change diffing -> ticker + activity log ---
   const last = hub.last;

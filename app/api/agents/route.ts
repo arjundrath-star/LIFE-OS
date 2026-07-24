@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const hermes = await fetchHermesStatus();
-  const telegram = readTelegramActivity();
+  const telegram = readTelegramActivity(hermes);
   const claudeRow = get<any>(
     "SELECT ts, summary, detail FROM agent_activity WHERE source='claude' ORDER BY id DESC LIMIT 1"
   );

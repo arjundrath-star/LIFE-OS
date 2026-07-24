@@ -1,118 +1,104 @@
-// Telegram listener adapter. Taps the long-poll daemon's log (no Telegram API call).
-// Log line format: "[YYYY-MM-DD HH:MM:SS UTC] <message>".
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-
-const LOG_PATH =
-  process.env.TELEGRAM_LISTENER_LOG ||
-  path.join(os.homedir(), ".openclaw", "workspace", "logs", "telegram-listener.log");
+// Telegram health adapter. Uses the live Hermes dashboard status response so the
+// Rathworkspace card reflects the gateway that actually owns the Telegram bot.
+import type { HermesPlatform, HermesStatus } from "@/lib/sources/hermes";
 
 export type TelegramActivity = {
   reachable: boolean;
-  healthy: boolean; // listener producing real events, not just poll errors
+  healthy: boolean;
   state: "active" | "conflict" | "idle" | "down";
   detail: string;
   lastEventAt: string | null;
   lastEvent: string | null;
   events: { ts: string; message: string }[];
-  errorRate: number; // fraction of recent lines that are getUpdates errors
+  errorRate: number;
   checkedAt: string;
 };
 
-function parseLine(line: string): { ts: string | null; message: string } {
-  const m = line.match(/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC\]\s*(.*)$/);
-  if (!m) return { ts: null, message: line };
-  return { ts: m[1].replace(" ", "T") + "Z", message: m[2] };
-}
+type HermesTelegramStatus = Pick<
+  HermesStatus,
+  "online" | "reachable" | "platforms"
+>;
 
-function readTail(file: string, maxBytes: number): string {
-  const fd = fs.openSync(file, "r");
-  try {
-    const size = fs.fstatSync(fd).size;
-    const start = Math.max(0, size - maxBytes);
-    const len = size - start;
-    const buf = Buffer.alloc(len);
-    fs.readSync(fd, buf, 0, len, start);
-    return buf.toString("utf8");
-  } finally {
-    fs.closeSync(fd);
-  }
-}
+type TelegramGatewayHealth = Pick<
+  TelegramActivity,
+  "reachable" | "healthy" | "state" | "detail"
+>;
 
-export function readTelegramActivity(): TelegramActivity {
-  const checkedAt = new Date().toISOString();
-  if (!fs.existsSync(LOG_PATH)) {
+const CONNECTED_STATES = new Set(["active", "connected", "ready", "running"]);
+
+export function telegramGatewayHealth(
+  hermes: HermesTelegramStatus
+): TelegramGatewayHealth {
+  if (!hermes.reachable) {
     return {
       reachable: false,
       healthy: false,
       state: "down",
-      detail: "listener log not found",
-      lastEventAt: null,
-      lastEvent: null,
-      events: [],
-      errorRate: 0,
-      checkedAt,
+      detail: "Hermes status endpoint unreachable",
     };
   }
 
-  const text = readTail(LOG_PATH, 64 * 1024);
-  const lines = text.split("\n").filter(Boolean).slice(-400);
-  const parsed = lines.map(parseLine);
+  if (!hermes.online) {
+    return {
+      reachable: true,
+      healthy: false,
+      state: "down",
+      detail: "Hermes gateway offline",
+    };
+  }
 
-  const isPollError = (msg: string) =>
-    /getUpdates error|Conflict: terminated|409/.test(msg);
+  const platform = hermes.platforms.find(
+    (candidate) => candidate.name.toLowerCase() === "telegram"
+  );
+  if (!platform) {
+    return {
+      reachable: true,
+      healthy: false,
+      state: "down",
+      detail: "Telegram is not configured in Hermes",
+    };
+  }
 
-  const recent = parsed.slice(-120);
-  const errors = recent.filter((p) => isPollError(p.message)).length;
-  const errorRate = recent.length ? errors / recent.length : 0;
+  return platformHealth(platform);
+}
 
-  // Real, human-meaningful events (saved tasks, commands, sprint, replies).
-  const meaningful = parsed
-    .filter(
-      (p) =>
-        p.ts &&
-        !isPollError(p.message) &&
-        /saved|task|sprint|status|reply|claude|message|received|routed|processed/i.test(
-          p.message
-        ) &&
-        p.message.length > 0
-    )
-    .slice(-8)
-    .map((p) => ({ ts: p.ts as string, message: p.message }));
+function platformHealth(platform: HermesPlatform): TelegramGatewayHealth {
+  const state = platform.state.toLowerCase();
+  const detail = platform.error || `Telegram gateway ${platform.state}`;
 
-  const lastRealLine = [...parsed].reverse().find((p) => p.ts);
-  const lastEventAt = lastRealLine?.ts ?? null;
+  if (/conflict|409/.test(`${state} ${platform.error || ""}`.toLowerCase())) {
+    return {
+      reachable: true,
+      healthy: false,
+      state: "conflict",
+      detail,
+    };
+  }
 
-  // Freshness: when did the daemon last write *anything*?
-  const ageMs = lastEventAt ? Date.now() - new Date(lastEventAt).getTime() : Infinity;
-  const stale = ageMs > 5 * 60 * 1000;
-
-  let state: TelegramActivity["state"];
-  let detail: string;
-  if (stale) {
-    state = "down";
-    detail = "no log writes in 5+ min";
-  } else if (errorRate > 0.6) {
-    state = "conflict";
-    detail = "getUpdates 409 — two pollers running (bash listener + bun plugin)";
-  } else if (meaningful.length > 0) {
-    state = "active";
-    detail = "processing messages";
-  } else {
-    state = "idle";
-    detail = "polling, no recent messages";
+  if (CONNECTED_STATES.has(state)) {
+    return {
+      reachable: true,
+      healthy: true,
+      state: "idle",
+      detail: "connected via Hermes gateway",
+    };
   }
 
   return {
     reachable: true,
-    healthy: state === "active" || state === "idle",
-    state,
+    healthy: false,
+    state: "down",
     detail,
-    lastEventAt,
-    lastEvent: lastRealLine?.message ?? null,
-    events: meaningful.reverse(),
-    errorRate,
-    checkedAt,
+  };
+}
+
+export function readTelegramActivity(hermes: HermesStatus): TelegramActivity {
+  return {
+    ...telegramGatewayHealth(hermes),
+    lastEventAt: null,
+    lastEvent: null,
+    events: [],
+    errorRate: 0,
+    checkedAt: new Date().toISOString(),
   };
 }
