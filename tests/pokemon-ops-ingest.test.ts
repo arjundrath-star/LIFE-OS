@@ -3,13 +3,17 @@
 // RATHWORKSPACE_DB is set BEFORE the db module loads, so data-layer modules are
 // pulled in via dynamic import inside the tests.
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pokemon-ops-ingest-test-"));
 process.env.RATHWORKSPACE_DB = path.join(tmpDir, "test.db");
+
+after(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
 
 async function mods() {
   const ops = await import("../lib/pokemon-ops/db");

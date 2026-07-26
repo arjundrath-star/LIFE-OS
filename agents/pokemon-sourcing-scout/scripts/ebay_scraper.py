@@ -82,6 +82,7 @@ net, not just test scaffolding.
 from __future__ import annotations
 
 import argparse
+import atexit
 import csv
 import re
 import shutil
@@ -621,6 +622,16 @@ _WARM_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
+
+
+def _cleanup_warm_profile() -> None:
+    global _WARM_PROFILE_DIR
+    if _WARM_PROFILE_DIR:
+        shutil.rmtree(_WARM_PROFILE_DIR, ignore_errors=True)
+        _WARM_PROFILE_DIR = None
+
+
+atexit.register(_cleanup_warm_profile)
 
 
 def _chromium_dump(url: str, profile_dir: str, timeout_s: int, budget_ms: int) -> tuple[int, str]:

@@ -6,7 +6,7 @@
 // real bash script with --dry-run so nothing is ever sent or marked except in
 // the dedicated mark test.
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -18,11 +18,19 @@ const seedScript = path.join(__dirname, "pokemon-ops", "alerts-fixture-seed.ts")
 const dataCli = path.join(repoRoot, "scripts", "pokemon-ops-alerts-data.ts");
 const alertsSh = path.join(repoRoot, "scripts", "pokemon-ops-alerts.sh");
 const tsxBin = path.join(repoRoot, "node_modules", ".bin", "tsx");
+const tmpDirs: string[] = [];
 
 const AS_OF = "2026-07-17T00:00:00.000Z";
 
+after(() => {
+  for (const tmpDir of tmpDirs) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 function freshDbPath(label: string): string {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `pk-alerts-${label}-`));
+  tmpDirs.push(tmpDir);
   return path.join(tmpDir, "fixture.db");
 }
 

@@ -6,7 +6,7 @@
 // asOf, and writes normalized JSON; we assert EXACT equality against
 // <case>/expected.json (every expected value hand-computed in DERIVATION.md).
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -16,6 +16,13 @@ const repoRoot = path.join(__dirname, "..");
 const fixturesDir = path.join(__dirname, "pokemon-ops", "fixtures");
 const runner = path.join(__dirname, "pokemon-ops", "run-fixture.ts");
 const tsxBin = path.join(repoRoot, "node_modules", ".bin", "tsx");
+const tmpDirs: string[] = [];
+
+after(() => {
+  for (const tmpDir of tmpDirs) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
 
 // Scoped to this suite's own golden-fixture contract (expected.json). Other
 // fixture directories under fixtures/ (e.g. alerts-digest, Phase 5's
@@ -56,6 +63,7 @@ test("fixture suite is complete", () => {
 for (const name of cases) {
   test(`golden fixture: ${name}`, () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `pk-rules-${name}-`));
+    tmpDirs.push(tmpDir);
     const outFile = path.join(tmpDir, "actual.json");
     const res = spawnSync(tsxBin, [runner, path.join(fixturesDir, name), outFile], {
       cwd: repoRoot,

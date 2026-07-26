@@ -2,7 +2,7 @@
 // is set BEFORE the db module loads (db/index.ts reads it at module load), so the
 // data-layer modules are pulled in via dynamic import inside the tests.
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -12,6 +12,10 @@ import Database from "better-sqlite3";
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pokemon-ops-test-"));
 process.env.RATHWORKSPACE_DB = path.join(tmpDir, "test.db");
 const repoRoot = path.join(__dirname, "..");
+
+after(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
 
 async function mods() {
   const ops = await import("../lib/pokemon-ops/db");
