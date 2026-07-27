@@ -94,6 +94,7 @@ export interface PkPriceObservation {
   alerted_at: string | null;
   notes: string | null;
   created_at: string;
+  updated_at: string | null;
 }
 
 export interface PkPurchaseLot {

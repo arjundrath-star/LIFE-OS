@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getDb } from "@/db";
+import {
+  parseCarddistroCsv,
+  parseFlag,
+  parseOptionalInt,
+  usdToCents,
+} from "./import-observations";
 
 export const SOURCE_TARGET_BPS = { low: 7500, medium: 8000, high: 8500 } as const;
 
@@ -369,19 +375,24 @@ function canonicalPricesByProduct(rows: TcgPrice[]): Map<number, TcgPrice> {
   return selected;
 }
 
-function latestPackPrice(
+interface PackPriceObservation {
+  id: number;
+  pricePerPackCents: number;
+}
+
+function latestPackObservation(
   db: ReturnType<typeof getDb>,
   productId: number,
   source: "tcgplayer" | "carddistro",
   onOrBefore: string,
-): number | null {
+): PackPriceObservation | null {
   const row = db.prepare(
-    `SELECT price_per_pack_cents
+    `SELECT id, price_per_pack_cents
      FROM pk_price_observations
      WHERE product_id = ? AND source = ? AND observed_date <= ?
      ORDER BY observed_date DESC, id DESC LIMIT 1`
-  ).get(productId, source, onOrBefore) as { price_per_pack_cents: number } | undefined;
-  return row?.price_per_pack_cents ?? null;
+  ).get(productId, source, onOrBefore) as { id: number; price_per_pack_cents: number } | undefined;
+  return row ? { id: row.id, pricePerPackCents: row.price_per_pack_cents } : null;
 }
 
 export interface RefreshSourceProductsResult {
@@ -389,6 +400,7 @@ export interface RefreshSourceProductsResult {
   productsSeen: number;
   catalogUpserts: number;
   valueInserts: number;
+  valueUpdates: number;
   skippedNoBenchmark: string[];
   setsWithoutTcgGroup: string[];
 }
@@ -411,13 +423,80 @@ interface PreparedSourceSet {
   packProduct: { id: number; set_name: string };
   groupId: number;
   existingActiveCount: number;
+  existingActiveFingerprint: string;
+  packTcgObservation: PackPriceObservation | null;
+  carddistroObservation: PackPriceObservation | null;
   products: PreparedSourceProduct[];
+}
+
+interface ActiveCatalogRow {
+  tcgplayer_product_id: number;
+  name: string;
+  form: string;
+  pack_count: number;
+  tcgplayer_url: string;
+  pack_count_source_url: string;
+  pack_count_note: string;
+}
+
+function activeCatalogRows(
+  db: ReturnType<typeof getDb>,
+  packProductId: number,
+): ActiveCatalogRow[] {
+  return db.prepare(
+    `SELECT tcgplayer_product_id, name, form, pack_count, tcgplayer_url,
+            pack_count_source_url, pack_count_note
+       FROM pk_source_products
+      WHERE pack_product_id=? AND active=1
+      ORDER BY tcgplayer_product_id`,
+  ).all(packProductId) as ActiveCatalogRow[];
+}
+
+function catalogFingerprint(rows: ActiveCatalogRow[]): string {
+  return JSON.stringify(rows);
+}
+
+interface ExpectedBenchmarkRow {
+  source: "tcgplayer" | "carddistro";
+  observedDate: string;
+  setName: string;
+  listingRef: string;
+  pricePerPackCents: number;
+  lotSize: number | null;
+  includesShipping: number | null;
+  includesTax: number | null;
+  notes: string | null;
+}
+
+function loadExpectedBenchmarkRows(
+  files: Partial<Record<"tcgplayer" | "carddistro", string>> | undefined,
+  observedDate: string,
+): ExpectedBenchmarkRow[] {
+  if (!files) return [];
+  return (Object.entries(files) as Array<["tcgplayer" | "carddistro", string]>)
+    .flatMap(([source, filePath]) => parseCarddistroCsv(fs.readFileSync(filePath, "utf8")).map((row) => {
+      if (row.source !== source || row.observed_date !== observedDate || row.form !== "booster") {
+        throw new Error(`expected ${source} benchmark CSV contains an invalid source, date, or form row for ${row.set_name}`);
+      }
+      return {
+        source,
+        observedDate,
+        setName: row.set_name,
+        listingRef: row.listing_ref.trim(),
+        pricePerPackCents: usdToCents(row.price_per_pack_usd),
+        lotSize: parseOptionalInt(row.lot_size, "lot_size"),
+        includesShipping: parseFlag(row.includes_shipping, "includes_shipping"),
+        includesTax: parseFlag(row.includes_tax, "includes_tax"),
+        notes: row.notes || null,
+      };
+    }));
 }
 
 export async function refreshSourceProducts(input: {
   observedDate: string;
   fixtureDir?: string;
   fetchTimeoutMs?: number;
+  expectedBenchmarkCsv?: Partial<Record<"tcgplayer" | "carddistro", string>>;
 }): Promise<RefreshSourceProductsResult> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.observedDate)) throw new Error("observedDate must be YYYY-MM-DD");
   const fetchTimeoutMs = resolveFetchTimeoutMs(input.fetchTimeoutMs);
@@ -426,11 +505,13 @@ export async function refreshSourceProducts(input: {
     throw new Error(`live TCGCSV prices can only be recorded for UTC today (${utcToday}); use fixtures for historical snapshots`);
   }
   const db = getDb();
+  const expectedBenchmarkRows = loadExpectedBenchmarkRows(input.expectedBenchmarkCsv, input.observedDate);
   const result: RefreshSourceProductsResult = {
     observedDate: input.observedDate,
     productsSeen: 0,
     catalogUpserts: 0,
     valueInserts: 0,
+    valueUpdates: 0,
     skippedNoBenchmark: [],
     setsWithoutTcgGroup: [],
   };
@@ -468,9 +549,8 @@ export async function refreshSourceProducts(input: {
       const classified = classifySourceProduct(packProduct.set_name, product.name, cardText);
       return classified ? [{ product, classified }] : [];
     });
-    const existingActiveCount = (db.prepare(
-      `SELECT COUNT(*) AS n FROM pk_source_products WHERE pack_product_id=? AND active=1`
-    ).get(packProduct.id) as { n: number }).n;
+    const existingActiveRows = activeCatalogRows(db, packProduct.id);
+    const existingActiveCount = existingActiveRows.length;
     if (classifiedProducts.length === 0 || classifiedProducts.length < existingActiveCount) {
       throw new Error(
         `TCGCSV group ${groupId} produced ${classifiedProducts.length} classified products, below existing active count ${existingActiveCount}; refusing partial deactivation`
@@ -478,11 +558,11 @@ export async function refreshSourceProducts(input: {
     }
 
     const priceByProduct = canonicalPricesByProduct(priceEnvelope.results);
-    const packTcg = latestPackPrice(db, packProduct.id, "tcgplayer", input.observedDate);
-    const carddistro = latestPackPrice(db, packProduct.id, "carddistro", input.observedDate);
+    const packTcgObservation = latestPackObservation(db, packProduct.id, "tcgplayer", input.observedDate);
+    const carddistroObservation = latestPackObservation(db, packProduct.id, "carddistro", input.observedDate);
     const products = classifiedProducts.map(({ product, classified }): PreparedSourceProduct => {
       const sourceUrl = product.url || `https://www.tcgplayer.com/product/${product.productId}`;
-      if (packTcg === null || carddistro === null) {
+      if (packTcgObservation === null || carddistroObservation === null) {
         result.skippedNoBenchmark.push(`${packProduct.set_name}: ${product.name}`);
         return { product, classified, sourceUrl, value: null };
       }
@@ -495,36 +575,109 @@ export async function refreshSourceProducts(input: {
           tcgMarketCents: dollarsToCents(price?.marketPrice),
           tcgLowCents: dollarsToCents(price?.lowPrice),
           tcgHighCents: dollarsToCents(price?.highPrice),
-          packTcgCents: packTcg,
-          carddistroCents: carddistro,
-          targets: computeSourceProductTargets(classified.packCount, packTcg, carddistro),
+          packTcgCents: packTcgObservation.pricePerPackCents,
+          carddistroCents: carddistroObservation.pricePerPackCents,
+          targets: computeSourceProductTargets(
+            classified.packCount,
+            packTcgObservation.pricePerPackCents,
+            carddistroObservation.pricePerPackCents,
+          ),
         },
       };
     });
-    preparedSets.push({ packProduct, groupId, existingActiveCount, products });
+    preparedSets.push({
+      packProduct,
+      groupId,
+      existingActiveCount,
+      existingActiveFingerprint: catalogFingerprint(existingActiveRows),
+      packTcgObservation,
+      carddistroObservation,
+      products,
+    });
   }
 
   const mutationCounts = db.transaction(() => {
+    const mutationUtcToday = new Date().toISOString().slice(0, 10);
+    if (!input.fixtureDir && input.observedDate !== mutationUtcToday) {
+      throw new Error(
+        `UTC date changed during TCGCSV preflight; ${input.observedDate} is now historical (today is ${mutationUtcToday})`,
+      );
+    }
+    const mayUpdateCurrentSnapshot = input.observedDate === mutationUtcToday;
+    // Bind valuation to the exact collected/imported rows inside the same
+    // IMMEDIATE transaction that reads benchmarks and writes Box Targets.
+    // This closes the coverage-to-valuation process gap.
+    for (const expected of expectedBenchmarkRows) {
+      const stored = db.prepare(
+        `SELECT o.price_per_pack_cents, o.lot_size, o.total_cost_cents,
+                o.includes_shipping, o.includes_tax, o.listing_ref,
+                o.quantity_available, o.notes
+           FROM pk_price_observations o
+           JOIN pk_products p ON p.id=o.product_id
+          WHERE p.set_name=? AND p.form='booster' AND p.active=1
+            AND o.source=? AND o.observed_date<=?
+          ORDER BY o.observed_date DESC, o.id DESC LIMIT 1`,
+      ).get(expected.setName, expected.source, expected.observedDate) as {
+        price_per_pack_cents: number;
+        lot_size: number | null;
+        total_cost_cents: number | null;
+        includes_shipping: number | null;
+        includes_tax: number | null;
+        listing_ref: string;
+        quantity_available: number | null;
+        notes: string | null;
+      } | undefined;
+      if (
+        !stored
+        || stored.price_per_pack_cents !== expected.pricePerPackCents
+        || stored.lot_size !== expected.lotSize
+        || stored.total_cost_cents !== null
+        || stored.includes_shipping !== expected.includesShipping
+        || stored.includes_tax !== expected.includesTax
+        || stored.listing_ref !== expected.listingRef
+        || stored.quantity_available !== null
+        || stored.notes !== expected.notes
+      ) {
+        throw new Error(
+          `benchmark changed after import verification for ${expected.source} ${expected.setName}; refusing unverified valuation`,
+        );
+      }
+    }
     // Recheck all catalog coverage against the state visible to this write
     // transaction before making its first mutation.
     for (const prepared of preparedSets) {
-      const currentActiveCount = (db.prepare(
-        `SELECT COUNT(*) AS n FROM pk_source_products WHERE pack_product_id=? AND active=1`
-      ).get(prepared.packProduct.id) as { n: number }).n;
+      const currentActiveRows = activeCatalogRows(db, prepared.packProduct.id);
+      const currentActiveCount = currentActiveRows.length;
       if (prepared.products.length === 0 || prepared.products.length < currentActiveCount) {
         throw new Error(
           `TCGCSV group ${prepared.groupId} produced ${prepared.products.length} classified products, below existing active count ${currentActiveCount}; refusing partial deactivation`
         );
       }
-      if (currentActiveCount !== prepared.existingActiveCount) {
+      if (
+        currentActiveCount !== prepared.existingActiveCount
+        || catalogFingerprint(currentActiveRows) !== prepared.existingActiveFingerprint
+      ) {
         throw new Error(
           `source catalog changed during TCGCSV preflight for ${prepared.packProduct.set_name}; refusing stale refresh`
+        );
+      }
+      const currentPackTcg = latestPackObservation(db, prepared.packProduct.id, "tcgplayer", input.observedDate);
+      const currentCarddistro = latestPackObservation(db, prepared.packProduct.id, "carddistro", input.observedDate);
+      if (
+        currentPackTcg?.id !== prepared.packTcgObservation?.id
+        || currentPackTcg?.pricePerPackCents !== prepared.packTcgObservation?.pricePerPackCents
+        || currentCarddistro?.id !== prepared.carddistroObservation?.id
+        || currentCarddistro?.pricePerPackCents !== prepared.carddistroObservation?.pricePerPackCents
+      ) {
+        throw new Error(
+          `pack benchmark changed during TCGCSV preflight for ${prepared.packProduct.set_name}; refusing stale valuation`
         );
       }
     }
 
     let catalogUpserts = 0;
     let valueInserts = 0;
+    let valueUpdates = 0;
     for (const prepared of preparedSets) {
       db.prepare(`UPDATE pk_source_products SET active=0, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE pack_product_id=?`)
         .run(prepared.packProduct.id);
@@ -560,14 +713,40 @@ export async function refreshSourceProducts(input: {
         if (value === null) continue;
         const sourceProduct = db.prepare(`SELECT id FROM pk_source_products WHERE tcgplayer_product_id = ?`)
           .get(product.productId) as { id: number };
-        const insert = db.prepare(
+        const existingValue = db.prepare(
+          `SELECT id FROM pk_source_product_values WHERE source_product_id=? AND observed_date=?`
+        ).get(sourceProduct.id, input.observedDate) as { id: number } | undefined;
+        const write = db.prepare(
           `INSERT INTO pk_source_product_values
              (source_product_id, observed_date, pack_count, tcg_market_cents,
               tcg_low_cents, tcg_high_cents, pack_tcg_cents, carddistro_cents,
               benchmark_ppp_cents, low_total_cents, medium_total_cents,
               high_total_cents, methodology)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(source_product_id, observed_date) DO NOTHING`
+           ON CONFLICT(source_product_id, observed_date) DO UPDATE SET
+             pack_count = excluded.pack_count,
+             tcg_market_cents = excluded.tcg_market_cents,
+             tcg_low_cents = excluded.tcg_low_cents,
+             tcg_high_cents = excluded.tcg_high_cents,
+             pack_tcg_cents = excluded.pack_tcg_cents,
+             carddistro_cents = excluded.carddistro_cents,
+             benchmark_ppp_cents = excluded.benchmark_ppp_cents,
+             low_total_cents = excluded.low_total_cents,
+             medium_total_cents = excluded.medium_total_cents,
+             high_total_cents = excluded.high_total_cents,
+             methodology = excluded.methodology
+           WHERE ? = 1
+             AND (pk_source_product_values.pack_count IS NOT excluded.pack_count
+              OR pk_source_product_values.tcg_market_cents IS NOT excluded.tcg_market_cents
+              OR pk_source_product_values.tcg_low_cents IS NOT excluded.tcg_low_cents
+              OR pk_source_product_values.tcg_high_cents IS NOT excluded.tcg_high_cents
+              OR pk_source_product_values.pack_tcg_cents IS NOT excluded.pack_tcg_cents
+              OR pk_source_product_values.carddistro_cents IS NOT excluded.carddistro_cents
+              OR pk_source_product_values.benchmark_ppp_cents IS NOT excluded.benchmark_ppp_cents
+              OR pk_source_product_values.low_total_cents IS NOT excluded.low_total_cents
+              OR pk_source_product_values.medium_total_cents IS NOT excluded.medium_total_cents
+              OR pk_source_product_values.high_total_cents IS NOT excluded.high_total_cents
+              OR pk_source_product_values.methodology IS NOT excluded.methodology)`
         ).run(
           sourceProduct.id,
           input.observedDate,
@@ -582,8 +761,12 @@ export async function refreshSourceProducts(input: {
           value.targets.mediumTotalCents,
           value.targets.highTotalCents,
           "Pack-only acquisition targets: low/medium/high are 25%/20%/15% below the lower of TCGplayer loose-pack market and Carddistro cost. Promos/accessories=$0.",
+          mayUpdateCurrentSnapshot ? 1 : 0,
         );
-        valueInserts += insert.changes;
+        if (write.changes) {
+          if (existingValue) valueUpdates += 1;
+          else valueInserts += 1;
+        }
       }
     }
 
@@ -591,22 +774,30 @@ export async function refreshSourceProducts(input: {
     // IDs active for every set. Any cross-set conflict or count drift rolls back
     // the entire all-set transaction.
     for (const prepared of preparedSets) {
-      const active = db.prepare(
-        `SELECT COUNT(*) AS total, COUNT(DISTINCT tcgplayer_product_id) AS distinct_ids
-         FROM pk_source_products
-         WHERE pack_product_id=? AND active=1`
-      ).get(prepared.packProduct.id) as { total: number; distinct_ids: number };
-      if (active.total !== prepared.products.length || active.distinct_ids !== prepared.products.length) {
+      const actualRows = activeCatalogRows(db, prepared.packProduct.id);
+      const expectedRows = prepared.products
+        .map(({ product, classified, sourceUrl }): ActiveCatalogRow => ({
+          tcgplayer_product_id: product.productId,
+          name: product.name,
+          form: classified.form,
+          pack_count: classified.packCount,
+          tcgplayer_url: sourceUrl,
+          pack_count_source_url: sourceUrl,
+          pack_count_note: classified.packCountNote,
+        }))
+        .sort((a, b) => a.tcgplayer_product_id - b.tcgplayer_product_id);
+      if (catalogFingerprint(actualRows) !== catalogFingerprint(expectedRows)) {
         throw new Error(
-          `post-write source catalog invariant failed for ${prepared.packProduct.set_name}: expected ${prepared.products.length} distinct active products, found ${active.distinct_ids} distinct across ${active.total} active rows`
+          `post-write source catalog invariant failed for ${prepared.packProduct.set_name}: active catalog does not exactly match preflighted identities and metadata`
         );
       }
     }
-    return { catalogUpserts, valueInserts };
-  })();
+    return { catalogUpserts, valueInserts, valueUpdates };
+  }).immediate();
 
   result.productsSeen = preparedSets.reduce((total, prepared) => total + prepared.products.length, 0);
   result.catalogUpserts = mutationCounts.catalogUpserts;
   result.valueInserts = mutationCounts.valueInserts;
+  result.valueUpdates = mutationCounts.valueUpdates;
   return result;
 }

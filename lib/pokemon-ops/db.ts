@@ -191,35 +191,97 @@ export function updateProductFields(id: number, patch: ProductPatch): PkProduct 
 
 export function insertPriceObservation(
   input: NewPriceObservation
-): { id: number | null; inserted: boolean } {
+): { id: number | null; inserted: boolean; updated: boolean } {
   assertEnum(input.source, OBSERVATION_SOURCES, "observation source");
   assertDate(input.observed_date, "observed_date");
   assertInt(input.price_per_pack_cents, "price_per_pack_cents");
+  const values = {
+    lotSize: input.lot_size ?? null,
+    totalCostCents: input.total_cost_cents ?? null,
+    includesShipping: input.includes_shipping ?? null,
+    includesTax: input.includes_tax ?? null,
+    listingRef: (input.listing_ref ?? "").trim(),
+    quantityAvailable: input.quantity_available ?? null,
+    notes: input.notes ?? null,
+  };
   return immediate(() => {
-    const res = getDb()
+    const db = getDb();
+    const res = db
       .prepare(
         `INSERT OR IGNORE INTO pk_price_observations
            (observed_date, source, product_id, price_per_pack_cents, lot_size,
             total_cost_cents, includes_shipping, includes_tax, listing_ref,
-            quantity_available, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            quantity_available, notes, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`
       )
       .run(
         input.observed_date,
         input.source,
         input.product_id,
         input.price_per_pack_cents,
-        input.lot_size ?? null,
-        input.total_cost_cents ?? null,
-        input.includes_shipping ?? null,
-        input.includes_tax ?? null,
-        (input.listing_ref ?? "").trim(),
-        input.quantity_available ?? null,
-        input.notes ?? null
+        values.lotSize,
+        values.totalCostCents,
+        values.includesShipping,
+        values.includesTax,
+        values.listingRef,
+        values.quantityAvailable,
+        values.notes
       );
-    return res.changes === 1
-      ? { id: Number(res.lastInsertRowid), inserted: true }
-      : { id: null, inserted: false };
+    if (res.changes === 1) {
+      return { id: Number(res.lastInsertRowid), inserted: true, updated: false };
+    }
+
+    const existing = db.prepare(
+      `SELECT id, price_per_pack_cents, lot_size, total_cost_cents,
+              includes_shipping, includes_tax, quantity_available, notes
+         FROM pk_price_observations
+        WHERE source=? AND listing_ref=? AND observed_date=? AND product_id=?`
+    ).get(input.source, values.listingRef, input.observed_date, input.product_id) as {
+      id: number;
+      price_per_pack_cents: number;
+      lot_size: number | null;
+      total_cost_cents: number | null;
+      includes_shipping: number | null;
+      includes_tax: number | null;
+      quantity_available: number | null;
+      notes: string | null;
+    } | undefined;
+
+    // Exact reruns dedupe forever. During the current UTC day only, benchmark
+    // collectors may correct a stable listing in place so downstream buy levels
+    // can reprice immediately; prior dated observations remain immutable.
+    const utcToday = new Date().toISOString().slice(0, 10);
+    const mutableCurrentBenchmark = input.observed_date === utcToday
+      && (input.source === "tcgplayer" || input.source === "carddistro");
+    const changed = existing && (
+      existing.price_per_pack_cents !== input.price_per_pack_cents
+      || existing.lot_size !== values.lotSize
+      || existing.total_cost_cents !== values.totalCostCents
+      || existing.includes_shipping !== values.includesShipping
+      || existing.includes_tax !== values.includesTax
+      || existing.quantity_available !== values.quantityAvailable
+      || existing.notes !== values.notes
+    );
+    if (existing && mutableCurrentBenchmark && changed) {
+      db.prepare(
+        `UPDATE pk_price_observations
+            SET price_per_pack_cents=?, lot_size=?, total_cost_cents=?,
+                includes_shipping=?, includes_tax=?, quantity_available=?, notes=?,
+                updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+          WHERE id=?`
+      ).run(
+        input.price_per_pack_cents,
+        values.lotSize,
+        values.totalCostCents,
+        values.includesShipping,
+        values.includesTax,
+        values.quantityAvailable,
+        values.notes,
+        existing.id,
+      );
+      return { id: existing.id, inserted: false, updated: true };
+    }
+    return { id: null, inserted: false, updated: false };
   });
 }
 

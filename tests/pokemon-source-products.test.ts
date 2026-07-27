@@ -251,6 +251,170 @@ test("duplicate or non-positive TCGCSV product IDs are rejected before coverage 
   assert.deepEqual(snapshot(), before);
 });
 
+test("same-day source price changes reprice buy levels while prior dated snapshots remain unchanged", async () => {
+  const { refreshSourceProducts } = await sourceProducts();
+  const { getDb } = await import("@/db");
+  const db = getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const previousDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const fixtureDir = path.join(tmpDir, "same-day-repricing-fixtures");
+  fs.mkdirSync(fixtureDir);
+
+  db.exec(`
+    DELETE FROM pk_source_product_values;
+    DELETE FROM pk_source_products;
+    DELETE FROM pk_price_observations;
+    DELETE FROM pk_products;
+  `);
+  const packId = Number(db.prepare(
+    `INSERT INTO pk_products (set_name, display_name) VALUES ('Journey Together', 'Journey Together Booster')`
+  ).run().lastInsertRowid);
+  const insertObservation = db.prepare(
+    `INSERT INTO pk_price_observations
+       (observed_date, source, product_id, price_per_pack_cents, listing_ref)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  insertObservation.run(previousDate, "tcgplayer", packId, 1000, "tcg-prior");
+  insertObservation.run(previousDate, "carddistro", packId, 1100, "card-prior");
+
+  fs.writeFileSync(path.join(fixtureDir, "24073_products.json"), JSON.stringify({
+    results: [{
+      productId: 9301,
+      name: "Journey Together Booster Bundle",
+      url: "https://example.com/9301",
+    }],
+  }));
+  fs.writeFileSync(path.join(fixtureDir, "24073_prices.json"), JSON.stringify({
+    results: [{ productId: 9301, lowPrice: 50, highPrice: 70, marketPrice: 60 }],
+  }));
+
+  const first = await refreshSourceProducts({ observedDate: previousDate, fixtureDir });
+  assert.equal(first.valueInserts, 1);
+
+  insertObservation.run(today, "tcgplayer", packId, 900, "tcg-today-stable");
+  insertObservation.run(today, "carddistro", packId, 1050, "card-today");
+  const expectedTcgCsv = path.join(fixtureDir, "expected-tcg.csv");
+  const writeExpectedTcg = (price: string) => fs.writeFileSync(expectedTcgCsv, [
+    "observed_date,source,set_name,form,price_per_pack_usd,lot_size,includes_shipping,includes_tax,listing_ref,notes",
+    `${today},tcgplayer,Journey Together,booster,${price},,,,tcg-today-stable,`,
+    "",
+  ].join("\n"));
+  writeExpectedTcg("9.00");
+  const nextDay = await refreshSourceProducts({
+    observedDate: today,
+    fixtureDir,
+    expectedBenchmarkCsv: { tcgplayer: expectedTcgCsv },
+  });
+  assert.equal(nextDay.valueInserts, 1);
+  const { validateSourceProductValuationCoverage } = await import("@/scripts/pokemon-benchmark-coverage");
+  assert.doesNotThrow(() => validateSourceProductValuationCoverage(today));
+
+  const { insertPriceObservation } = await import("@/lib/pokemon-ops/db");
+  const benchmarkCorrection = insertPriceObservation({
+    observed_date: today,
+    source: "tcgplayer",
+    product_id: packId,
+    price_per_pack_cents: 800,
+    listing_ref: "tcg-today-stable",
+  });
+  assert.deepEqual(
+    { inserted: benchmarkCorrection.inserted, updated: benchmarkCorrection.updated },
+    { inserted: false, updated: true },
+  );
+  assert.throws(
+    () => validateSourceProductValuationCoverage(today),
+    /source-product valuation values are stale/,
+  );
+  await assert.rejects(
+    refreshSourceProducts({
+      observedDate: today,
+      fixtureDir,
+      expectedBenchmarkCsv: { tcgplayer: expectedTcgCsv },
+    }),
+    /benchmark changed after import verification/,
+  );
+  writeExpectedTcg("8.00");
+  const repriced = await refreshSourceProducts({
+    observedDate: today,
+    fixtureDir,
+    expectedBenchmarkCsv: { tcgplayer: expectedTcgCsv },
+  });
+  assert.equal(repriced.valueInserts, 0);
+  assert.equal((repriced as { valueUpdates?: number }).valueUpdates, 1);
+  assert.doesNotThrow(() => validateSourceProductValuationCoverage(today));
+
+  const benchmarkReversion = insertPriceObservation({
+    observed_date: today,
+    source: "tcgplayer",
+    product_id: packId,
+    price_per_pack_cents: 900,
+    listing_ref: "tcg-today-stable",
+  });
+  assert.equal(benchmarkReversion.updated, true);
+  assert.throws(
+    () => validateSourceProductValuationCoverage(today),
+    /source-product valuation values are stale/,
+  );
+  await assert.rejects(
+    refreshSourceProducts({
+      observedDate: today,
+      fixtureDir,
+      expectedBenchmarkCsv: { tcgplayer: expectedTcgCsv },
+    }),
+    /benchmark changed after import verification/,
+  );
+  writeExpectedTcg("9.00");
+  const reverted = await refreshSourceProducts({
+    observedDate: today,
+    fixtureDir,
+    expectedBenchmarkCsv: { tcgplayer: expectedTcgCsv },
+  });
+  assert.equal(reverted.valueUpdates, 1);
+  assert.doesNotThrow(() => validateSourceProductValuationCoverage(today));
+
+  // Historical snapshots are immutable even when a newer backfilled observation
+  // for that old date appears later.
+  insertObservation.run(previousDate, "tcgplayer", packId, 700, "tcg-prior-late");
+  const historicalRerun = await refreshSourceProducts({ observedDate: previousDate, fixtureDir });
+  assert.equal(historicalRerun.valueInserts, 0);
+  assert.equal((historicalRerun as { valueUpdates?: number }).valueUpdates, 0);
+
+  const rows = db.prepare(
+    `SELECT observed_date, pack_tcg_cents, carddistro_cents, benchmark_ppp_cents,
+            low_total_cents, medium_total_cents, high_total_cents
+       FROM pk_source_product_values
+      ORDER BY observed_date`
+  ).all() as Array<{
+    observed_date: string;
+    pack_tcg_cents: number;
+    carddistro_cents: number;
+    benchmark_ppp_cents: number;
+    low_total_cents: number;
+    medium_total_cents: number;
+    high_total_cents: number;
+  }>;
+  assert.deepEqual(rows, [
+    {
+      observed_date: previousDate,
+      pack_tcg_cents: 1000,
+      carddistro_cents: 1100,
+      benchmark_ppp_cents: 1000,
+      low_total_cents: 4500,
+      medium_total_cents: 4800,
+      high_total_cents: 5100,
+    },
+    {
+      observed_date: today,
+      pack_tcg_cents: 900,
+      carddistro_cents: 1050,
+      benchmark_ppp_cents: 900,
+      low_total_cents: 4050,
+      medium_total_cents: 4320,
+      high_total_cents: 4590,
+    },
+  ]);
+});
+
 test("TCGCSV fetch timeout configuration must be a bounded positive integer", async () => {
   const { refreshSourceProducts } = await sourceProducts();
   await assert.rejects(

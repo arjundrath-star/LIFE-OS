@@ -32,7 +32,7 @@ export function sourcingOperations() {
            (SELECT o.observed_date FROM pk_price_observations o
              WHERE o.product_id=p.id AND o.source='tcgplayer'
              ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS tcgplayer_observed_date,
-           (SELECT o.created_at FROM pk_price_observations o
+           (SELECT COALESCE(o.updated_at,o.created_at) FROM pk_price_observations o
              WHERE o.product_id=p.id AND o.source='tcgplayer'
              ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS tcgplayer_observed_at,
            (SELECT o.price_per_pack_cents FROM pk_price_observations o
@@ -41,7 +41,7 @@ export function sourcingOperations() {
            (SELECT o.observed_date FROM pk_price_observations o
              WHERE o.product_id=p.id AND o.source='carddistro'
              ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS carddistro_observed_date,
-           (SELECT o.created_at FROM pk_price_observations o
+           (SELECT COALESCE(o.updated_at,o.created_at) FROM pk_price_observations o
              WHERE o.product_id=p.id AND o.source='carddistro'
              ORDER BY o.observed_date DESC,o.id DESC LIMIT 1) AS carddistro_observed_at
       FROM pk_products p

@@ -83,7 +83,9 @@ printf 'npx %s\n' "$*" >>"$FAKE_COMMAND_LOG"
 args=" $* "
 if [[ "$args" == *' --mode csv '* && "$args" == *' --source tcgplayer '* ]]; then
   rc=${FAKE_TCG_CSV_COVERAGE_RC:-0}
-elif [[ "$args" == *' --mode db '* ]]; then
+elif [[ "$args" == *' --mode db '* && "$args" == *' --source carddistro '* ]]; then
+  rc=${FAKE_CARDDISTRO_DB_COVERAGE_RC:-0}
+elif [[ "$args" == *' --mode db '* && "$args" == *' --source tcgplayer '* ]]; then
   rc=${FAKE_TCG_DB_COVERAGE_RC:-0}
 elif [[ "$args" == *' --mode values '* ]]; then
   rc=${FAKE_VALUATION_COVERAGE_RC:-0}
@@ -120,6 +122,7 @@ run_case() {
   local carddistro_collector_rc=$6 carddistro_coverage_rc=${7:-0} carddistro_import_rc=${8:-0}
   local tcg_collector_sleep=${9:-0} tcg_collect_timeout=${10:-30s} pointer_mode=${11:-file}
   local valuation_rc=${12:-0} valuation_coverage_rc=${13:-0}
+  local carddistro_db_coverage_rc=${14:-0}
   local case_dir="$TMP_ROOT/$name"
   local successful_pointer_sentinel
   mkdir -p "$case_dir/repo" "$case_dir/archive"
@@ -159,6 +162,7 @@ run_case() {
     FAKE_CARDDISTRO_COLLECTOR_RC="$carddistro_collector_rc" \
     FAKE_CARDDISTRO_COVERAGE_RC="$carddistro_coverage_rc" \
     FAKE_CARDDISTRO_IMPORT_RC="$carddistro_import_rc" \
+    FAKE_CARDDISTRO_DB_COVERAGE_RC="$carddistro_db_coverage_rc" \
     FAKE_VALUATION_RC="$valuation_rc" \
     FAKE_VALUATION_COVERAGE_RC="$valuation_coverage_rc" \
     bash "$WORKER" >"$case_dir/stdout.log" 2>"$case_dir/stderr.log"
@@ -215,6 +219,7 @@ assert_no_valuation "$CASE_DIR/commands.log"
 
 run_case valuation-failure 0 0 0 0 0 0 0 0 30s file 8 0
 [[ "$CASE_RC" -eq 14 ]] || fail "valuation failure exit=$CASE_RC, expected=14"
+grep -Eq 'pokemon:source-products .*--expected-tcg-csv .*tcgplayer\.csv .*--expected-carddistro-csv .*carddistro\.csv' "$CASE_DIR/commands.log" || fail "valuation was not bound to both successfully imported benchmark CSVs"
 assert_status "$CASE_DIR/archive/valuation-failure/run-summary.json" failed
 assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
 assert_successful_pointer_unchanged
@@ -227,12 +232,17 @@ assert_successful_pointer_unchanged
 
 assert_carddistro_degraded_case() {
   local name=$1 collector_rc=$2 coverage_rc=$3 import_rc=$4 expected_import_state=$5
-  run_case "$name" 0 0 0 0 "$collector_rc" "$coverage_rc" "$import_rc"
+  local db_coverage_rc=${6:-0}
+  run_case "$name" 0 0 0 0 "$collector_rc" "$coverage_rc" "$import_rc" 0 30s file 0 0 "$db_coverage_rc"
   [[ "$CASE_RC" -eq 0 ]] || fail "$name exit=$CASE_RC, expected=0"
   assert_status "$CASE_DIR/archive/$name/run-summary.json" degraded
   assert_status "$CASE_DIR/archive/latest-run.json" degraded
   assert_status "$CASE_DIR/archive/latest-successful-run.json" degraded
   grep -Fq 'pokemon:source-products' "$CASE_DIR/commands.log" || fail "valuation did not run after successful mandatory TCGplayer pipeline in $name"
+  grep -Eq 'pokemon:source-products .*--expected-tcg-csv .*tcgplayer\.csv' "$CASE_DIR/commands.log" || fail "valuation was not bound to the mandatory TCGplayer CSV in $name"
+  if grep -Eq 'pokemon:source-products .*--expected-carddistro-csv' "$CASE_DIR/commands.log"; then
+    fail "valuation was incorrectly bound to a CardDistro CSV after CardDistro degraded in $name"
+  fi
   if [[ "$expected_import_state" == "skipped" ]] && grep -Eq '^npm .*import:pokemon-ops .*carddistro\.csv' "$CASE_DIR/commands.log"; then
     fail "CardDistro import ran after an earlier optional failure in $name"
   fi
@@ -249,6 +259,13 @@ assert_carddistro_degraded_case() {
 assert_carddistro_degraded_case carddistro-collector-failure 6 0 0 skipped
 assert_carddistro_degraded_case carddistro-validation-failure 0 6 0 skipped
 assert_carddistro_degraded_case carddistro-import-failure 0 0 6 attempted
+
+run_case carddistro-db-coverage-failure 0 0 0 0 0 0 0 0 30s file 0 0 6
+[[ "$CASE_RC" -eq 16 ]] || fail "CardDistro database coverage failure exit=$CASE_RC, expected=16"
+assert_status "$CASE_DIR/archive/carddistro-db-coverage-failure/run-summary.json" failed
+assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
+assert_successful_pointer_unchanged
+assert_no_valuation "$CASE_DIR/commands.log"
 
 run_case finalizer-success-pointer-failure 0 0 0 0 0 0 0 0 30s directory
 [[ "$CASE_RC" -eq 70 ]] || fail "finalizer pointer failure exit=$CASE_RC, expected=70"
@@ -278,4 +295,4 @@ then
   fail "recovery manifest does not match rewritten failed run artifacts"
 fi
 
-printf 'PASS: mandatory stages fail closed (including timeout), optional CardDistro failures degrade, and finalizer recovery publishes failed exit-70 metadata without advancing latest-successful\n'
+printf 'PASS: mandatory stages and post-import verification fail closed (including timeout), pre-import optional CardDistro failures degrade, and finalizer recovery publishes failed exit-70 metadata without advancing latest-successful\n'

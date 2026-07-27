@@ -207,8 +207,8 @@ fi
 if ! run_with_timeout "$IMPORT_TIMEOUT" "$NPM_BIN" run --silent import:pokemon-ops -- observations "$TCG_CSV" >"$RUN_DIR/tcgplayer-import.log" 2>&1; then
   TCG_STATUS="failed"; TCG_DETAIL="observation import failed transactionally or exceeded ${IMPORT_TIMEOUT}"; exit 12
 fi
-if ! run_with_timeout "$DB_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SCRIPT" --mode db --date "$OBSERVED_DATE" >"$RUN_DIR/tcgplayer-db-coverage.json" 2>"$RUN_DIR/tcgplayer-db-coverage.log"; then
-  TCG_STATUS="failed"; TCG_DETAIL="post-import database coverage failed or exceeded ${DB_COVERAGE_TIMEOUT}"; exit 13
+if ! run_with_timeout "$DB_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SCRIPT" --mode db --source tcgplayer --date "$OBSERVED_DATE" --file "$TCG_CSV" >"$RUN_DIR/tcgplayer-db-coverage.json" 2>"$RUN_DIR/tcgplayer-db-coverage.log"; then
+  TCG_STATUS="failed"; TCG_DETAIL="post-import database values did not match the collected CSV or validation exceeded ${DB_COVERAGE_TIMEOUT}"; exit 13
 fi
 TCG_STATUS="completed"
 TCG_DETAIL="complete mapped-set TCGplayer observations imported and verified"
@@ -231,9 +231,13 @@ if [[ -n "${POKEMON_BENCHMARK_CARDDISTRO_COLLECTOR:-}" ]]; then
     CARDDISTRO_STATUS="failed"
     CARDDISTRO_DETAIL="transactional import failed or exceeded ${IMPORT_TIMEOUT}; prior valid observations retained"
     DEGRADED=1
+  elif ! run_with_timeout "$DB_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SCRIPT" --mode db --source carddistro --date "$OBSERVED_DATE" --file "$CARDDISTRO_CSV" >"$RUN_DIR/carddistro-db-coverage.json" 2>"$RUN_DIR/carddistro-db-coverage.log"; then
+    CARDDISTRO_STATUS="failed"
+    CARDDISTRO_DETAIL="post-import database values did not match the collected CSV or validation exceeded ${DB_COVERAGE_TIMEOUT}; refusing valuation from unverified input"
+    exit 16
   else
     CARDDISTRO_STATUS="completed"
-    CARDDISTRO_DETAIL="new CardDistro observations imported"
+    CARDDISTRO_DETAIL="CardDistro observations imported or corrected and verified"
     DEGRADED=0
   fi
 else
@@ -243,7 +247,10 @@ fi
 
 # Valuation fetch/mutation is deliberately last: it cannot run until mandatory
 # TCGplayer collection, import, and database coverage have all succeeded.
-valuation_args=(--date "$OBSERVED_DATE")
+valuation_args=(--date "$OBSERVED_DATE" --expected-tcg-csv "$TCG_CSV")
+if [[ "$CARDDISTRO_STATUS" == "completed" ]]; then
+  valuation_args+=(--expected-carddistro-csv "$CARDDISTRO_CSV")
+fi
 if [[ -n "${POKEMON_BENCHMARK_TCG_FIXTURE_DIR:-}" ]]; then
   valuation_args+=(--fixture-dir "$POKEMON_BENCHMARK_TCG_FIXTURE_DIR")
 fi

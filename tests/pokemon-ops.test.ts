@@ -345,7 +345,32 @@ test("observation dedupe: '' listing_ref dedupes; NULL would silently not (regre
   };
   assert.equal(ops.insertPriceObservation(input).inserted, true);
   assert.equal(ops.insertPriceObservation(input).inserted, false);
+  const immutableCorrection = ops.insertPriceObservation({ ...input, price_per_pack_cents: 400 });
+  assert.equal(immutableCorrection.updated, false);
   assert.equal(ops.listObservationsForProduct(productId).length, 1);
+  assert.equal(ops.listObservationsForProduct(productId)[0].price_per_pack_cents, 500);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentInput = {
+    observed_date: today,
+    source: "tcgplayer" as const,
+    product_id: productId,
+    price_per_pack_cents: 1000,
+    listing_ref: "https://example.test/stable-market",
+  };
+  const currentFirst = ops.insertPriceObservation(currentInput);
+  assert.equal(currentFirst.inserted, true);
+  assert.equal(currentFirst.updated, false);
+  assert.ok(currentFirst.id);
+  const currentCorrection = ops.insertPriceObservation({ ...currentInput, price_per_pack_cents: 800 });
+  assert.equal(currentCorrection.inserted, false);
+  assert.equal(currentCorrection.updated, true);
+  assert.equal(ops.insertPriceObservation({ ...currentInput, price_per_pack_cents: 800 }).updated, false);
+  const currentRows = ops.listObservationsForProduct(productId).filter(
+    (row) => row.observed_date === today && row.source === "tcgplayer",
+  );
+  assert.equal(currentRows.length, 1);
+  assert.equal(currentRows[0].price_per_pack_cents, 800);
 
   // Why listing_ref is NOT NULL DEFAULT '': with a nullable column, SQLite treats
   // NULLs as distinct in UNIQUE — two identical rows both land and dedupe is dead.
@@ -393,8 +418,8 @@ test("sales dedupe: partial index catches lynx/sqs; manual '' rows never collide
   assert.equal(rows.length, 3);
 });
 
-test("importer: exact USD→cents, receipt-gated rerun, unknown set name is a hard error", async () => {
-  const { ops, importer } = await mods();
+test("importer: exact USD→cents, receipt provenance, same-day A→B→A, and unknown-set rejection", async () => {
+  const { ops, importer, db } = await mods();
   ops.ensureProduct({ set_name: "Importer Set", form: "booster", tier: "mid" });
   const header =
     "observed_date,source,set_name,form,price_per_pack_usd,lot_size,includes_shipping,includes_tax,listing_ref,notes";
@@ -406,19 +431,88 @@ test("importer: exact USD→cents, receipt-gated rerun, unknown set name is a ha
 
   const first = importer.importCarddistroCsv(csvPath);
   assert.equal(first.imported, 1);
+  assert.equal(first.updated, 0);
   assert.equal(first.skipped, 0);
   assert.equal(first.receipt.kind, "carddistro");
   assert.equal(first.receipt.row_count, 1);
   const productId = ops.getProductBySetName("Importer Set")!.id;
   assert.equal(ops.listObservationsForProduct(productId)[0].price_per_pack_cents, 1241);
 
-  // Same bytes again → whole file skipped, prior receipt returned, no new rows.
+  // Same bytes again dedupe at row level; the original provenance receipt is returned.
   const second = importer.importCarddistroCsv(csvPath);
   assert.equal(second.imported, 0);
+  assert.equal(second.updated, 0);
   assert.equal(second.skipped, 1);
   assert.equal(second.receipt.sha256, first.receipt.sha256);
   assert.equal(second.receipt.imported_at, first.receipt.imported_at);
   assert.equal(ops.listObservationsForProduct(productId).length, 1);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentPath = path.join(tmpDir, "importer-current.csv");
+  fs.writeFileSync(
+    currentPath,
+    `${header}\n${today},carddistro,Importer Set,booster,13.00,,,,https://example.test/stable-supplier,current\n`
+  );
+  const currentFirst = importer.importCarddistroCsv(currentPath);
+  assert.deepEqual(
+    { imported: currentFirst.imported, updated: currentFirst.updated, skipped: currentFirst.skipped },
+    { imported: 1, updated: 0, skipped: 0 },
+  );
+  fs.writeFileSync(
+    currentPath,
+    `${header}\n${today},carddistro,Importer Set,booster,10.00,,,,https://example.test/stable-supplier,current\n`
+  );
+  const currentChanged = importer.importCarddistroCsv(currentPath);
+  assert.deepEqual(
+    { imported: currentChanged.imported, updated: currentChanged.updated, skipped: currentChanged.skipped },
+    { imported: 0, updated: 1, skipped: 0 },
+  );
+  const currentRows = ops.listObservationsForProduct(productId).filter(
+    (row) => row.observed_date === today && row.source === "carddistro",
+  );
+  assert.equal(currentRows.length, 1);
+  assert.equal(currentRows[0].price_per_pack_cents, 1000);
+
+  // A genuine same-day return to the original payload must not be blocked just
+  // because that payload's SHA receipt already exists (A→B→A regression).
+  fs.writeFileSync(
+    currentPath,
+    `${header}\n${today},carddistro,Importer Set,booster,13.00,,,,https://example.test/stable-supplier,current\n`
+  );
+  const currentReverted = importer.importCarddistroCsv(currentPath);
+  assert.deepEqual(
+    { imported: currentReverted.imported, updated: currentReverted.updated, skipped: currentReverted.skipped },
+    { imported: 0, updated: 1, skipped: 0 },
+  );
+  assert.equal(
+    ops.listObservationsForProduct(productId).find(
+      (row) => row.observed_date === today && row.source === "carddistro",
+    )?.price_per_pack_cents,
+    1300,
+  );
+  const { validateImportedBenchmarkRows } = await import("@/scripts/pokemon-benchmark-coverage");
+  const revertedRows = importer.parseCarddistroCsv(fs.readFileSync(currentPath, "utf8"));
+  assert.doesNotThrow(() => validateImportedBenchmarkRows(revertedRows, {
+    source: "carddistro",
+    observedDate: today,
+    requireComplete: false,
+  }));
+  db.getDb().prepare(
+    `UPDATE pk_price_observations SET includes_shipping=1
+      WHERE product_id=? AND source='carddistro' AND observed_date=? AND listing_ref=?`,
+  ).run(productId, today, "https://example.test/stable-supplier");
+  assert.throws(
+    () => validateImportedBenchmarkRows(revertedRows, {
+      source: "carddistro",
+      observedDate: today,
+      requireComplete: false,
+    }),
+    /do not match collected CSV/,
+  );
+  db.getDb().prepare(
+    `UPDATE pk_price_observations SET includes_shipping=NULL
+      WHERE product_id=? AND source='carddistro' AND observed_date=? AND listing_ref=?`,
+  ).run(productId, today, "https://example.test/stable-supplier");
 
   const badPath = path.join(tmpDir, "importer-bad.csv");
   fs.writeFileSync(

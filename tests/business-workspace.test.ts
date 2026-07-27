@@ -59,7 +59,7 @@ test("Sourcing exposes dated sealed-product pack economics and coverage", () => 
   assert.match(operator, /tcgplayer_observed_at/);
   assert.match(operator, /carddistro_observed_date/);
   assert.match(operator, /carddistro_observed_at/);
-  assert.match(operator, /SELECT o\.created_at/);
+  assert.match(operator, /COALESCE\(o\.updated_at,o\.created_at\)/, "same-day corrections expose their actual refresh timestamp");
   assert.match(operator, /sourceProductBenchmarks/);
   assert.match(operator, /sourceProductCoverage/);
 });

@@ -5,9 +5,11 @@
 // - file level: sha256 of the raw bytes gets a pk_import_receipts row in the same
 //   IMMEDIATE transaction as the inserts; a known fingerprint skips the whole file
 //   and returns the prior receipt;
-// - row level: INSERT OR IGNORE against UNIQUE(source, listing_ref, observed_date,
-//   product_id), with listing_ref normalized to '' (never NULL — NULL-in-UNIQUE
-//   silently disables dedupe).
+// - row level: exact reruns dedupe against UNIQUE(source, listing_ref,
+//   observed_date, product_id). A changed TCGplayer/CardDistro payload for UTC
+//   today updates that current-day row so dependent buy levels can reprice;
+//   prior dates remain immutable. listing_ref is normalized to '' (never NULL —
+//   NULL-in-UNIQUE silently disables dedupe).
 // Canonical-name rule: an unknown set_name is a hard error listing valid names;
 // products are never auto-created here.
 import crypto from "node:crypto";
@@ -50,6 +52,7 @@ export interface CarddistroRow {
 
 export interface CarddistroImportResult {
   imported: number;
+  updated: number;
   skipped: number;
   receipt: PkImportReceipt;
 }
@@ -102,14 +105,14 @@ export function usdToCents(usd: string): number {
   return Math.round(n * 100);
 }
 
-function parseFlag(value: string, label: string): 0 | 1 | null {
+export function parseFlag(value: string, label: string): 0 | 1 | null {
   if (value === "") return null;
   if (value === "0") return 0;
   if (value === "1") return 1;
   throw new Error(`bad ${label}: "${value}" (expected '', 0 or 1)`);
 }
 
-function parseOptionalInt(value: string, label: string): number | null {
+export function parseOptionalInt(value: string, label: string): number | null {
   if (value === "") return null;
   const n = Number(value);
   if (!Number.isInteger(n)) throw new Error(`bad ${label}: "${value}"`);
@@ -123,15 +126,11 @@ export function importCarddistroCsv(filePath: string): CarddistroImportResult {
   const rows = parseCarddistroCsv(bytes.toString("utf8"));
 
   let imported = 0;
+  let updated = 0;
   let skipped = 0;
   let receipt: PkImportReceipt | undefined;
   const tx = getDb().transaction(() => {
     const prior = getImportReceipt(sha256);
-    if (prior) {
-      receipt = prior;
-      skipped = rows.length;
-      return;
-    }
     const products = new Map(listProducts().map((p) => [p.set_name, p.id]));
     for (const row of rows) {
       const productId = products.get(row.set_name);
@@ -155,9 +154,13 @@ export function importCarddistroCsv(filePath: string): CarddistroImportResult {
         notes: row.notes || null,
       });
       if (res.inserted) imported++;
+      else if (res.updated) updated++;
       else skipped++;
     }
-    receipt = insertImportReceipt({
+    // Receipts remain durable provenance, but they cannot be a permanent skip
+    // gate for mutable current-day benchmarks: a real A→B→A market reversion
+    // must apply A again even though that payload hash was seen earlier.
+    receipt = prior ?? insertImportReceipt({
       sha256,
       filename: path.basename(abs),
       kind: "carddistro",
@@ -165,5 +168,5 @@ export function importCarddistroCsv(filePath: string): CarddistroImportResult {
     });
   });
   tx.immediate();
-  return { imported, skipped, receipt: receipt! };
+  return { imported, updated, skipped, receipt: receipt! };
 }
