@@ -52,4 +52,7 @@ elapsed=$(( $(date +%s) - start ))
 (( elapsed < 3 )) || fail "dispatcher timeout was not bounded (elapsed=${elapsed}s)"
 grep -Fq 'Pokemon benchmark refresh failed (exit 124)' <<<"$output" || fail "timeout alert missing"
 
-printf 'PASS: cron dispatcher is silent on success and propagates bounded worker failures\n'
+grep -Fq 'POKEMON_BENCHMARK_CRON_TIMEOUT:-165s' "$DISPATCHER" || fail "production dispatcher is not bounded below the Hermes three-minute limit"
+grep -Fq 'POKEMON_BENCHMARK_VALUATION_TIMEOUT:-45s' "$DISPATCHER" || fail "dispatcher does not enforce a bounded valuation stage"
+
+printf 'PASS: cron dispatcher is silent on success, bounded below the Hermes limit, and propagates worker failures\n'

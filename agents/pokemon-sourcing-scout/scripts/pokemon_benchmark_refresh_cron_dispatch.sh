@@ -7,11 +7,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER="${POKEMON_BENCHMARK_WORKER:-$SCRIPT_DIR/pokemon_benchmark_refresh.sh}"
 LOCK_FILE="${POKEMON_BENCHMARK_LOCK:-/home/Arjun/.cache/pokemon-benchmark-refresh.lock}"
 TIMEOUT_BIN="${POKEMON_BENCHMARK_TIMEOUT_BIN:-timeout}"
-# The worker's bounded stages can legitimately total about 26 minutes. Keep an
-# outer limit above that budget so the dispatcher remains bounded without
-# killing a healthy run before its own stage deadlines.
-CRON_TIMEOUT="${POKEMON_BENCHMARK_CRON_TIMEOUT:-30m}"
-KILL_AFTER="${POKEMON_BENCHMARK_TIMEOUT_KILL_AFTER:-10s}"
+# Hermes cron hard-interrupts near three minutes. The production dispatcher and
+# every worker stage are therefore explicitly bounded inside that window.
+CRON_TIMEOUT="${POKEMON_BENCHMARK_CRON_TIMEOUT:-165s}"
+KILL_AFTER="${POKEMON_BENCHMARK_TIMEOUT_KILL_AFTER:-5s}"
+export POKEMON_BENCHMARK_TCG_COLLECT_TIMEOUT="${POKEMON_BENCHMARK_TCG_COLLECT_TIMEOUT:-30s}"
+export POKEMON_BENCHMARK_CSV_COVERAGE_TIMEOUT="${POKEMON_BENCHMARK_CSV_COVERAGE_TIMEOUT:-15s}"
+export POKEMON_BENCHMARK_IMPORT_TIMEOUT="${POKEMON_BENCHMARK_IMPORT_TIMEOUT:-20s}"
+export POKEMON_BENCHMARK_DB_COVERAGE_TIMEOUT="${POKEMON_BENCHMARK_DB_COVERAGE_TIMEOUT:-15s}"
+export POKEMON_BENCHMARK_CARDDISTRO_COLLECT_TIMEOUT="${POKEMON_BENCHMARK_CARDDISTRO_COLLECT_TIMEOUT:-15s}"
+export POKEMON_BENCHMARK_VALUATION_TIMEOUT="${POKEMON_BENCHMARK_VALUATION_TIMEOUT:-45s}"
+export POKEMON_BENCHMARK_VALUATION_COVERAGE_TIMEOUT="${POKEMON_BENCHMARK_VALUATION_COVERAGE_TIMEOUT:-15s}"
 mkdir -p "$(dirname "$LOCK_FILE")"
 
 set +e

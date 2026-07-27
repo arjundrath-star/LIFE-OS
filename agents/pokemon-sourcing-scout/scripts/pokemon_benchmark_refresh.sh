@@ -19,6 +19,7 @@ IMPORT_TIMEOUT="${POKEMON_BENCHMARK_IMPORT_TIMEOUT:-2m}"
 DB_COVERAGE_TIMEOUT="${POKEMON_BENCHMARK_DB_COVERAGE_TIMEOUT:-2m}"
 CARDDISTRO_COLLECT_TIMEOUT="${POKEMON_BENCHMARK_CARDDISTRO_COLLECT_TIMEOUT:-5m}"
 VALUATION_TIMEOUT="${POKEMON_BENCHMARK_VALUATION_TIMEOUT:-10m}"
+VALUATION_COVERAGE_TIMEOUT="${POKEMON_BENCHMARK_VALUATION_COVERAGE_TIMEOUT:-2m}"
 TCG_SCRAPER="$REPO_ROOT/agents/pokemon-sourcing-scout/scripts/tcgplayer_scraper.py"
 COVERAGE_SCRIPT="$REPO_ROOT/scripts/pokemon-benchmark-coverage.ts"
 TCG_CSV="$RUN_DIR/tcgplayer.csv"
@@ -251,5 +252,10 @@ if ! run_with_timeout "$VALUATION_TIMEOUT" "$NPM_BIN" run --silent pokemon:sourc
   VALUATION_DETAIL="TCGCSV sealed-product refresh or valuation mutation failed or exceeded ${VALUATION_TIMEOUT}"
   exit 14
 fi
+if ! run_with_timeout "$VALUATION_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SCRIPT" --mode values --date "$OBSERVED_DATE" >"$RUN_DIR/valuation-coverage.json" 2>"$RUN_DIR/valuation-coverage.log"; then
+  VALUATION_STATUS="failed"
+  VALUATION_DETAIL="post-refresh Box Target coverage failed or exceeded ${VALUATION_COVERAGE_TIMEOUT}"
+  exit 15
+fi
 VALUATION_STATUS="completed"
-VALUATION_DETAIL="dated Box Target snapshot refreshed from TCGplayer and newest valid CardDistro observations"
+VALUATION_DETAIL="dated Box Target snapshot refreshed and coverage-verified from TCGplayer and newest valid CardDistro observations"

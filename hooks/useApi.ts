@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-/** One-shot fetch with a manual refetch. For DB-backed panels that update on mutation. */
+/** Fetch with a manual refetch. Refreshes preserve the last good payload to avoid stale-tab flicker. */
 export function useApi<T = any>(url: string): { data: T | null; refetch: () => void; loading: boolean; error: string | null } {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -10,7 +10,6 @@ export function useApi<T = any>(url: string): { data: T | null; refetch: () => v
   const refetch = useCallback(() => setRequest((n) => n + 1), []);
   useEffect(() => {
     const controller = new AbortController();
-    setData(null);
     setError(null);
     setLoading(true);
     fetch(url, { signal: controller.signal })

@@ -47,6 +47,11 @@ test("Sourcing exposes dated sealed-product pack economics and coverage", () => 
   assert.match(workspace, /Low buy/);
   assert.match(workspace, /Medium buy/);
   assert.match(workspace, /High buy/);
+  assert.match(workspace, /Last TCGplayer sync/);
+  assert.match(workspace, /Last CardDistro sync/);
+  assert.match(workspace, /setInterval\(refreshVisible,300_000\)/, "open sourcing tabs refresh automatically");
+  assert.match(workspace, /visibilitychange/, "returning to a stale tab triggers a refresh");
+  assert.match(workspace, /setInterval\(tick,60_000\)/, "elapsed sync ages tick every minute");
   assert.match(operator, /pk_v_source_product_current/);
   assert.match(operator, /MIN\(v\.medium_ppp_cents\)/, "Medium buy level comes from existing MEDIUM values");
   assert.match(workspace, /onClick=\{\(\)=>selectProduct\(row\)\}/, "clicking a product row selects its set and exact per-pack comparison");

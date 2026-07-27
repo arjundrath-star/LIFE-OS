@@ -63,6 +63,33 @@ export function validateImportedTcgplayerCoverage(observedDate: string) {
   return { source: "tcgplayer", observedDate, rowCount: setNames.length, setNames };
 }
 
+export function validateSourceProductValuationCoverage(observedDate: string) {
+  const db = getDb();
+  const expected = db.prepare(
+    `SELECT sp.id, p.set_name
+       FROM pk_source_products sp
+       JOIN pk_products p ON p.id=sp.pack_product_id
+      WHERE sp.active=1
+        AND p.form='booster'
+        AND p.active=1
+        AND EXISTS (
+          SELECT 1 FROM pk_price_observations o
+           WHERE o.product_id=p.id AND o.source='carddistro' AND o.observed_date<=?
+        )
+      ORDER BY p.set_name, sp.id`,
+  ).all(observedDate) as Array<{ id: number; set_name: string }>;
+  if (expected.length === 0) throw new Error("source-product valuation coverage has no active expected products");
+  const valuedIds = new Set((db.prepare(
+    `SELECT source_product_id FROM pk_source_product_values WHERE observed_date=?`,
+  ).all(observedDate) as Array<{ source_product_id: number }>).map((row) => row.source_product_id));
+  const missing = expected.filter((row) => !valuedIds.has(row.id));
+  if (missing.length) {
+    const sets = [...new Set(missing.map((row) => row.set_name))].sort();
+    throw new Error(`source-product valuation coverage mismatch; missing=${missing.length}/${expected.length}, sets=[${sets.join(", ")}]`);
+  }
+  return { source: "source_product_values", observedDate, rowCount: expected.length, missing: 0 };
+}
+
 function valueAfter(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
   return index >= 0 ? process.argv[index + 1] : undefined;
@@ -77,7 +104,11 @@ function main() {
     console.log(JSON.stringify(validateImportedTcgplayerCoverage(observedDate), null, 2));
     return;
   }
-  if (mode !== "csv") throw new Error("--mode must be csv or db");
+  if (mode === "values") {
+    console.log(JSON.stringify(validateSourceProductValuationCoverage(observedDate), null, 2));
+    return;
+  }
+  if (mode !== "csv") throw new Error("--mode must be csv, db, or values");
 
   const file = valueAfter("--file");
   const source = valueAfter("--source");

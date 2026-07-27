@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatObservationAge, sourcePriceComparisonForSet } from "../lib/pokemon-ops/source-price-comparison";
+import { formatObservationAge, latestSourceObservationAt, sourcePriceComparisonForSet } from "../lib/pokemon-ops/source-price-comparison";
 import type { PkSourceProductBenchmark } from "../lib/pokemon-ops/types";
 
 const benchmark: PkSourceProductBenchmark = {
@@ -43,10 +43,20 @@ test("selected set with no read-model row reports each missing value honestly", 
   });
 });
 
-test("freshness is always a numeric hour age from created_at/observed_at", () => {
+test("freshness is a minute-granularity elapsed timer from created_at/observed_at", () => {
   const now = new Date("2026-07-22T12:30:00.000Z");
-  assert.equal(formatObservationAge("2026-07-22T08:00:00.000Z", now), "4 hours behind");
-  assert.equal(formatObservationAge("2026-07-20T04:30:00.000Z", now), "56 hours behind");
-  assert.equal(formatObservationAge("2026-07-22T12:15:00.000Z", now), "0 hours behind");
+  assert.equal(formatObservationAge("2026-07-22T08:00:00.000Z", now), "4h 30m ago");
+  assert.equal(formatObservationAge("2026-07-20T04:30:00.000Z", now), "2d 8h ago");
+  assert.equal(formatObservationAge("2026-07-22T12:15:00.000Z", now), "15m ago");
+  assert.equal(formatObservationAge("2026-07-22T12:29:45.000Z", now), "just now");
+  assert.equal(formatObservationAge("not-a-date", now), "No observation");
   assert.equal(formatObservationAge(null, now), "No observation");
+});
+
+test("latest source sync chooses the newest valid recorded timestamp across sets", () => {
+  const older = { ...benchmark, set_name: "151", tcgplayer_observed_at: "2026-07-22T07:59:00.000Z" };
+  const newer = { ...benchmark, set_name: "White Flare", tcgplayer_observed_at: "2026-07-22T09:15:00.000Z", carddistro_observed_at: null };
+  assert.equal(latestSourceObservationAt([older, benchmark, newer], "tcgplayer"), "2026-07-22T09:15:00.000Z");
+  assert.equal(latestSourceObservationAt([older, benchmark, newer], "carddistro"), "2026-07-20T04:30:00.000Z");
+  assert.equal(latestSourceObservationAt([{ ...benchmark, tcgplayer_observed_at: "invalid" }], "tcgplayer"), null);
 });

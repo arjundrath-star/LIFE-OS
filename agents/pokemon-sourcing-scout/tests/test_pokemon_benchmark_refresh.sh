@@ -85,6 +85,8 @@ if [[ "$args" == *' --mode csv '* && "$args" == *' --source tcgplayer '* ]]; the
   rc=${FAKE_TCG_CSV_COVERAGE_RC:-0}
 elif [[ "$args" == *' --mode db '* ]]; then
   rc=${FAKE_TCG_DB_COVERAGE_RC:-0}
+elif [[ "$args" == *' --mode values '* ]]; then
+  rc=${FAKE_VALUATION_COVERAGE_RC:-0}
 elif [[ "$args" == *' --mode csv '* && "$args" == *' --source carddistro '* ]]; then
   rc=${FAKE_CARDDISTRO_COVERAGE_RC:-0}
 else
@@ -117,6 +119,7 @@ run_case() {
   local name=$1 tcg_collector_rc=$2 tcg_coverage_rc=$3 tcg_import_rc=$4 tcg_db_coverage_rc=$5
   local carddistro_collector_rc=$6 carddistro_coverage_rc=${7:-0} carddistro_import_rc=${8:-0}
   local tcg_collector_sleep=${9:-0} tcg_collect_timeout=${10:-30s} pointer_mode=${11:-file}
+  local valuation_rc=${12:-0} valuation_coverage_rc=${13:-0}
   local case_dir="$TMP_ROOT/$name"
   local successful_pointer_sentinel
   mkdir -p "$case_dir/repo" "$case_dir/archive"
@@ -156,7 +159,8 @@ run_case() {
     FAKE_CARDDISTRO_COLLECTOR_RC="$carddistro_collector_rc" \
     FAKE_CARDDISTRO_COVERAGE_RC="$carddistro_coverage_rc" \
     FAKE_CARDDISTRO_IMPORT_RC="$carddistro_import_rc" \
-    FAKE_VALUATION_RC=0 \
+    FAKE_VALUATION_RC="$valuation_rc" \
+    FAKE_VALUATION_COVERAGE_RC="$valuation_coverage_rc" \
     bash "$WORKER" >"$case_dir/stdout.log" 2>"$case_dir/stderr.log"
   CASE_RC=$?
   set -e
@@ -208,6 +212,18 @@ assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
 assert_json_value "$CASE_DIR/archive/tcg-collector-timeout/run-summary.json" sources.carddistro.status skipped_due_to_prerequisite
 assert_successful_pointer_unchanged
 assert_no_valuation "$CASE_DIR/commands.log"
+
+run_case valuation-failure 0 0 0 0 0 0 0 0 30s file 8 0
+[[ "$CASE_RC" -eq 14 ]] || fail "valuation failure exit=$CASE_RC, expected=14"
+assert_status "$CASE_DIR/archive/valuation-failure/run-summary.json" failed
+assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
+assert_successful_pointer_unchanged
+
+run_case valuation-coverage-failure 0 0 0 0 0 0 0 0 30s file 0 9
+[[ "$CASE_RC" -eq 15 ]] || fail "valuation coverage failure exit=$CASE_RC, expected=15"
+assert_status "$CASE_DIR/archive/valuation-coverage-failure/run-summary.json" failed
+assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
+assert_successful_pointer_unchanged
 
 assert_carddistro_degraded_case() {
   local name=$1 collector_rc=$2 coverage_rc=$3 import_rc=$4 expected_import_state=$5

@@ -17,14 +17,33 @@ export function sourcePriceComparisonForSet(
   };
 }
 
+export type BenchmarkSource = "tcgplayer" | "carddistro";
+
+export function latestSourceObservationAt(
+  benchmarks: PkSourceProductBenchmark[],
+  source: BenchmarkSource,
+): string | null {
+  const key = `${source}_observed_at` as const;
+  return benchmarks.reduce<string | null>((latest, row) => {
+    const candidate = row[key];
+    if (!candidate || !Number.isFinite(Date.parse(candidate))) return latest;
+    if (!latest || Date.parse(candidate) > Date.parse(latest)) return candidate;
+    return latest;
+  }, null);
+}
+
 /**
  * Freshness is based only on the row's created_at timestamp. observed_date is
- * source metadata and must never be interpreted as an exact scrape timestamp.
+ * provenance metadata and must not be treated as a midnight timestamp.
  */
 export function formatObservationAge(observedAt: string | null, now = new Date()): string {
   if (!observedAt) return "No observation";
-  const observed = Date.parse(observedAt);
-  if (!Number.isFinite(observed)) return "Observation date unavailable";
-  const hours = Math.max(0, Math.floor((now.getTime() - observed) / 3_600_000));
-  return `${hours} hour${hours === 1 ? "" : "s"} behind`;
+  const observedMs = Date.parse(observedAt);
+  if (!Number.isFinite(observedMs)) return "No observation";
+  const elapsedMinutes = Math.max(0, Math.floor((now.getTime() - observedMs) / 60_000));
+  if (elapsedMinutes < 1) return "just now";
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h ${elapsedMinutes % 60}m ago`;
+  return `${Math.floor(elapsedHours / 24)}d ${elapsedHours % 24}h ago`;
 }
