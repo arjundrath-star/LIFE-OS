@@ -9,7 +9,7 @@
 
 This agent never contacts venues. It only researches, scores, and prepares review-only outputs for Arjun.
 
-Default Hermes / `hermes-orchestrator` dispatches this worker. Real lead-scout work should run inside the dedicated `pokemon-scout` Hermes profile via `/home/Arjun/.hermes/scripts/pokemon_machines_profile_worker.sh`, not inside the default profile's own conversation state.
+Default Hermes / `hermes-orchestrator` dispatches this worker. Real lead-scout work should run inside the dedicated `pokemon-scout` Hermes profile via `/home/Arjun/.hermes/scripts/pokemon_machines_profile_worker.sh`, which delegates to the versioned background dispatcher at `scripts/pokemon_machines_cron_dispatch.sh`, not inside the default profile's own conversation state.
 
 ## Required skills/context
 

@@ -132,6 +132,11 @@ The durable Rathworkspace manifest and prompt live at:
 /home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/profile-worker-prompt.md
 ```
 
+The thin default-profile cron wrapper delegates to the versioned background
+dispatcher at `agents/pokemon-vending-lead-scout/scripts/pokemon_machines_cron_dispatch.sh`.
+That dispatcher returns after a short startup grace period so Hermes cron does
+not time out while the profile worker finishes the durable field packet.
+
 Its project context lives in `/home/Arjun/command-center/Pokemon Machines`. The scout is review-only: it finds, dedupes, and scores high-traffic impulse locations for Pokemon / trading-card machines, then prepares packets for Arjun. It must not contact venues or modify the initial `Pokemon_Machine_Prospects` sheet without explicit approval.
 
 The event helper is:
