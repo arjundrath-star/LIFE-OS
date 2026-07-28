@@ -28,5 +28,19 @@ jobs:
       - name: Test
         run: npm test
 
+      # Next collects page data at build time, which imports the auth route and
+      # therefore demands the secrets that route requires. These are throwaway
+      # build-time placeholders, not credentials: nothing in CI reaches a real
+      # service, and the running app reads its values from an env file on the host.
       - name: Build
         run: npm run build
+        env:
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: ci-placeholder-not-a-secret
+          GOOGLE_CLIENT_ID: ci-placeholder
+          GOOGLE_CLIENT_SECRET: ci-placeholder
+          GOOGLE_ALLOWED_EMAILS: ci@example.com
+          TOKEN_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+          AGENTMEMORY_SECRET: ci-placeholder
+          WHOOP_CLIENT_ID: ci-placeholder
+          WHOOP_CLIENT_SECRET: ci-placeholder
