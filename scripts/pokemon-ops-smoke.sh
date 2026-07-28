@@ -120,11 +120,22 @@ RESP=$(req_auth GET "/api/pokemon-ops/observations?product_id=$CHAOS_PRODUCT_ID"
 assert_ge1 "observations list has rows" "$(echo "$RESP" | jq '.observations | length')"
 
 echo "== lots =="
+# Benchmark policy (lib/pokemon-ops/db.ts benchmarkForProductAtDate): only
+# external market observations (tcgplayer primary, ebay_sold fallback) define
+# benchmark value. Supplier quotes never do. The seed loads supplier quotes
+# only, so a lot priced before any market observation exists has a null
+# benchmark, and that is the correct answer rather than a missing feature.
 RESP=$(req_auth POST /api/pokemon-ops/lots "{\"purchase_date\":\"2026-07-17\",\"source\":\"ebay_sold\",\"product_id\":$CHAOS_PRODUCT_ID,\"pack_count\":10,\"total_cost_cents\":6000,\"status\":\"in_transit\",\"notes\":\"smoke lot\"}")
 LOT_ID=$(echo "$RESP" | jq -r '.lot.id')
 assert_eq "lot landed_cost_per_pack_cents" "$(echo "$RESP" | jq -r '.lot.landed_cost_per_pack_cents')" "600"
-assert_eq "lot benchmark_price_cents (Chaos Rising @ 7.08 -> 708c)" "$(echo "$RESP" | jq -r '.lot.benchmark_price_cents')" "708"
-assert_eq "lot benchmark_delta_cents" "$(echo "$RESP" | jq -r '.lot.benchmark_delta_cents')" "-108"
+assert_eq "lot benchmark_price_cents is null with no market observation" "$(echo "$RESP" | jq -r '.lot.benchmark_price_cents')" "null"
+assert_eq "lot benchmark_delta_cents is null with no market observation" "$(echo "$RESP" | jq -r '.lot.benchmark_delta_cents')" "null"
+
+# Now record a real market observation and confirm a later lot benchmarks off it.
+req_auth POST /api/pokemon-ops/observations "{\"observed_date\":\"2026-07-17\",\"source\":\"tcgplayer\",\"product_id\":$CHAOS_PRODUCT_ID,\"price_per_pack_cents\":708,\"listing_ref\":\"smoke-mkt-1\"}" >/dev/null
+RESP2=$(req_auth POST /api/pokemon-ops/lots "{\"purchase_date\":\"2026-07-17\",\"source\":\"ebay_sold\",\"product_id\":$CHAOS_PRODUCT_ID,\"pack_count\":10,\"total_cost_cents\":6000,\"status\":\"in_transit\",\"notes\":\"smoke lot benchmarked\"}")
+assert_eq "lot benchmark_price_cents uses tcgplayer market (708c)" "$(echo "$RESP2" | jq -r '.lot.benchmark_price_cents')" "708"
+assert_eq "lot benchmark_delta_cents" "$(echo "$RESP2" | jq -r '.lot.benchmark_delta_cents')" "-108"
 RESP=$(req_auth PATCH /api/pokemon-ops/lots "{\"id\":$LOT_ID,\"status\":\"received\"}")
 assert_eq "lot status transition" "$(echo "$RESP" | jq -r '.lot.status')" "received"
 RESP=$(req_auth GET "/api/pokemon-ops/lots?product_id=$CHAOS_PRODUCT_ID")
