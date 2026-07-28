@@ -1,9 +1,9 @@
-// Import a PeopleFinder CSV export into the Pokemon CRM tables.
+// Import an owner-lookup CSV export into the Pokemon CRM tables.
 // Idempotent: leads upsert on (venue_name, address); contacts matched by (lead_id, name);
 // phones/emails INSERT OR IGNORE on their unique constraints. Re-importing the same file
 // never duplicates rows and never touches stage/active/notes on existing leads.
 //
-//   npm run import-pokemon-crm -- /path/to/peoplefinder.csv
+//   npm run import-pokemon-crm -- /path/to/owner-lookup.csv
 import fs from "node:fs";
 import path from "node:path";
 import { getDb, pushEvent } from "@/db";
@@ -64,7 +64,7 @@ function normPhone(s: string): string {
 
 type Person = { name: string; title: string; phones: string[]; raw: string };
 
-// Cell format: "Jane Doe (Owner)/ (555) 555-0100/ ... | John Roe (Owner)/ ..."
+// Cell format: "Jane Doe (Owner)/ (555) 555-0142/ ... | John Smith (Manager)/ ..."
 function splitDecisionMakers(value: string): Person[] {
   const people: Person[] = [];
   for (const rawPart of (value || "").split(/\s+\|\s+/)) {
@@ -95,7 +95,7 @@ function splitDecisionMakers(value: string): Person[] {
 function main() {
   const csvPath = process.argv[2];
   if (!csvPath) {
-    console.error("usage: npm run import-pokemon-crm -- /path/to/peoplefinder.csv");
+    console.error("usage: npm run import-pokemon-crm -- /path/to/owner-lookup.csv");
     process.exit(1);
   }
   const abs = path.resolve(csvPath);
@@ -117,7 +117,7 @@ function main() {
   const required = ["Location Name", "Mailing Address", "Decision-Makers (Name / Title / Phones)"];
   for (const c of required) {
     if (!header.includes(c)) {
-      console.error(`CSV is missing expected column "${c}" — is this a PeopleFinder export?`);
+      console.error(`CSV is missing expected column "${c}": is this the owner-lookup export format?`);
       process.exit(1);
     }
   }
@@ -282,7 +282,7 @@ function main() {
       }
       if (people.length === 0) warnings.push(`row ${rowNo} (${venueName}): no decision-makers`);
 
-      // Emails: PeopleFinder separates per-contact groups with ";". Map groups to
+      // Emails: the export separates per-contact groups with ";". Map groups to
       // contacts by position when the counts line up; otherwise keep at lead level.
       const emailCell = col(r, "Emails");
       const groups = emailCell

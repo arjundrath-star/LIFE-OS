@@ -1,6 +1,7 @@
-// Hermes gateway adapter. Reads the real /api/status JSON over the tailnet.
-// http://OVERLAY_HOST:9119/api/status is reachable without auth from the box.
-const HERMES_URL = process.env.HERMES_URL || "http://OVERLAY_HOST:9119";
+// Hermes gateway adapter. Polls the gateway's /api/status JSON for process and
+// platform health. HERMES_URL points at the gateway on the private network;
+// the loopback default keeps local dev working without any config.
+const HERMES_URL = process.env.HERMES_URL || "http://127.0.0.1:9119";
 
 export type HermesPlatform = {
   name: string;

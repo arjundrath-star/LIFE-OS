@@ -1,12 +1,12 @@
 # PHASE 5 — Telegram alerts + morning digest (OS cron, no Hermes dependency)
 
 Goal: deterministic alerting. New actionable pk_recommendations and threshold-beating
-price observations reach Arjun's Telegram; a morning digest summarizes state. Runs as
-plain OS cron + bash + curl so it works even if Hermes is down.
+price observations reach the operator's Telegram; a morning digest summarizes state.
+Runs as plain OS cron + bash + curl so it works even if Hermes is down.
 
-Context: PLAN.md §3 alerts; discovery §3 Telegram (bot token in ~/.hermes/.env; curl
-fallback pattern in workspace/scripts/hermes-codex-watchdog.sh; Arjun chat id documented
-there). Recommendations/observations carry alerted_at — alerts are rows, never
+Context: PLAN.md §3 alerts. Bot token and operator chat id come from the environment
+(TELEGRAM_BOT_TOKEN plus the chat id variable); curl fallback pattern per the existing
+watchdog script. Recommendations/observations carry alerted_at — alerts are rows, never
 double-sent.
 
 Work:
@@ -16,7 +16,7 @@ Work:
    `--digest` mode (07:30: KPI summary, days-of-supply spread, open recs count, best
    current offer per product). `--dry-run` prints exact payloads without sending or
    marking.
-2. OS crontab entries (user Arjun) for both modes.
+2. OS crontab entries (deploy user) for both modes.
 3. Fixture tests for message assembly (golden expected payloads from seeded dev data).
 
 Out of scope: Hermes skills/jobs, scanners, Nayax, UI changes.

@@ -6,6 +6,27 @@ import { hasSecret } from "@/lib/secrets";
 export type DiscordDeal = { id:number; source_guild_id:string|null; channel_id:string; message_id:string; product_text:string; price_cents:number|null; url:string|null; observed_at:string; matching_status:string; raw_excerpt:string };
 export function discordDeals(limit = 100): DiscordDeal[] { return all<DiscordDeal>(`SELECT id,source_guild_id,channel_id,message_id,product_text,price_cents,url,observed_at,matching_status,substr(raw_excerpt,1,280) raw_excerpt FROM pk_discord_deals ORDER BY observed_at DESC,id DESC LIMIT ?`, limit); }
 
+// Local retail spot list. The operator's real list lives outside git (it holds
+// store contact details): POKEMON_LOCAL_SPOTS_PATH wins, then the untracked
+// data/ copy, then the checked-in example. Missing everywhere is fine; the
+// monitor just reports an empty list.
+type LocalSpots = { provenance: { checked_at: string | null }; spots: unknown[] };
+function loadLocalSpots(): LocalSpots {
+  const candidates = [
+    process.env.POKEMON_LOCAL_SPOTS_PATH,
+    path.join(process.cwd(), "data/pokemon-local-spots.json"),
+    path.join(process.cwd(), "config/pokemon-local-spots.example.json"),
+  ].filter((p): p is string => !!p);
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(fs.readFileSync(candidate, "utf8"));
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return { provenance: { checked_at: null }, spots: [] };
+}
+
 export function sourcingOperations() {
   const observations = all<any>(`SELECT o.id observation_id,o.product_id,p.set_name,p.display_name,o.source,o.observed_date,o.price_per_pack_cents,o.listing_ref,o.quantity_available,o.notes,b.price_per_pack_cents benchmark_cents,b.source benchmark_source FROM pk_price_observations o JOIN pk_products p ON p.id=o.product_id LEFT JOIN pk_v_benchmark_current b ON b.product_id=o.product_id WHERE o.id=(SELECT o2.id FROM pk_price_observations o2 WHERE o2.product_id=o.product_id AND o2.source=o.source ORDER BY o2.observed_date DESC,o2.id DESC LIMIT 1) ORDER BY o.observed_date DESC,o.id DESC`);
   const config = Object.fromEntries(all<{k:string;v:string}>(`SELECT k,v FROM pk_config`).map(r => [r.k, Number(r.v)]));
@@ -16,7 +37,7 @@ export function sourcingOperations() {
   const bySource = all<any>(`SELECT source,COUNT(*) row_count,MAX(observed_date) latest FROM pk_price_observations GROUP BY source`);
   const sourceMap = new Map(bySource.map(r => [r.source,r]));
   const monitor = (id:string,label:string, sources:string[]) => { const rows=sources.map(s=>sourceMap.get(s)).filter(Boolean); const latest=rows.map((r:any)=>r.latest).sort().at(-1)||null; const age=latest ? Date.now()-Date.parse(latest) : Infinity; return { id,label,configured:rows.length>0,state:rows.length===0?"not_configured":age>7*86400000?"stale":"running",latest,row_count:rows.reduce((n:number,r:any)=>n+r.row_count,0) }; };
-  const local = JSON.parse(fs.readFileSync(path.join(process.cwd(),"config/pokemon-local-spots.json"),"utf8"));
+  const local = loadLocalSpots();
   const discord = discordDeals();
   const sourceProducts = all<any>(`SELECT * FROM pk_v_source_product_current ORDER BY set_name, form, name`);
   // Set-level read model for the comparison strip. observed_date is upstream

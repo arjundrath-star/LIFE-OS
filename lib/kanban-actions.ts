@@ -1,14 +1,21 @@
 import { spawnSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 import { kanbanSnapshot } from "@/lib/kanban";
 
-const HERMES_BIN = process.env.HERMES_BIN || "/home/Arjun/.local/bin/hermes";
-const PATH = `/home/Arjun/.local/bin:${process.env.PATH || ""}`;
+const HOME = os.homedir();
+const LOCAL_BIN = path.join(HOME, ".local", "bin");
+const HERMES_BIN = process.env.HERMES_BIN || path.join(LOCAL_BIN, "hermes");
+// systemd and cron do not inherit a login shell PATH, so user-installed
+// binaries have to be put back on it explicitly.
+const PATH = `${LOCAL_BIN}:${process.env.PATH || ""}`;
+const HERMES_CWD = process.env.HERMES_WORKDIR || path.join(HOME, "command-center");
 
 export type KanbanActionResult = { ok: true; data?: any; snapshot?: any; output?: string } | { ok: false; error: string; output?: string };
 
 function runHermes(args: string[]): { ok: boolean; output: string } {
   const res = spawnSync(HERMES_BIN, args, {
-    cwd: "/home/Arjun/command-center",
+    cwd: HERMES_CWD,
     env: { ...process.env, PATH },
     encoding: "utf8",
     timeout: 120_000,

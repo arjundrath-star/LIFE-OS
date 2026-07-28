@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { secret } from "@/lib/secrets";
 
@@ -19,11 +20,17 @@ export type CrmSheetSource = {
 };
 export type CrmSheetResult = CrmSheetSource & { fields: Array<{ key: keyof CrmSheetRow; label: string }>; rows: CrmSheetRow[]; total: number; limit: number; offset: number };
 
+// CSV exports live outside the repo on the server. CRM_DATA_DIR sets the root
+// (default: <repo>/data/crm); each source can also be pointed at an exact file
+// with its own env var, which wins over the root + documented filename.
+const CRM_DATA_DIR = process.env.CRM_DATA_DIR || path.join(process.cwd(), "data", "crm");
+const csvFile = (envVar: string, filename: string) =>
+  process.env[envVar] || path.join(CRM_DATA_DIR, filename);
 const CSV_SOURCES: Record<Exclude<CrmSourceId, "pokemon-crm" | "misc-leads">, { label: string; file: string }> = {
-  "pokemon-active": { label: "Pokemon Active Leads", file: "/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Active_Leads.csv" },
-  "pokemon-pipeline": { label: "Pokemon Pipeline", file: "/home/Arjun/command-center/Pokemon Machines/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv" },
-  "portable-pipeline": { label: "Portable Charging Pipeline", file: "/home/Arjun/command-center/Portable Charging/Leads/RVH_Charging_Lead_Pipeline.csv" },
-  "portable-active": { label: "Portable Charging Active Leads", file: "/home/Arjun/command-center/Portable Charging/Leads/Active Leads.csv" },
+  "pokemon-active": { label: "Pokemon Active Leads", file: csvFile("CRM_CSV_POKEMON_ACTIVE", "pokemon-active-leads.csv") },
+  "pokemon-pipeline": { label: "Pokemon Pipeline", file: csvFile("CRM_CSV_POKEMON_PIPELINE", "pokemon-lead-pipeline.csv") },
+  "portable-pipeline": { label: "Portable Charging Pipeline", file: csvFile("CRM_CSV_PORTABLE_PIPELINE", "portable-lead-pipeline.csv") },
+  "portable-active": { label: "Portable Charging Active Leads", file: csvFile("CRM_CSV_PORTABLE_ACTIVE", "portable-active-leads.csv") },
 };
 const FIELDS: CrmSheetResult["fields"] = [
   { key: "venue", label: "Venue" }, { key: "category", label: "Category" },
@@ -108,9 +115,12 @@ async function googleRows(): Promise<{ rows: CrmSheetRow[]; freshness: string | 
   const range = secret("GOOGLE_SHEETS_MISC_LEADS_RANGE") || "Inbox!A1:Z1000";
   if (sheetId) {
     try {
-      const tokenPath = "/home/Arjun/.hermes/google_token.json";
+      // Credential files stay outside the repo; override the defaults via env.
+      const credDir = path.join(os.homedir(), ".config", "rathworkspace");
+      const tokenPath = process.env.GOOGLE_SHEETS_TOKEN_PATH || path.join(credDir, "google_token.json");
+      const clientPath = process.env.GOOGLE_SHEETS_CLIENT_PATH || path.join(credDir, "google_client_secret.json");
       const tokenJson = JSON.parse(fs.readFileSync(tokenPath, "utf8"));
-      const clientJson = JSON.parse(fs.readFileSync("/home/Arjun/.hermes/google_client_secret.json", "utf8"));
+      const clientJson = JSON.parse(fs.readFileSync(clientPath, "utf8"));
       const token = await freshGoogleAccessToken(tokenJson, clientJson);
       if (token) {
         const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 5000);

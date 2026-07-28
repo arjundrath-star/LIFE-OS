@@ -1,5 +1,5 @@
-// Phase 1 seed for pokemon-ops: Fixture Corner Store machine row, the 16 catalog products,
-// and the carddistro 2026-07-17 supplier/mentor quote import. Idempotent — lookup-first
+// Phase 1 seed for pokemon-ops: the first machine row (placeholder venue), the 16
+// catalog products, and the 2026-07-17 supplier quote import. Idempotent: lookup-first
 // / receipt-gated everywhere; safe to run twice.
 import path from "node:path";
 import { get, getDb } from "@/db";
@@ -42,8 +42,8 @@ function count(table: string, where = "", ...params: unknown[]): number {
 function main() {
   getDb();
   const machineId = ensureMachine({
-    name: "Fixture Corner Store",
-    location: "Lexington, MA",
+    name: "Venue Alpha",
+    location: "Anytown, USA",
     status: "placing",
     note: MACHINE_NOTE,
   });
@@ -53,7 +53,7 @@ function main() {
     JSON.stringify(
       {
         machine_id: machineId,
-        machines_everest: count("machines", "WHERE name = ?", "Fixture Corner Store"),
+        machines_seed_venue: count("machines", "WHERE name = ?", "Venue Alpha"),
         products: count("pk_products"),
         observations: count("pk_price_observations"),
         receipts: count("pk_import_receipts"),

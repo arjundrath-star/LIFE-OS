@@ -1,8 +1,11 @@
 #!/bin/bash
 # Embedded terminal. Bound to localhost only; reachable solely through the gated
 # /terminal proxy in the dashboard. Base path /terminal so ttyd's own assets/ws resolve.
-exec /home/Arjun/.local/bin/ttyd \
-  -i 127.0.0.1 -p 7681 \
+TTYD_BIN="${TTYD_BIN:-$HOME/.local/bin/ttyd}"
+TTYD_PORT="${TTYD_PORT:-7681}"
+
+exec "$TTYD_BIN" \
+  -i 127.0.0.1 -p "$TTYD_PORT" \
   -b /terminal \
   -W \
   -t fontSize=14 \

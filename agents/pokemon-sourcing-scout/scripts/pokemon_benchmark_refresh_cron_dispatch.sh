@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Cron-facing bounded dispatcher for the daily Pokemon benchmark refresh.
-# A successful or CardDistro-degraded run is silent; any nonzero worker result
+# A successful or supplier-degraded run is silent; any nonzero worker result
 # is propagated so Hermes records the cron tick as failed and alerts the user.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER="${POKEMON_BENCHMARK_WORKER:-$SCRIPT_DIR/pokemon_benchmark_refresh.sh}"
-LOCK_FILE="${POKEMON_BENCHMARK_LOCK:-/home/Arjun/.cache/pokemon-benchmark-refresh.lock}"
+LOCK_FILE="${POKEMON_BENCHMARK_LOCK:-$HOME/.cache/pokemon-benchmark-refresh.lock}"
 TIMEOUT_BIN="${POKEMON_BENCHMARK_TIMEOUT_BIN:-timeout}"
 # Hermes cron hard-interrupts near three minutes. The production dispatcher and
 # every worker stage are therefore explicitly bounded inside that window.

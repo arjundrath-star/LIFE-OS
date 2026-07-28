@@ -2,9 +2,9 @@
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
-**Goal:** Build a purpose-built Pokemon machine placement CRM inside Rathworkspace that imports PeopleFinder CSVs, keeps all leads in a pool, moves touched leads into Active, and lets Arjun/friends track every candidate owner number/email, call, visit, and outcome.
+**Goal:** Build a purpose-built Pokemon machine placement CRM inside Rathworkspace that imports lead-export CSVs, keeps all leads in a pool, moves touched leads into Active, and lets the operator and helpers track every candidate owner number/email, call, visit, and outcome.
 
-**Architecture:** Keep this inside `/home/Arjun/rathworkspace` as an auth-gated Next.js module backed by the existing SQLite database and API route pattern. The first useful version is not a generic CRM: it is a lead table + lead profile + contact/phone selector + touchpoint history + CSV importer. Phone numbers are first-class rows because one owner candidate can have many possible numbers.
+**Architecture:** Keep this inside `~/rathworkspace` as an auth-gated Next.js module backed by the existing SQLite database and API route pattern. The first useful version is not a generic CRM: it is a lead table + lead profile + contact/phone selector + touchpoint history + CSV importer. Phone numbers are first-class rows because one owner candidate can have many possible numbers.
 
 **Tech Stack:** Rathworkspace Next.js App Router, React client pages, SQLite via `better-sqlite3`, additive SQL migrations, existing `requireUser` auth guard, existing UI primitives, optional Fable 5 / Claude Design for visual spec and UltraCode for implementation.
 
@@ -15,14 +15,14 @@
 - Leads can be **inactive pool** or **active**.
 - A lead becomes active the moment an email is sent, a call is logged, an in-person visit is logged, or another real touchpoint happens.
 - Cold email is not the core channel. The CRM must optimize for in-person visits and calls.
-- User works 9-5 and prefers gym after work; planning views should respect weekends, 7-10 PM, and rare 7-9 AM windows.
-- Do not focus only on 7-Eleven. Include all plausible Pokemon machine locations.
-- A friend may help, so every action needs an `actor` field.
+- Visit windows are constrained; planning views should respect weekends, 7-10 PM, and rare 7-9 AM windows.
+- Do not focus on a single chain category. Include all plausible Pokemon machine venue types.
+- A second person may help, so every action needs an `actor` field.
 - No automated outreach in MVP. Log actions, do not call/text/email automatically.
 
-## Screenshot UX reference: PeopleFinder CRM
+## Screenshot UX reference: prior lead CRM
 
-Reference image: `/home/Arjun/.hermes/image_cache/img_936173d34059.jpg`
+Reference image: a screenshot of the prior lead-tracking CRM (kept outside this repo).
 
 Important patterns to preserve:
 
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS pokemon_import_batches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_filename TEXT NOT NULL,
   drive_file_id TEXT,
-  source_kind TEXT NOT NULL DEFAULT 'peoplefinder_csv',
+  source_kind TEXT NOT NULL DEFAULT 'lead_export_csv',
   imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   row_count INTEGER NOT NULL DEFAULT 0,
   leads_created INTEGER NOT NULL DEFAULT 0,
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS pokemon_emails (
   lead_id INTEGER NOT NULL REFERENCES pokemon_leads(id) ON DELETE CASCADE,
   contact_id INTEGER REFERENCES pokemon_contacts(id) ON DELETE SET NULL,
   email TEXT NOT NULL,
-  source TEXT NOT NULL DEFAULT 'peoplefinder_export_unmapped',
+  source TEXT NOT NULL DEFAULT 'lead_export_unmapped',
   hunter_status TEXT NOT NULL DEFAULT 'unverified',
   status TEXT NOT NULL DEFAULT 'untested',
   last_emailed_at TEXT,
@@ -219,13 +219,13 @@ Create `scripts/import-pokemon-crm.ts` or `scripts/import-pokemon-crm.mjs`.
 Inputs:
 
 ```bash
-npm run import-pokemon-crm -- /path/to/peoplefinder.csv
+npm run import-pokemon-crm -- /path/to/lead-export.csv
 ```
 
 Responsibilities:
 
 1. Read UTF-8 BOM CSV.
-2. Parse PeopleFinder columns.
+2. Parse the lead-export columns.
 3. Normalize phones.
 4. Split decision makers on ` | `.
 5. Parse `Name (Title)/ phone / phone`.
@@ -234,9 +234,8 @@ Responsibilities:
 8. Create import batch summary.
 9. Print created/updated counts.
 
-Use the Python prototype as parser reference:
-
-`/home/Arjun/command-center/Pokemon Machines/CRM/prototype_parse_peoplefinder.py`
+Use the Python prototype parser (kept in the operator's notes vault, outside this repo)
+as the parsing reference.
 
 ## UI pages
 
@@ -298,7 +297,7 @@ For each phone number:
 
 ### Phase 0: design spec
 
-Use Fable 5 / Claude Design to create a high-fidelity dark UI based on the PeopleFinder screenshot but using Rathworkspace visual language.
+Use Fable 5 / Claude Design to create a high-fidelity dark UI based on the reference screenshot but using Rathworkspace visual language.
 
 Deliverables:
 
@@ -355,12 +354,12 @@ Do not build full RBAC first. Before friend access, decide whether Rathworkspace
 
 ## Verification commands
 
-From `/home/Arjun/rathworkspace`:
+From `~/rathworkspace`:
 
 ```bash
 git status --short
 npm run migrate
-npm run import-pokemon-crm -- '/home/Arjun/command-center/Pokemon Machines/CRM/sample_exports/peoplefinder_boston-ma-usa_2026-07-06.csv'
+npm run import-pokemon-crm -- /path/to/sample-lead-export.csv
 npx tsx -e "import { pokemonCrmSnapshot } from './lib/pokemon-crm'; console.log(pokemonCrmSnapshot().summary)"
 npm run build
 ```
@@ -386,7 +385,7 @@ Also verify unauthenticated API access returns 401.
 
 ## Design prompt for Fable 5 / Claude Design
 
-Build a dark, compact Pokemon machine placement CRM UI inside Rathworkspace. Use the attached PeopleFinder CRM screenshot as UX inspiration, not a direct clone. The product is for managing Pokemon vending machine placement leads. It needs a dense table of venues and a click-in profile/drawer for each venue.
+Build a dark, compact Pokemon machine placement CRM UI inside Rathworkspace. Use the attached reference CRM screenshot as UX inspiration, not a direct clone. The product is for managing Pokemon vending machine placement leads. It needs a dense table of venues and a click-in profile/drawer for each venue.
 
 Core layout:
 - Header: Pokemon CRM, counts for All Leads and Active Leads.
@@ -418,7 +417,7 @@ Do not design automated outreach. This is for manual calling and in-person visit
 
 ## UltraCode implementation prompt
 
-You are working in `/home/Arjun/rathworkspace`. Build the Pokemon CRM MVP described in `docs/plans/2026-07-06-pokemon-crm-build-plan.md`. Read `AGENTS.md` and `agents/rathworkspace-platform-developer/AGENTS.md` first. Emit a Rathworkspace platform developer event before editing. Use additive SQLite migrations and preserve auth gates. Do not touch unrelated dirty files.
+You are working in `~/rathworkspace`. Build the Pokemon CRM MVP described in `docs/plans/2026-07-06-pokemon-crm-build-plan.md`. Read `AGENTS.md` and `agents/rathworkspace-platform-developer/AGENTS.md` first. Emit a Rathworkspace platform developer event before editing. Use additive SQLite migrations and preserve auth gates. Do not touch unrelated dirty files.
 
 Implement in phases:
 1. DB migration and importer.
@@ -426,7 +425,7 @@ Implement in phases:
 3. Lead table UI.
 4. Lead detail drawer with phone selector and touchpoint logging.
 
-Use the PeopleFinder sample CSV at `/home/Arjun/command-center/Pokemon Machines/CRM/sample_exports/peoplefinder_boston-ma-usa_2026-07-06.csv` and the prototype parser at `/home/Arjun/command-center/Pokemon Machines/CRM/prototype_parse_peoplefinder.py` as references. The importer should produce roughly 21 leads, 31 contacts, 133 phone numbers, and 107 emails from the sample.
+Use the sample lead-export CSV and the prototype parser (both kept in the operator's notes vault, outside this repo) as references. The importer should produce roughly 21 leads, 31 contacts, 133 phone numbers, and 107 emails from the sample.
 
 Acceptance criteria:
 - Sample CSV imports into SQLite.

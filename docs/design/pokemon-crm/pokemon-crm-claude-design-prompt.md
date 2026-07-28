@@ -17,9 +17,9 @@ Do not design a standalone SaaS app. This needs to fit directly inside the exist
 
 Name: Rathworkspace
 
-Blurb: Rathworkspace is Arjun Rath’s private operating dashboard for personal systems and business operations. It has a dark cyan control-room style and is used to manage agents, email, calendar, health, vending operations, projects, files, and terminal workflows from one authenticated workspace.
+Blurb: Rathworkspace is a private operating dashboard for personal systems and business operations. It has a dark cyan control-room style and is used to manage agents, email, calendar, health, vending operations, projects, files, and terminal workflows from one authenticated workspace.
 
-This new page is a Pokemon vending-machine placement CRM inside Rathworkspace. It helps Arjun and a helper manually call and visit local venues to place Pokemon/card vending machines.
+This new page is a Pokemon vending-machine placement CRM inside Rathworkspace. It helps the operator and a helper manually call and visit local venues to place Pokemon/card vending machines.
 
 ## Existing design system in the repo
 
@@ -49,7 +49,7 @@ Visual style: dark, compact, cyan-accented, operator dashboard, not consumer Saa
 
 ## Reference screenshot
 
-Use the PeopleFinder CRM screenshot I attached in the Claude Design chat as UX inspiration, not a direct clone.
+Use the lead-vendor CRM screenshot I attached in the Claude Design chat as UX inspiration, not a direct clone.
 
 Important patterns to preserve:
 
@@ -65,9 +65,9 @@ Important patterns to preserve:
 
 This is a purpose-built CRM for Pokemon vending-machine placements.
 
-It is not a generic CRM. It ingests PeopleFinder-style CSVs and helps Arjun/friends manually call and visit local venues.
+It is not a generic CRM. It ingests lead-vendor CSV exports and helps the operator and helpers manually call and visit local venues.
 
-PeopleFinder exports look like:
+Vendor exports look like:
 
 - one venue row
 - multiple possible owner/operator contacts per venue
@@ -129,7 +129,7 @@ Filter chips:
 Category chips:
 
 - Convenience
-- 7-Eleven / Franchise C-store
+- Franchise C-store
 - Gas + Convenience
 - Grocery / Specialty Market
 - Arcade / Bowling / Family Entertainment
@@ -205,7 +205,7 @@ Sections:
 
 This is the most important component.
 
-It should resemble the contact popover in the PeopleFinder screenshot, adapted to Rathworkspace.
+It should resemble the contact popover in the reference screenshot, adapted to Rathworkspace.
 
 For each contact card:
 
@@ -245,7 +245,7 @@ Timeline items:
 
 Each item shows:
 
-- actor: Arjun or friend
+- actor: operator or helper
 - timestamp
 - outcome
 - notes
@@ -256,7 +256,7 @@ Each item shows:
 Design at least one empty state:
 
 - No CSV imported yet.
-- CTA: `Import PeopleFinder CSV`.
+- CTA: `Import lead CSV`.
 - Microcopy: `Leads start inactive until you log a call, visit, email, or follow-up.`
 
 ## Visual style requirements

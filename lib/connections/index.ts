@@ -148,4 +148,6 @@ export async function setApiKey(service: string, envKey: string, value: string) 
 /** Map service -> the env key its API-key paste writes to. */
 export const API_KEY_ENV: Record<string, string> = {
   mercury: "MERCURY_API_TOKEN",
+  pocket: "POCKET_API_TOKEN",
+  granola: "GRANOLA_API_TOKEN",
 };

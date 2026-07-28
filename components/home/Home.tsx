@@ -11,7 +11,7 @@ import { Button } from "@/components/ui";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
 import { useApi, apiPost } from "@/hooks/useApi";
 import { hhmm, timeAgo } from "@/lib/time";
-import { daysUntilTerm } from "@/lib/school";
+import { daysUntilTerm, TERM_LABEL } from "@/lib/school";
 import { cn } from "@/lib/cn";
 import {
   Bot, Cpu, Send, Terminal as TermIcon, Mail, Calendar as CalIcon, MapPin,
@@ -337,7 +337,7 @@ function ProjectsGlance() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <GlanceCard href="/vending" icon={<Boxes size={15} />} name="Vending Ops" chip={vendChip} chipTone={vending?.revenueConnected ? "accent" : "muted"} sub={vending?.needsRefill ? `${vending.needsRefill} need refill` : "deal pipeline live"} dot={vending?.needsRefill ? "warn" : undefined} />
         <GlanceCard href="/ad-agency" icon={<Clapperboard size={15} />} name="Klade Ad Agency" chip={ad?.connected ? `${ad.account?.credits ?? "—"} credits` : "connect CLI"} chipTone={ad?.connected ? "accent" : "muted"} sub={ad?.connected ? `${ad.videos?.length ?? 0} recent generations` : "Higgsfield"} />
-        <GlanceCard href="/school" icon={<GraduationCap size={15} />} name="School" chip={days === null ? "—" : `${days}d`} chipTone="warn" sub="until NYU · Sep 2" />
+        <GlanceCard href="/school" icon={<GraduationCap size={15} />} name="School" chip={days === null ? "—" : `${days}d`} chipTone="warn" sub={`until ${TERM_LABEL}`} />
         <GlanceCard href="/projects" icon={<FolderGit2 size={15} />} name="Vault projects" chip={projects ? `${projects.length}` : "—"} chipTone="muted" sub="from command-center" />
       </div>
     </div>

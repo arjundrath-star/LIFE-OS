@@ -1,8 +1,8 @@
 Work in ~/rathworkspace. Read, in order:
 1. docs/plans/pokemon-ops/PROGRESS.md (current state)
 2. docs/plans/pokemon-ops/phases/PHASE-6.md (your spec)
-3. Only the sections of docs/plans/pokemon-ops/PLAN.md and SYSTEM_DISCOVERY.md your spec
-   points you to. Do not load PROJECT_CONTEXT.md unless a decision's rationale is unclear.
+3. Only the sections of docs/plans/pokemon-ops/PLAN.md your spec points you to. Keep
+   context small; the spec is self-contained.
 
 Pre-flight: re-run the previous phase's DoD commands. If any fail, fix the regression or
 halt with a PROGRESS.md entry. Never build on a broken base.
@@ -17,6 +17,6 @@ Finish with the handoff ritual: all DoD green with outputs pasted into PROGRESS.
 commit + push → annotated tag pokemon-ops/phase-6 → update the PROGRESS.md current-state
 block → agent-event complete.
 
-At session start decide the eBay path: EBAY_* keys present in secrets.env → Browse API;
-absent → scraper. Record the decision in PROGRESS.md. Keep this session one coherent
+At session start decide the eBay path: EBAY_* keys present in the environment → Browse
+API; absent → scraper. Record the decision in PROGRESS.md. Keep this session one coherent
 context; do not shell out to Codex subprocesses for scraper iteration.

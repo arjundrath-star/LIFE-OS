@@ -3,7 +3,7 @@
 Goal: the pokemon-ops tab live on rathworkspace.cloud with real-time data and working
 entry forms.
 
-Context: PLAN.md §3 dashboard; discovery §1 add-module procedure (registry entry only if
+Context: PLAN.md §3 dashboard; the repo's add-module procedure (registry entry only if
 an external service is involved — none yet); `rathworkspace-ui` skill; existing Puppeteer
 E2E pattern (remember `page.evaluate(el.click())` for row handlers). Ultracode-recommended.
 

@@ -64,7 +64,7 @@ function cleanText(v: unknown, max = 4000): string | null {
 }
 
 export function cleanActor(v: unknown): string {
-  return cleanText(v, 40) || "Arjun";
+  return cleanText(v, 40) || "Operator";
 }
 
 // ---- reads ----

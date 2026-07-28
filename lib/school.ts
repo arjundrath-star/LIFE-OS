@@ -1,7 +1,8 @@
-// School term clock. Single source of truth for the NYU start date so the rail
+// School term clock. Single source of truth for the term start date so the rail
 // countdown, the Home project glance, and the School page all agree.
-export const TERM_START_ISO = "2026-09-02T00:00:00";
-export const TERM_LABEL = "NYU · Sep 2, 2026";
+// Both values are build-time configurable so the school itself is not hardcoded.
+export const TERM_START_ISO = process.env.NEXT_PUBLIC_TERM_START_ISO || "2026-09-02T00:00:00";
+export const TERM_LABEL = process.env.NEXT_PUBLIC_TERM_LABEL || "Term · Sep 2, 2026";
 
 export function daysUntilTerm(now: number = Date.now()): number {
   const start = new Date(TERM_START_ISO).getTime();

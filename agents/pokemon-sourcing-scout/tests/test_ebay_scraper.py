@@ -5,7 +5,7 @@ Run with the project venv:
         agents/pokemon-sourcing-scout/tests/test_ebay_scraper.py -v
 
 These are pure parser/heuristic tests plus full fixture-dir integration
-tests. No network access, no LLM calls, no DB writes — get_target_sets()
+tests. No network access, no LLM calls, no DB writes. get_target_sets()
 does a single read-only SELECT against the live pokemon-ops sqlite db
 (safe: it never writes).
 """
@@ -326,7 +326,7 @@ def test_etb_exclusion_case_fixture():
 
 
 # --------------------------------------------------------------------------
-# Current-DOM (li.s-card) fixture: the shape a live warmed fetch returns
+# Current-DOM (li.s-card) fixture: the shape a live fetch returns
 # --------------------------------------------------------------------------
 
 

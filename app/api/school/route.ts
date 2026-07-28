@@ -5,15 +5,15 @@ import { requireUser } from "@/lib/guard";
 export const dynamic = "force-dynamic";
 
 // Pre-term "set up before school" checklist, persisted in KV. Editable from the
-// School page. Once classes start (2026-09-02) the page shifts to the live NYU feed.
+// School page. Once classes start (2026-09-02) the page shifts to the live calendar feed.
 type Item = { id: number; text: string; done: boolean };
 const KEY = "school_checklist";
 
 const DEFAULTS: Item[] = [
-  { id: 1, text: "Connect the NYU calendar (student@example.edu) in the Email panel", done: false },
+  { id: 1, text: "Connect the school calendar account in the Email panel", done: false },
   { id: 2, text: "Register for fall classes and confirm the schedule", done: false },
   { id: 3, text: "Get the textbook / course-materials list", done: false },
-  { id: 4, text: "Set up Brightspace + NYU email forwarding", done: false },
+  { id: 4, text: "Set up the LMS and school email forwarding", done: false },
   { id: 5, text: "Sort housing and the commute", done: false },
 ];
 

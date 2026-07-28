@@ -19,7 +19,7 @@ One trusted local writer. It touches **only SQLite**: no network, no email, no
 browser. Cron / Hermes / Claude Code / any shell task can call it safely.
 
 ```bash
-# from the repo root (/home/Arjun/rathworkspace)
+# from the repo root
 npm run agent-event -- \
   --agent portable-charging-lead-scout \
   --run pc-leads-$(date +%F) \
@@ -71,9 +71,9 @@ emit found running                "Found 8 candidate venues"
 emit qualified running            "Appended 5 qualified leads"
 emit drafts running               "Drafted 5 outreach emails (held for review)" info \
      --artifact-type draft --artifact-title "Draft packet" --artifact-uri "<path>"
-emit review_packet running        "Sent review packet to operator@example.com" success \
+emit review_packet running        "Sent review packet to the operator's inbox" success \
      --artifact-type email --artifact-title "Review packet" --artifact-uri "gmail-msg-id:<id>"
-emit waiting_for_review waiting_for_review "Waiting for Arjun to approve 5 drafts" warn
+emit waiting_for_review waiting_for_review "Waiting for operator approval on 5 drafts" warn
 # later, after approval, the SENDER agent (portable-charging-outreach-sender) emits:
 #   emit_sender ... completed "Sent 3 approved emails, checked bounces, updated sheet"
 ```
@@ -94,11 +94,11 @@ timeline appear on `/agents` within ~5 s.
 The live Hermes Portable Charging lead-finder cron is wired through a prelude script:
 
 ```text
-/home/Arjun/.hermes/scripts/portable_charging_agent_prelude.sh
+~/.hermes/scripts/portable_charging_agent_prelude.sh
 ```
 
 The default-profile cron enters through the thin runtime wrapper
-`/home/Arjun/.hermes/scripts/portable_charging_profile_worker.sh`, which delegates to the
+`~/.hermes/scripts/portable_charging_profile_worker.sh`, which delegates to the
 reviewed source at
 `agents/portable-charging-lead-scout/scripts/portable_charging_profile_worker.sh`. That
 worker invokes the versioned prelude beside it and dispatches the dedicated
@@ -110,7 +110,7 @@ The prelude records a Hermes dispatch event, creates a unique
 into the cron session. The cron prompt requires the agent to emit each milestone with:
 
 ```text
-/home/Arjun/command-center/Portable Charging/agent_event.sh
+~/command-center/Portable Charging/agent_event.sh
 ```
 
 The single safety invariant: the lead scout only finds/dedupes/drafts and sends the internal
@@ -122,14 +122,14 @@ the scout.
 The Pokemon vending lead-scout profile is registered as `pokemon-vending-lead-scout` and runs through:
 
 ```text
-/home/Arjun/.hermes/scripts/pokemon_machines_profile_worker.sh
+~/.hermes/scripts/pokemon_machines_profile_worker.sh
 ```
 
 The durable Rathworkspace manifest and prompt live at:
 
 ```text
-/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/AGENTS.md
-/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/profile-worker-prompt.md
+agents/pokemon-vending-lead-scout/AGENTS.md
+agents/pokemon-vending-lead-scout/profile-worker-prompt.md
 ```
 
 The thin default-profile cron wrapper delegates to the versioned background
@@ -137,12 +137,12 @@ dispatcher at `agents/pokemon-vending-lead-scout/scripts/pokemon_machines_cron_d
 That dispatcher returns after a short startup grace period so Hermes cron does
 not time out while the profile worker finishes the durable field packet.
 
-Its project context lives in `/home/Arjun/command-center/Pokemon Machines`. The scout is review-only: it finds, dedupes, and scores high-traffic impulse locations for Pokemon / trading-card machines, then prepares packets for Arjun. It must not contact venues or modify the initial `Pokemon_Machine_Prospects` sheet without explicit approval.
+Its project context lives in `~/command-center/Pokemon Machines`. The scout is review-only: it finds, dedupes, and scores high-traffic impulse locations for trading-card machines, then prepares packets for operator review. It must not contact venues or modify the prospects sheet without explicit approval.
 
 The event helper is:
 
 ```text
-/home/Arjun/command-center/Pokemon Machines/agent_event.sh
+~/command-center/Pokemon Machines/agent_event.sh
 ```
 
 Minimum milestone sequence: `started -> context_loaded -> dedupe -> found -> qualified -> review_packet`.
@@ -168,4 +168,4 @@ Hermes orchestration or business-domain workers.
 
 Demo runs use `pc-demo-*` ids and are historical records. Do not delete orchestration rows
 or reset registry pointers with ad-hoc SQL. If demo retention becomes costly, add and verify
-an explicit maintenance command with Arjun's approval; until then, leave the rows intact.
+an explicit maintenance command with operator approval; until then, leave the rows intact.

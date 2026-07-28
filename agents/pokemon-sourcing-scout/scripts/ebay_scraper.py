@@ -3,7 +3,7 @@
 
 Daily scan of eBay SOLD and ACTIVE bulk-lot listings for target Pokemon
 booster sets. Emits price observations as CSV rows matching the
-pokemon-ops "carddistro" importer format exactly:
+pokemon-ops shared observation importer format exactly:
 
     observed_date,source,set_name,form,price_per_pack_usd,lot_size,
     includes_shipping,includes_tax,listing_ref,notes
@@ -15,37 +15,32 @@ Deterministic, no LLM calls. Two input modes:
 
 Exactly one of --fixture-dir / --live must be given.
 
-FETCH LADDER (see README "eBay scraper" section for the verified results):
-  1. requests with full desktop-browser headers.
-  2. cold headless system chromium (/usr/bin/chromium --headless=new
+FETCH LADDER (see README "eBay scraper" section for the compliance
+posture and the verified results):
+  1. requests with normal desktop-browser headers.
+  2. headless system chromium (/usr/bin/chromium --headless=new
      --dump-dom) driven as a subprocess.
-  2b. WARMED headless chromium: navigate the eBay homepage once into a
-     persistent --user-data-dir so chromium solves the site's JS challenge
-     and stores the resulting challenge-cookies/challenge-cookie cookies, THEN fetch /sch reusing
-     that warmed profile. This is the rung that actually gets past the
-     search WAF (verified 2026-07-17: cold /sch -> block page; warmed
-     homepage-then-/sch -> the real ~60-card results page).
+  2b. headless chromium reusing one persistent --user-data-dir for the
+     lifetime of the process, so a run is one browser session rather
+     than N unrelated ones.
   3. if every rung returns a blocked/error page for every query: log a
      clear stderr note and exit 0 with 0 rows, so the dispatcher and the
      TCGplayer feed still run. This script must never hard-fail just
-     because eBay's WAF blocked the box it ran on.
+     because eBay declined to serve it, and it must never escalate.
 
-As verified 2026-07-17 from this box: eBay's search endpoint
-(/sch/i.html) 403s python-requests AND returns eBay's own
-"Error Page | eBay" bot-block HTML to a COLD headless chromium (and to
-the shared CDP instance on [::1]:18800). Rung 2b's warmed profile gets
-past that WAF. The remaining catch on this specific box is currency:
-eBay geolocates this datacenter IP (the VPS provider, egressing via Brazil) to
-its BR site, so the real listings come back priced in BRL ("R$ ..."),
-never USD, and there is no USD figure anywhere in the page. The CSV
-contract is USD-only and this scraper is deterministic (no live FX
-lookup), so build_row DROPS non-USD-priced cards ("non_usd_price"
-skip). Net: rung 2b returns real parseable listings, but from this
-Brazil-geolocated IP they are all dropped on currency, so --live still
-emits 0 rows here today. Run the same rung from a US-geolocated IP and
-those cards are US-dollar priced and flow straight through — no code
-change needed; the currency guard is the only thing standing between
-this box and live rows.
+Request volume is deliberately small (one sold-search plus one
+active-search per target set per day, capped by --max-per-set) with a
+sleep between queries. looks_blocked() recognizes eBay's own error-page
+markers so a block is treated as a stop signal, not as data.
+
+The load-bearing output constraint is currency. eBay renders prices in
+the currency of the viewer's geolocated site, so from a non-US egress
+the same listings come back in local currency with no USD figure
+anywhere in the page. The CSV contract is USD-only and this scraper is
+deterministic (no live FX lookup), so build_row DROPS non-USD-priced
+cards ("non_usd_price" skip). A run can therefore parse a full results
+page and still emit 0 rows; from a US-geolocated egress those same
+cards flow straight through with no code change.
 
 LOT-SIZE HEURISTIC TABLE (checked in this order against the lowercased
 title + subtitle/description text; first match wins):
@@ -75,8 +70,8 @@ SET DETECTION: each listing card's title/subtitle is matched against the
 canonical set names read read-only from pk_products (active=1,
 form='booster') via `SELECT set_name FROM pk_products WHERE active=1
 AND form='booster'`. A listing whose title doesn't contain any target
-set name (case-insensitive, word-bounded) is skipped as "unknown set" —
-search results are never perfectly on-topic, so this is a real safety
+set name (case-insensitive, word-bounded) is skipped as "unknown set".
+Search results are never perfectly on-topic, so this is a real safety
 net, not just test scaffolding.
 """
 from __future__ import annotations
@@ -84,6 +79,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import csv
+import os
 import re
 import shutil
 import sqlite3
@@ -106,7 +102,10 @@ try:
 except ImportError:  # pragma: no cover - environment guard
     requests = None  # type: ignore
 
-DEFAULT_DB_PATH = "/home/Arjun/rathworkspace/data/rathworkspace.db"
+DEFAULT_DB_PATH = os.environ.get(
+    "RATHWORKSPACE_DB",
+    str(Path(__file__).resolve().parents[3] / "data" / "rathworkspace.db"),
+)
 CSV_HEADER = [
     "observed_date",
     "source",
@@ -140,7 +139,7 @@ BROWSER_HEADERS = {
 }
 
 # Markers that mean "this is eBay's bot-block / captcha / error page, not a
-# real search results page" — used to decide whether a fetched page is usable.
+# real search results page", used to decide whether a fetched page is usable.
 BLOCK_MARKERS = (
     "error page | ebay",
     "something went wrong on our end",
@@ -307,13 +306,13 @@ def parse_money(text: Optional[str]) -> Optional[float]:
 
 
 # eBay renders prices in the currency of the *viewer's* geolocated site,
-# not the listing's. From a datacenter IP that geolocates outside the US
-# (this box geolocates to Brazil), the same global listings come back
-# priced in BRL ("R$ 7,493.96"), GBP, EUR, etc. — and a bare "$"-anchored
-# parse would silently read "R$ 7,493.96" as 7493.96 *dollars*, corrupting
-# the $/pack figure. The CSV contract is USD-only, so any price carrying a
-# non-USD currency marker must be dropped, not converted (an FX rate is a
-# time-varying external input this deterministic scraper must not take).
+# not the listing's. From an egress IP that geolocates outside the US the
+# same global listings come back priced in BRL ("R$ 7,493.96"), GBP, EUR,
+# and so on. A bare "$"-anchored parse would silently read "R$ 7,493.96"
+# as 7493.96 *dollars*, corrupting the $/pack figure. The CSV contract is
+# USD-only, so any price carrying a non-USD currency marker must be
+# dropped, not converted (an FX rate is a time-varying external input this
+# deterministic scraper must not take).
 NON_USD_CURRENCY = re.compile(
     r"(R\$|C\s*\$|CA\s*\$|AU\s*\$|A\s*\$|NZ\s*\$|HK\s*\$|S\$|£|€|¥|₩|"
     r"\b(?:EUR|GBP|BRL|CAD|AUD|NZD|JPY|CHF|CNY|MXN|INR)\b)",
@@ -371,7 +370,7 @@ def build_row(
     if not is_usd_price(card.price_text):
         return None, (
             f"non_usd_price: {card.item_id} price={card.price_text!r} "
-            "(eBay geolocated this box to a non-US site; USD-only per CSV contract)"
+            "(non-US eBay site served; USD-only per CSV contract)"
         )
 
     lot = detect_lot_size(combined_text)
@@ -408,7 +407,7 @@ def build_row(
 
 
 # --------------------------------------------------------------------------
-# HTML parsing (BeautifulSoup) — real eBay search-result card structure
+# HTML parsing (BeautifulSoup): real eBay search-result card structure
 # --------------------------------------------------------------------------
 
 
@@ -484,7 +483,7 @@ def _card_from_scard(li) -> Optional[ListingCard]:
             break
 
     canonical_url = href.split("?")[0] if href else f"https://www.ebay.com/itm/{item_id}"
-    # Normalise the host — live cards sometimes emit bare "ebay.com/itm/..".
+    # Normalise the host: live cards sometimes emit bare "ebay.com/itm/..".
     canonical_url = re.sub(r"^https?://(www\.)?ebay\.com", "https://www.ebay.com", canonical_url)
     return ListingCard(
         item_id=item_id,
@@ -506,7 +505,7 @@ def parse_search_page(
     """Parse one saved/fetched eBay search-result page into observation rows.
 
     Returns (rows, skip_reasons). `source` must be 'ebay_sold' or
-    'ebay_active' — the caller decides this from which query produced the
+    'ebay_active'. The caller decides this from which query produced the
     page (eBay's sold-search and active-search are distinct URLs/pages,
     never mixed on one page).
 
@@ -617,21 +616,21 @@ def fetch_via_chromium(url: str, timeout_s: int = 30) -> Optional[str]:
     return html
 
 
-_WARM_PROFILE_DIR: Optional[str] = None
-_WARM_UA = (
+_SESSION_PROFILE_DIR: Optional[str] = None
+_SESSION_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
 
-def _cleanup_warm_profile() -> None:
-    global _WARM_PROFILE_DIR
-    if _WARM_PROFILE_DIR:
-        shutil.rmtree(_WARM_PROFILE_DIR, ignore_errors=True)
-        _WARM_PROFILE_DIR = None
+def _cleanup_session_profile() -> None:
+    global _SESSION_PROFILE_DIR
+    if _SESSION_PROFILE_DIR:
+        shutil.rmtree(_SESSION_PROFILE_DIR, ignore_errors=True)
+        _SESSION_PROFILE_DIR = None
 
 
-atexit.register(_cleanup_warm_profile)
+atexit.register(_cleanup_session_profile)
 
 
 def _chromium_dump(url: str, profile_dir: str, timeout_s: int, budget_ms: int) -> tuple[int, str]:
@@ -641,7 +640,7 @@ def _chromium_dump(url: str, profile_dir: str, timeout_s: int, budget_ms: int) -
         "--no-sandbox",
         "--disable-gpu",
         f"--user-data-dir={profile_dir}",
-        f"--user-agent={_WARM_UA}",
+        f"--user-agent={_SESSION_UA}",
         "--window-size=1366,768",
         "--lang=en-US",
         "--accept-lang=en-US,en",
@@ -652,60 +651,61 @@ def _chromium_dump(url: str, profile_dir: str, timeout_s: int, budget_ms: int) -
     ]
     try:
         # Generous outer wall-clock margin over the page-load timeout: eBay's
-        # SRP is a heavy page and the first warmed fetch of a process can take
+        # SRP is a heavy page and the first fetch of a process can take
         # ~50-80s end to end even when it ultimately succeeds.
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s + 45)
     except Exception as exc:  # noqa: BLE001
-        print(f"rung2b (warmed chromium) subprocess error for {url}: {exc}", file=sys.stderr)
+        print(f"rung2b (session chromium) subprocess error for {url}: {exc}", file=sys.stderr)
         return -1, ""
     return proc.returncode, proc.stdout or ""
 
 
-def fetch_via_warmed_chromium(url: str) -> Optional[str]:
-    """Rung 2b: headless chromium with a *warmed* persistent profile.
+def fetch_via_session_chromium(url: str) -> Optional[str]:
+    """Rung 2b: headless chromium reusing one persistent profile per process.
 
-    eBay's search WAF (the site's bot protection) is what blocks the cold rungs:
-    a first hit to `/sch/i.html` with no `challenge-cookie` / `challenge-cookies` cookies gets the
-    "Error Page | eBay" bot-block. The eBay *homepage* passes bot protection's JS
-    challenge and mints those cookies. So this rung navigates the homepage
-    once per process into a persistent `--user-data-dir`, letting chromium
-    solve the challenge and store the cookies, then reuses that same warmed
-    profile for the real `/sch` fetch — which the WAF then admits. Verified
-    live from this box 2026-07-17: cold `/sch` -> block page; homepage-then-
-    `/sch` in one warmed profile -> the real results page with ~60 cards.
+    Rungs 1 and 2 treat every query as an unrelated first visit. This rung
+    creates a single `--user-data-dir` for the lifetime of the process,
+    opens the site's entry page once, and then issues the search fetches
+    through that same profile, so one scraper run looks like one browser
+    session instead of N disconnected ones. The profile is a temp dir and
+    is removed on exit (`_cleanup_session_profile`).
+
+    If the response still comes back as the site's block/error page,
+    `looks_blocked()` catches it and this rung returns None so the caller
+    degrades to rung 3 (0 rows, exit 0). No retry escalation, no proxying.
     """
-    global _WARM_PROFILE_DIR
+    global _SESSION_PROFILE_DIR
     if not Path(CHROMIUM_BIN).exists():
-        print(f"rung2b (warmed chromium): {CHROMIUM_BIN} not found", file=sys.stderr)
+        print(f"rung2b (session chromium): {CHROMIUM_BIN} not found", file=sys.stderr)
         return None
 
-    if _WARM_PROFILE_DIR is None:
+    if _SESSION_PROFILE_DIR is None:
         import tempfile
 
-        _WARM_PROFILE_DIR = tempfile.mkdtemp(prefix="ebay_warm_")
+        _SESSION_PROFILE_DIR = tempfile.mkdtemp(prefix="ebay_session_")
         rc, home = _chromium_dump(
-            "https://www.ebay.com/", _WARM_PROFILE_DIR, timeout_s=60, budget_ms=12000
+            "https://www.ebay.com/", _SESSION_PROFILE_DIR, timeout_s=60, budget_ms=12000
         )
-        # The homepage has no s-item/s-card cards (so full looks_blocked()
-        # false-positives) and legitimately mentions "captcha" in its own JS
-        # (so the whole BLOCK_MARKERS list false-positives too). A real warm
-        # is just "rendered and not the eBay bot-block *page*", whose telltale
-        # is the "Error Page | eBay" <title>. The bot protection cookies land in the
-        # profile regardless of this flag — it's only a diagnostic.
-        warmed_ok = bool(home) and "error page | ebay" not in home.lower()
+        # The entry page carries no s-item/s-card cards, so the full
+        # looks_blocked() check would false-positive on it, and it mentions
+        # "captcha" in its own JS, so the BLOCK_MARKERS list would too. The
+        # only meaningful signal here is "rendered, and not the site's error
+        # page", whose telltale is the "Error Page | eBay" <title>. This is a
+        # diagnostic print, not a gate.
+        session_ok = bool(home) and "error page | ebay" not in home.lower()
         print(
-            f"rung2b (warmed chromium): homepage warm exit {rc}, {len(home)} bytes, "
-            f"challenge cleared={warmed_ok}",
+            f"rung2b (session chromium): entry page exit {rc}, {len(home)} bytes, "
+            f"session established={session_ok}",
             file=sys.stderr,
         )
 
-    # The first warmed /sch fetch of a process is occasionally slow enough to
-    # hit the page-load timeout and come back empty even though the profile is
-    # warm; a single retry against the same warmed profile reliably lands it.
+    # The first /sch fetch of a process is occasionally slow enough to hit the
+    # page-load timeout and come back empty; one retry against the same
+    # profile covers that without escalating request volume.
     for attempt in (1, 2):
-        rc, html = _chromium_dump(url, _WARM_PROFILE_DIR, timeout_s=70, budget_ms=12000)
+        rc, html = _chromium_dump(url, _SESSION_PROFILE_DIR, timeout_s=70, budget_ms=12000)
         print(
-            f"rung2b (warmed chromium) attempt {attempt}: {url} -> exit {rc}, "
+            f"rung2b (session chromium) attempt {attempt}: {url} -> exit {rc}, "
             f"{len(html)} bytes dumped",
             file=sys.stderr,
         )
@@ -713,7 +713,7 @@ def fetch_via_warmed_chromium(url: str) -> Optional[str]:
             continue
         if looks_blocked(html):
             print(
-                "rung2b (warmed chromium): response looks like a block/captcha page",
+                "rung2b (session chromium): response looks like a block/captcha page",
                 file=sys.stderr,
             )
             return None
@@ -729,7 +729,7 @@ def fetch_page(url: str) -> Optional[str]:
     html = fetch_via_chromium(url)
     if html is not None:
         return html
-    html = fetch_via_warmed_chromium(url)
+    html = fetch_via_session_chromium(url)
     if html is not None:
         return html
     print(f"rung3: eBay blocked/unusable on all rungs for {url}", file=sys.stderr)

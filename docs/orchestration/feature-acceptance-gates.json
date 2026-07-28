@@ -149,10 +149,10 @@
     {
       "id": "completion-email",
       "category": "process",
-      "description": "A completion email is sent to operator@example.com from operator@example.com (or a fallback file is written)",
+      "description": "A completion email is sent to the operator's inbox from the configured send account (or a fallback file is written)",
       "acceptance": [
         "email summarizes agents, dashboard surfaces, scripts/hooks, how to trigger a test run, verification results, remaining work",
-        "sent via gws-arjun OR body written to AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt with the failure noted"
+        "sent via the configured gws profile OR body written to AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt with the failure noted"
       ],
       "passes": true
     }

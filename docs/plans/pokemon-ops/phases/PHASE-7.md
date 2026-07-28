@@ -1,17 +1,17 @@
 # PHASE 7 — Nayax Lynx poller + reconciliation
 
 PRECONDITION: human checklist item 1 complete (NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL in
-secrets.env, Core roles granted). If absent, halt immediately with a PROGRESS.md entry;
-do not mock your way to "done".
+the environment, Core roles granted). If absent, halt immediately with a PROGRESS.md
+entry; do not mock your way to "done".
 
 Goal: sales flow into pk_sales automatically; Nayax's stock view reconciles against our
 stock-event math; machine health is visible. Manual entry remains as fallback.
 
-Context: SYSTEM_DISCOVERY.md §5 (verified endpoint map, auth, gotchas — GMT fields,
+Context: the verified Lynx endpoint map (auth, gotchas — GMT fields,
 MultivendNumverOfProducts misspelling, PAR doc mislabel, lastSales has NO date-range/
 pagination → frequent poll + TransactionID dedupe, no historical backfill: pre-API
-history stays manual/CSV). Full OpenAPI spec + 23 doc pages saved at
-`workspace/vending/pokemon/nayax-docs/` — copy relevant parts into fixtures.
+history stays manual/CSV). Full OpenAPI spec + vendor doc pages are saved locally —
+copy relevant parts into fixtures.
 
 Work:
 1. `lib/sources/nayax/` client: Bearer auth, prod base https://lynx.nayax.com/operational,
@@ -33,7 +33,7 @@ Work:
    inventory/full) so Nayax-side stock stays true; our pk_stock_events remains the
    system of record.
 
-Out of scope: SQS (Phase 8), auto price-push (manual-only v1 per PROJECT_CONTEXT.md §11.4).
+Out of scope: SQS (Phase 8), auto price-push (manual-only v1 per the locked plan).
 
 DoD:
 - mocked-fixture tests → 0; verify:pokemon-ops → 0

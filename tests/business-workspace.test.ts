@@ -96,12 +96,12 @@ test("CRM CSV normalization keeps operator fields and truncates giant notes", as
 test("Miscellaneous Leads inbox columns normalize into operator fields", async () => {
   const { normalizeCrmCsv } = await import("../lib/business/crm-sheets");
   const csv = "Capture ID,Captured Date,Captured By / Source,Raw Venue Name,Normalized Venue Name,Business Type,Product Lane Guess,Neighborhood / Area,City,State,Why It Caught Attention,Fit Hypothesis,Owner / Contact Known?,Verification Needed,Next Tiny Action,Inbox Status,Route Decision,Processing Notes\n" +
-    "misc-1,2026-07-18,drive-by,Raw Market,University Market,Convenience Store,Both,Harvard Square,Cambridge,MA,Large busy store,Strong dwell time,Staff contact only,Owner name,Ask for owner,Needs verification,Hold,Keep rough";
+    "misc-1,2026-07-18,drive-by,Raw Market,Fixture Corner Store,Convenience Store,Both,Test Square,Springfield,ZZ,Large busy store,Strong dwell time,Staff contact only,Owner name,Ask for owner,Needs verification,Hold,Keep rough";
   const [row] = normalizeCrmCsv(csv);
   assert.equal(row.id, "misc-1");
-  assert.equal(row.venue, "University Market");
+  assert.equal(row.venue, "Fixture Corner Store");
   assert.equal(row.category, "Convenience Store");
-  assert.match(row.cityRegion, /Cambridge.*MA.*Harvard Square/);
+  assert.match(row.cityRegion, /Springfield.*ZZ.*Test Square/);
   assert.match(row.contact, /Staff contact only/);
   assert.equal(row.status, "Needs verification");
   assert.match(row.lastTouch, /drive-by.*2026-07-18/);

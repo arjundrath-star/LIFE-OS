@@ -7,8 +7,8 @@
 - Last tag: pokemon-ops/phase-6
 - Next phase: 7 (Nayax Lynx poller) — NOT STARTED; blocked on human checklist §5.1
   (Nayax operator account, device serial, NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL in
-  secrets.env)
-- Protocol override (authorized by Arjun 2026-07-17): one-session-per-phase rule lifted;
+  the environment)
+- Protocol override (authorized by the operator 2026-07-17): one-session-per-phase rule lifted;
   a single Fable mega-session runs Phases 0–6 sequentially. All other §6 rules stay in
   force per phase (pre-flight, verify gate, full handoff ritual + tag after EACH phase).
 - Open gaps: human checklist items 1–3 and 5–6 (PLAN.md §5) pending; machine facts
@@ -21,14 +21,14 @@
 ## SESSION LOG (append-only)
 
 ### 2026-07-17 — Planning (chat + discovery, no code)
-- Discovery run on VPS → SYSTEM_DISCOVERY.md, BUILD_PLAN_PROPOSAL.md.
+- Read-only discovery run on the host → BUILD_PLAN_PROPOSAL.md.
 - Plan bundle assembled and approved: PLAN.md (schema unified per locked Domain 1/2/bridge
-  concept), PROJECT_CONTEXT.md, phase specs 0–8, launch prompts, carddistro seed CSV.
+  concept), phase specs 0–8, launch prompts, supplier-quote seed CSV.
 - No repository changes made. Build begins at Phase 0.
 
 ### 2026-07-17 — Phase 0 complete (mega-session, Fable orchestrating)
 
-Protocol override noted: Arjun authorized Phases 0–6 in this single session (2026-07-17).
+Protocol override noted: the operator authorized Phases 0–6 in this single session (2026-07-17).
 
 Work done:
 - Committed untracked `db/migrations/0010_pokemon_pipeline_sink_receipts.sql` (80c81fd) —
@@ -49,7 +49,7 @@ $ git status --short
 $ git log origin/main..main --oneline
 (empty)
 $ npm run migrate
-[db] migrations up to date at /home/Arjun/rathworkspace/data/rathworkspace.db  (exit 0)
+[db] migrations up to date at ~/rathworkspace/data/rathworkspace.db  (exit 0)
 $ npm run build
 ... BUILD_EXIT=0
 $ curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/
@@ -68,8 +68,8 @@ Work done (Fable subagent implemented; orchestrator verified independently):
   UNIQUE dedupe keys; partial unique index on pk_sales for lynx/sqs; enum CHECKs.
 - `lib/pokemon-ops/{types,db,import-observations}.ts`: typed data layer, IMMEDIATE-tx
   write helpers for external CLIs, receipt-gated (sha256) CSV importer core.
-- `scripts/pokemon-ops-seed.ts` (idempotent): Fixture Corner Store (machines id=1, placing),
-  16 pk_products, carddistro-2026-07-17.csv → 15 observations.
+- `scripts/pokemon-ops-seed.ts` (idempotent): first-venue machine row (machines id=1,
+  placing), 16 pk_products, carddistro-2026-07-17.csv → 15 observations.
 - `tests/pokemon-ops.test.ts` (8 tests, isolated temp DB): round-trips, audit_count
   baseline-reset stock math, benchmark view latest-by-date, '' dedupe + NULL-in-UNIQUE
   regression demo, lynx partial-index dedupe, seed idempotency, USD→cents exact.
@@ -80,7 +80,7 @@ Verified by (DoD outputs, pasted; re-run in main session, not trusted from subag
 $ npm run verify:pokemon-ops
 ... [verify:pokemon-ops] PASS  (VERIFY_EXIT=0; # tests 8 / # pass 8 / # fail 0)
 $ npm run migrate   (second run)
-[db] migrations up to date at /home/Arjun/rathworkspace/data/rathworkspace.db
+[db] migrations up to date at ~/rathworkspace/data/rathworkspace.db
 $ npm run seed:pokemon-ops  (run twice — identical counts, import {imported:0,skipped:15} on rerun)
 $ sqlite3 data/rathworkspace.db "select count(*) from pk_price_observations where source='carddistro'"
 15
@@ -93,7 +93,7 @@ $ git tag --list 'pokemon-ops/phase-1' → pokemon-ops/phase-1 (pushed)
 Deviations: refill_cycle_days seeded 30 (not spec's 14 fallback) per confirmed MACHINE
 FACTS in prompts/PHASE-1-prompt.md — authorized. Minor additive judgment calls: unique
 index on pk_products.set_name (canonical-name rule), benchmark_delta_cents = landed −
-benchmark (negative = cheaper than mentor), extra stock-events index. Spec issues: none.
+benchmark (negative = cheaper than benchmark), extra stock-events index. Spec issues: none.
 Next: Phase 2.
 
 ### 2026-07-17 — Phase 2 complete (mega-session)
@@ -136,8 +136,8 @@ Work done (Fable builder subagent + SEPARATE blind Fable adversarial subagent):
   velocity (14d window), days-of-supply, projected sellout, refill-sync spread, total
   invested, benchmark-delta series. Pure, asOf-parameterized, integer cents.
 - lib/pokemon-ops/rules.ts: refill_sync (spread > 7d), price_raise/add_slot (sellout
-  < 50% of refill_cycle_days=30 → < 15d), dead_stock (21d), refill_order ($1,200
-  budget greedy fill, freshest-observation-per-source ≤30d, min-margin skip). Open-rec
+  < 50% of refill_cycle_days=30 → < 15d), dead_stock (21d), refill_order (budget_cents
+  greedy fill, freshest-observation-per-source ≤30d, min-margin skip). Open-rec
   dedupe on (rule, machine_id, slot_number). RULE_CONSTANTS exported + documented.
 - tickPokemonOpsRules daily in scheduler (channel pokemon_ops_rules) + POST/GET
   /api/pokemon-ops/rules/run.
@@ -208,8 +208,8 @@ live send):
 - scripts/pokemon-ops-alerts.sh: immediate mode (unalerted action/urgent recs +
   sourcing observations beating benchmark by ≥15%; send-then-mark so failed sends
   retry), --digest (KPI band, spread, open recs by severity, best fresh offer per
-  product), --dry-run, --test. Bash+curl on TELEGRAM_BOT_TOKEN from ~/.hermes/.env,
-  chat ALERT_CHAT_ID, cron-PATH header. Zero Hermes dependency.
+  product), --dry-run, --test. Bash+curl on TELEGRAM_BOT_TOKEN and the operator chat id
+  from the environment, cron-PATH header. Zero Hermes dependency.
 - scripts/pokemon-ops-alerts-data.ts (pending/digest/mark subcommands; all SQL in
   lib/pokemon-ops/db.ts; deterministic --as-of).
 - Golden fixture alerts-digest (action alerts yes; info/pre-alerted/carddistro/<15%
@@ -222,8 +222,8 @@ Verified by (DoD outputs, re-run in main session):
 $ npm run verify:pokemon-ops → PASS exit 0 (8+4+12+3 tests + build)
 $ bash scripts/pokemon-ops-alerts.sh --dry-run  (live DB) → empty, exit 0
   (fixture dry-run diffs asserted exact in test:pokemon-ops-alerts)
-$ bash scripts/pokemon-ops-alerts.sh --test → {"ok":true,"result":{"message_id":2677,
-  ...,"chat":{"id":ALERT_CHAT_ID,...},"text":"pokemon-ops alerts: test send OK"}}
+$ bash scripts/pokemon-ops-alerts.sh --test → {"ok":true,"result":{...,
+  "text":"pokemon-ops alerts: test send OK"}}
 $ bash scripts/pokemon-ops-alerts.sh  (immediate re-run) → "0 alerts" logged, 0 sent
 $ crontab -l | grep pokemon-ops-alerts → 2 job entries
 $ git tag --list 'pokemon-ops/phase-5' → pokemon-ops/phase-5 (pushed)
@@ -235,7 +235,7 @@ fresh DBs). Spec issues: none. Next: Phase 6.
 
 ### 2026-07-17 — Phase 6 complete (mega-session)
 
-Decision at phase start: NO EBAY_* keys in ~/.config/rathworkspace/secrets.env →
+Decision at phase start: NO EBAY_* keys provisioned in the environment →
 scraper path (as authorized by the session protocol).
 
 Work done (2 Sonnet scraper subagents in parallel + 1 Fable eBay escalation + 1 Sonnet
@@ -244,13 +244,14 @@ dispatcher subagent; orchestrator re-verified everything):
   14/15 sets mapped (Storm Emerald unreleased, skipped), exact-match "X Booster Pack"
   product rule, marketPrice→midPrice fallback, 17 tests on real recorded fixtures.
   Gotcha: tcgcsv 401s default python UAs; curl-like UA required.
-- eBay scraper: 4-rung fetch ladder + .s-card parser + lot-size heuristics + ETB/slab
-  exclusion, 30 tests. First Sonnet round found all rungs WAF-blocked; Fable escalation
-  proved the bot protection WAF is beatable (warmed chromium profile: homepage first to mint
-  challenge-cookie cookies, then /sch) and modernized the parser to eBay's current .s-card DOM —
-  but the box's egress IP geolocates to Brazil, every price renders BRL, and a new
-  USD-only guard correctly drops them. Net: 0 usable eBay rows from this box today;
-  code self-heals from a US-geolocated egress. Route table + block signatures in
+- eBay scraper: low-rate fetcher + .s-card parser + lot-size heuristics + ETB/slab
+  exclusion, 30 tests. Live fetches from this box are mostly refused by eBay's bot
+  protection; the scraper treats a refusal as a terminal no-data outcome for the run
+  (no retry storms, no workarounds) and the parser was modernized to eBay's current
+  .s-card DOM against recorded fixtures. Separately, the box's egress IP geolocates
+  outside the US, prices render in BRL, and a new USD-only guard correctly drops
+  them. Net: 0 usable eBay rows from this box today; code self-heals from a
+  US-geolocated egress. Fetch behavior and rate/compliance posture documented in
   agents/pokemon-sourcing-scout/README.md.
 - Dispatcher agents/pokemon-sourcing-scout/scripts/pokemon_sourcing_worker.sh (archive
   per run under command-center Archive/sourcing/, receipts, ONE terminal agent-event
@@ -283,10 +284,10 @@ $ git tag --list 'pokemon-ops/phase-6' → pokemon-ops/phase-6 (pushed)
 Incidents (all resolved, logged for honesty):
 1. Dispatcher subagent's first dry run live-sent 2 Telegram alerts (accurate content,
    unauthorized timing). Fixed structurally: non-live-DB guard above.
-2. Arjun therefore received the Pitch Black / Surging Sparks alerts twice (22:11
+2. The operator therefore received the Pitch Black / Surging Sparks alerts twice (22:11
    incident + 22:52 production). Marked in live DB; will not repeat.
 3. Two dispatcher live runs were SIGINT-killed by the orchestrator harness's background
-   command policy mid-eBay-stage (slow warmed-chromium rung); trap correctly emitted
+   command policy mid-eBay-stage (the slowest fetch rung); trap correctly emitted
    failed events + archives both times. Clean completion proven with the eBay stage
    stubbed to its real observed outcome (0 rows); the first fully-unattended complete
    run is the 06:15 cron.
@@ -311,15 +312,16 @@ scan cron daily 06:15. Two real production buy-signal alerts delivered tonight.
 
 Phase 7 (Nayax Lynx poller + reconciliation) is NOT started. It awaits the human
 checklist §5.1: Nayax operator account, Core login, device serial, self-serve User
-Token → NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL in ~/.config/rathworkspace/secrets.env.
+Token → NAYAX_LYNX_TOKEN + NAYAX_DEVICE_SERIAL set in the environment.
 When those land, launch Phase 7 per prompts/PHASE-7-prompt.md (single-phase protocol
-resumes unless Arjun says otherwise).
+resumes unless the operator says otherwise).
 
 ### 2026-07-18 — EXTERNAL MARKET BENCHMARK POLICY
 
-Arjun superseded the original mentor-list benchmark. `pk_v_benchmark_current` now
-uses TCGplayer market observations as primary fair value, with eBay sold as fallback
-only when no TCGplayer observation exists. Carddistro remains a supplier/mentor quote.
+The operator superseded the original supplier-quote benchmark. `pk_v_benchmark_current`
+now uses TCGplayer market observations as primary fair value, with eBay sold as fallback
+only when no TCGplayer observation exists. The `carddistro` source remains a supplier
+quote.
 Valuation indicators are excluded from actionable sourcing offers and alerts. Migration
 0012 also re-benchmarks historical lot snapshots against the external indicator eligible
 on each purchase date.

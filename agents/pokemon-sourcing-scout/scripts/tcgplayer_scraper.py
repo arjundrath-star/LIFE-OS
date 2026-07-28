@@ -2,7 +2,7 @@
 """TCGplayer daily market price feed for pokemon-ops Phase 6.
 
 Emits one CSV row per target sealed Booster Pack product per day, in the
-carddistro observation format consumed by
+shared price-observation format consumed by
 ``scripts/pokemon-ops-import.ts observations <csv>``:
 
     observed_date,source,set_name,form,price_per_pack_usd,lot_size,
@@ -29,7 +29,7 @@ required (see USER_AGENT below). This was confirmed live 2026-07-17.
 
 Product selection rule: within a mapped group, the target product is the one
 whose exact name is "{set_name} Booster Pack". This is deliberately an exact
-string match (not a substring/regex) — it was verified against all 14 mapped
+string match (not a substring/regex). It was verified against all 14 mapped
 groups' real product lists and cleanly excludes "Sleeved Booster Pack",
 "Booster Pack Art Bundle [Set of 4]", and "Code Card - ... Booster Pack",
 which all exist as separate SKUs and would otherwise false-positive on a
@@ -38,7 +38,7 @@ looser "contains 'booster pack'" match.
 Price selection: marketPrice, falling back to midPrice if marketPrice is
 null/missing (documented in the `notes` column of the emitted row as
 "price=marketPrice" or "price=midPrice_fallback"). If neither is available
-the product is skipped with a stderr note (no row emitted — a required price
+the product is skipped with a stderr note (no row emitted, since a required price
 field can never be blank in the downstream importer).
 """
 from __future__ import annotations
@@ -68,7 +68,7 @@ USER_AGENT = "curl/8.5.0"
 # (stderr note) rather than omitted, so the table stays the single reviewed
 # source of truth for all 15 canonical set names.
 #
-# Fuzzy-mapping note: "Mega Evolution" is ambiguous by substring — the live
+# Fuzzy-mapping note: "Mega Evolution" is ambiguous by substring. The live
 # group list also has "ME: Mega Evolution Promo" (24451) and "MEE: Mega
 # Evolution Energies" (24461) alongside the actual base-set group "ME01:
 # Mega Evolution" (24380). We hard-code 24380 (the main numbered set group,
@@ -90,7 +90,7 @@ SET_NAME_TO_GROUP: dict[str, Optional[int]] = {
     "Prismatic Evolutions": 23821,    # SV: Prismatic Evolutions
     "Storm Emerald": None,            # not yet released (2026-07-31 per DB);
                                        # no TCGplayer group exists as of
-                                       # 2026-07-17 — skip with stderr note.
+                                       # 2026-07-17, skip with stderr note.
 }
 
 CSV_HEADER = [

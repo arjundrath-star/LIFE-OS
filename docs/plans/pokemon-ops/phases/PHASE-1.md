@@ -6,24 +6,24 @@ Goal: the locked two-domain + bridge schema lands as migration
 
 Context: PLAN.md §2 is the LOCKED schema — implement it exactly (tables, columns, enums,
 uniques, the '' -not-NULL rule for listing_ref/external_txn_id, append-only semantics).
-PROJECT_CONTEXT.md §7–8 for rationale. Discovery §1 for migration conventions
-(auto-apply on boot, `_migrations` tracking, additive-only). Machine facts (fill from
-prompt): MACHINE_SLOT_CONFIG=<from Arjun>, REFILL_CYCLE_DAYS=<from Arjun, else 14>.
+Migration conventions: auto-apply on boot, `_migrations` tracking, additive-only.
+Machine facts (fill from prompt): MACHINE_SLOT_CONFIG=<from operator>,
+REFILL_CYCLE_DAYS=<from operator, else 14>.
 
 Work:
 1. Migration 0011: pk_products, pk_price_observations, pk_sku_assignments,
    pk_stock_events, pk_sales, pk_import_receipts, pk_purchase_lots, pk_recommendations,
    view pk_v_benchmark_current (latest carddistro observation per product), and a small
-   pk_config kv (refill_cycle_days=14 default, budget_cents=120000,
-   alert_threshold_pct=15, min_margin_cents=1000). Indexes on the query paths
+   pk_config kv (refill_cycle_days, budget_cents, alert_threshold_pct,
+   min_margin_cents; defaults set in the migration). Indexes on the query paths
    (observations by product+source+date; sales by machine+sold_at; assignments by
    machine+ended_at).
 2. `lib/pokemon-ops/types.ts` + `lib/pokemon-ops/db.ts`: typed insert/query functions,
    including the IMMEDIATE-transaction write helpers external CLIs will reuse.
-3. Ensure Fixture Corner Store exists in `machines` (extend additively only if its columns
-   cannot hold venue/name; discovery says check first) and record machine 1 facts.
+3. Ensure the first venue's machine row exists in `machines` (extend additively only if
+   its columns cannot hold venue/name; check first) and record machine 1 facts.
 4. Seed script `scripts/pokemon-ops-seed.ts` (idempotent): pk_products from the 15
-   carddistro items (canonical set names; Mystery Slab form=slab tier=slab;
+   seed-CSV products (canonical set names; Mystery Slab form=slab tier=slab;
    Destined Rivals + Prismatic Evolutions reprint_status=active; Ascended Heroes
    announced) plus Storm Emerald (release 2026-07-31, premium); then import
    `docs/plans/pokemon-ops/seeds/carddistro-2026-07-17.csv` into pk_price_observations

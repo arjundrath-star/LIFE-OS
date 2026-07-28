@@ -26,7 +26,7 @@ import {
 import type { PkPriceObservation, PkSkuAssignment, NewRecommendation } from "./types";
 
 /**
- * Rule defaults (operator heuristics from PROJECT_CONTEXT §9). pk_config keys
+ * Rule defaults (operator heuristics). pk_config keys
  * (refill_cycle_days, budget_cents, min_margin_cents) stay in pk_config; these
  * are the engine's own constants. alert_threshold_pct is the SOURCING alert
  * threshold and is deliberately NOT used by refill_sync.

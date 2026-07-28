@@ -13,22 +13,35 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-BASE = Path('/home/Arjun/command-center/Portable Charging')
+# Every path and identity below is environment-overridable so this script is
+# not pinned to one operator's home directory or sending domain.
+BASE = Path(os.environ.get('CHARGING_PROJECT_DIR', str(Path.home() / 'command-center/Portable Charging')))
 OUTREACH = BASE / 'Gmail Outreach'
 LOG_DIR = OUTREACH / 'send_logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 RUN_LOG = BASE / '_Run Log.md'
-MAIN_CSV = BASE / 'Leads' / 'RVH_Charging_Lead_Pipeline.csv'
+# Basename (no extension) of the MAIN lead pipeline sheet inside Leads/.
+# Override when the deployed sheet is named differently.
+MAIN_SHEET = os.environ.get('CHARGING_MAIN_SHEET_BASENAME', 'Charging_Lead_Pipeline')
+MAIN_CSV = BASE / 'Leads' / f'{MAIN_SHEET}.csv'
 ACTIVE_CSV = BASE / 'Leads' / 'Active Leads.csv'
-MAIN_XLSX = BASE / 'Leads' / 'RVH_Charging_Lead_Pipeline.xlsx'
+MAIN_XLSX = BASE / 'Leads' / f'{MAIN_SHEET}.xlsx'
 ACTIVE_XLSX = BASE / 'Leads' / 'Active Leads.xlsx'
-RATH = Path('/home/Arjun/rathworkspace')
-GOOGLE_PY = Path('/home/Arjun/.hermes/google-venv/bin/python')
-SENDER = 'operator@example.com'
+RATH = Path(os.environ.get('RATHWORKSPACE_REPO', str(Path(__file__).resolve().parents[3])))
+GOOGLE_PY = Path(os.environ.get('GOOGLE_WORKSPACE_PYTHON', str(Path.home() / '.hermes/google-venv/bin/python')))
+# The Gmail account the approved batch is sent from. Set OUTREACH_SENDER in the
+# environment; the default is a placeholder and is not a live mailbox.
+SENDER = os.environ.get('OUTREACH_SENDER', 'operator@example.com')
+# Business name used in the placeholder guard and the post-send reply query.
+BUSINESS_NAME = os.environ.get('OUTREACH_BUSINESS_NAME', 'the operator')
 
 ENV = {
     **os.environ,
-    'GOOGLE_WORKSPACE_CLI_CONFIG_DIR': str(Path.home() / '.config/gws-arjun'),
+    # gws reads its OAuth config from this dir. It holds live tokens, so it is
+    # configured per environment and never checked in.
+    'GOOGLE_WORKSPACE_CLI_CONFIG_DIR': os.environ.get(
+        'GOOGLE_WORKSPACE_CLI_CONFIG_DIR', str(Path.home() / '.config/gws')
+    ),
     'PATH': str(Path.home() / '.npm-global/bin') + ':' + str(Path.home() / '.local/bin') + ':/usr/local/bin:/usr/bin:/bin',
 }
 
@@ -96,7 +109,7 @@ def parse_packet(packet: Path, expected_count: int | None) -> list[dict[str, str
         outward = to + '\n' + subject + '\n' + body
         if '—' in outward:
             raise SystemExit(f'ABORT: outgoing em dash found in {draft_id}')
-        if '[' in body and ']' in body and 'the operating entity' not in body:
+        if '[' in body and ']' in body and BUSINESS_NAME not in body:
             raise SystemExit(f'ABORT: possible placeholder in {draft_id}')
         drafts.append({'draft_id': draft_id, 'venue': venue, 'to': to, 'subject': subject, 'body': body})
     if expected_count is not None and len(drafts) != expected_count:
@@ -244,7 +257,7 @@ def monitor_after_send() -> dict[str, Any]:
     for key, q in {
         'bounces_last_hour': 'from:(mailer-daemon OR postmaster) newer_than:1h',
         'auto_replies_last_hour': 'subject:("Automatic reply" OR "Out of Office" OR "OOO") newer_than:1h',
-        'charging_replies_last_hour': 'in:inbox newer_than:1h ("charging amenity" OR "the operating entity" OR "portable charging") -from:mailer-daemon -from:postmaster',
+        'charging_replies_last_hour': f'in:inbox newer_than:1h ("charging amenity" OR "{BUSINESS_NAME}" OR "portable charging") -from:mailer-daemon -from:postmaster',
     }.items():
         rc, raw, data = run_gws(['gmail', 'users', 'messages', 'list', '--params', json.dumps({'userId': 'me', 'q': q, 'maxResults': 50})], timeout=180)
         out[key] = {'returncode': rc, 'count': len(data.get('messages', [])) if isinstance(data, dict) else None, 'raw_tail': raw[-1000:] if rc else ''}

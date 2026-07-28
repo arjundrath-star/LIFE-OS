@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Daily fail-closed Pokemon benchmark refresh.
-# TCGplayer/TCGCSV is mandatory; CardDistro is an optional, best-effort collector.
+# The public market feed (TCGplayer via TCGCSV) is mandatory. The supplier
+# benchmark feed is an optional, best-effort collector: it can degrade the run
+# but can never fail it, and can never erase prior append-only observations.
 set -Eeuo pipefail
 
-REPO_ROOT="${RATHWORKSPACE_REPO:-/home/Arjun/rathworkspace}"
-ARCHIVE_ROOT="${POKEMON_BENCHMARK_ARCHIVE_ROOT:-/home/Arjun/command-center/Pokemon Machines/Archive/benchmark-refresh}"
+REPO_ROOT="${RATHWORKSPACE_REPO:-$HOME/rathworkspace}"
+ARCHIVE_ROOT="${POKEMON_BENCHMARK_ARCHIVE_ROOT:-$HOME/command-center/Pokemon Machines/Archive/benchmark-refresh}"
 OBSERVED_DATE="${POKEMON_BENCHMARK_DATE:-$(date -u +%F)}"
 RUN_STAMP="${POKEMON_BENCHMARK_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_DIR="$ARCHIVE_ROOT/$RUN_STAMP"
@@ -28,7 +30,7 @@ CARDDISTRO_CSV="$RUN_DIR/carddistro.csv"
 TCG_STATUS="pending"
 TCG_DETAIL="not_started"
 CARDDISTRO_STATUS="skipped_due_to_prerequisite"
-CARDDISTRO_DETAIL="TCGplayer prerequisite did not complete; CardDistro collector was not evaluated."
+CARDDISTRO_DETAIL="TCGplayer prerequisite did not complete; the supplier benchmark collector was not evaluated."
 VALUATION_STATUS="pending"
 VALUATION_DETAIL="not_started"
 DEGRADED=1
@@ -116,12 +118,12 @@ markdown = (
     "# Pokemon benchmark refresh\n\n"
     f"- Run: `{summary['run_id']}`\n- Date: `{summary['observed_date']}`\n"
     f"- Status: **{status}**\n- Exit: `{exit_code}`\n"
-    f"- TCGplayer: `{sources['tcgplayer']['status']}` — {sources['tcgplayer']['detail']}\n"
-    f"- CardDistro: `{sources['carddistro']['status']}` — {sources['carddistro']['detail']}\n"
-    f"- Box Target valuations: `{summary['valuation']['status']}` — {summary['valuation']['detail']}\n"
+    f"- TCGplayer: `{sources['tcgplayer']['status']}`, {sources['tcgplayer']['detail']}\n"
+    f"- Supplier benchmark: `{sources['carddistro']['status']}`, {sources['carddistro']['detail']}\n"
+    f"- Box Target valuations: `{summary['valuation']['status']}`, {summary['valuation']['detail']}\n"
 )
 if finalizer_error:
-    markdown += f"- Finalizer: **failed** — {finalizer_error}\n"
+    markdown += f"- Finalizer: **failed**, {finalizer_error}\n"
 atomic_write(run / "run-summary.md", markdown)
 
 manifest = []
@@ -213,15 +215,18 @@ fi
 TCG_STATUS="completed"
 TCG_DETAIL="complete mapped-set TCGplayer observations imported and verified"
 
-# Optional CardDistro automation. There is no stable authenticated collector in the
-# repository today, so no scraper is invented. A future legitimate executable can
-# be supplied here; any failure is degraded and cannot erase prior append-only rows.
+# Optional supplier-benchmark automation. There is no stable authenticated
+# collector in the repository today, so no scraper is invented and none is
+# assumed. An operator supplies a collector executable via
+# POKEMON_BENCHMARK_CARDDISTRO_COLLECTOR; without it this stage reports
+# not_configured. Any failure here degrades the run and cannot erase prior
+# append-only rows.
 if [[ -n "${POKEMON_BENCHMARK_CARDDISTRO_COLLECTOR:-}" ]]; then
   CARDDISTRO_STATUS="attempted"
   CARDDISTRO_DETAIL="collector started"
   if ! run_with_timeout "$CARDDISTRO_COLLECT_TIMEOUT" "$POKEMON_BENCHMARK_CARDDISTRO_COLLECTOR" --observed-date "$OBSERVED_DATE" --out "$CARDDISTRO_CSV" >"$RUN_DIR/carddistro-collect.log" 2>&1; then
     CARDDISTRO_STATUS="failed"
-    CARDDISTRO_DETAIL="collector failed or exceeded ${CARDDISTRO_COLLECT_TIMEOUT}; prior valid CardDistro observations retained"
+    CARDDISTRO_DETAIL="collector failed or exceeded ${CARDDISTRO_COLLECT_TIMEOUT}; prior valid supplier observations retained"
     DEGRADED=1
   elif ! run_with_timeout "$CSV_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SCRIPT" --mode csv --source carddistro --date "$OBSERVED_DATE" --file "$CARDDISTRO_CSV" >"$RUN_DIR/carddistro-csv-validation.json" 2>"$RUN_DIR/carddistro-csv-validation.log"; then
     CARDDISTRO_STATUS="failed"
@@ -237,12 +242,12 @@ if [[ -n "${POKEMON_BENCHMARK_CARDDISTRO_COLLECTOR:-}" ]]; then
     exit 16
   else
     CARDDISTRO_STATUS="completed"
-    CARDDISTRO_DETAIL="CardDistro observations imported or corrected and verified"
+    CARDDISTRO_DETAIL="supplier benchmark observations imported or corrected and verified"
     DEGRADED=0
   fi
 else
   CARDDISTRO_STATUS="not_configured"
-  CARDDISTRO_DETAIL="No legitimate automated CardDistro collector is configured; retained newest valid observations."
+  CARDDISTRO_DETAIL="No automated supplier benchmark collector is configured; retained newest valid observations."
 fi
 
 # Valuation fetch/mutation is deliberately last: it cannot run until mandatory
@@ -265,4 +270,4 @@ if ! run_with_timeout "$VALUATION_COVERAGE_TIMEOUT" "$NPX_BIN" tsx "$COVERAGE_SC
   exit 15
 fi
 VALUATION_STATUS="completed"
-VALUATION_DETAIL="dated Box Target snapshot refreshed and coverage-verified from TCGplayer and newest valid CardDistro observations"
+VALUATION_DETAIL="dated Box Target snapshot refreshed and coverage-verified from TCGplayer and the newest valid supplier benchmark observations"

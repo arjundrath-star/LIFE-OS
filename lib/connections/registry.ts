@@ -183,6 +183,32 @@ export const REGISTRY: ConnectionDef[] = [
       return { ok: true, detail: "token present" };
     },
   },
+  {
+    id: "pocket",
+    label: "Pocket capture",
+    surfaces: ["dashboard"],
+    reconnect: "api_key",
+    defaultEnabled: false,
+    configured: () => hasSecret("POCKET_API_TOKEN"),
+    note: "Wearable audio capture into CRM touchpoints. Inert until a token is added.",
+    check: async () => {
+      const mod = await import("@/server/ingest/pocket");
+      return mod.health();
+    },
+  },
+  {
+    id: "granola",
+    label: "Granola notes",
+    surfaces: ["dashboard"],
+    reconnect: "api_key",
+    defaultEnabled: false,
+    configured: () => hasSecret("GRANOLA_API_TOKEN"),
+    note: "Meeting notes into CRM touchpoints. Inert until a token is added.",
+    check: async () => {
+      const mod = await import("@/server/ingest/granola");
+      return mod.health();
+    },
+  },
 ];
 
 export function getDef(id: string): ConnectionDef | undefined {

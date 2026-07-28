@@ -136,7 +136,7 @@ async function gapi(token: string, url: string): Promise<any> {
   return res.json();
 }
 
-// "Arjun Rath <arjun@x.com>" -> "Arjun Rath"; "bob@x.com" -> "bob@x.com"
+// "Jane Doe <jane@x.com>" -> "Jane Doe"; "bob@x.com" -> "bob@x.com"
 function senderName(from: string | null): string {
   if (!from) return "";
   const m = from.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
@@ -342,23 +342,32 @@ export async function todaysEvents() {
   return { connected: accts.length, events };
 }
 
-// ---- Vending / venue outreach (one identifiable outreach inbox) ----
-// Arjun runs his physical-venue outreach (vending machines / portable charging stations /
-// vape vending — one business in his model) from a single outreach inbox. The Vending tab's
-// "reached out / responded" numbers come straight from that mailbox, read-only, scoped by a
-// configurable subject query so this never conflates with Klade's financial cold outreach.
+// ---- Vending / venue outreach (one designated business inbox) ----
+// Venue outreach for the vending business runs from a single business inbox.
+// The Vending tab's "reached out / responded" numbers come straight from that
+// mailbox, read-only, scoped by a configurable subject query so the counts
+// never conflate with unrelated mail.
 const DEFAULT_OUTREACH_QUERY = "subject:(charging OR vending)";
+// The address outreach runs from. OUTREACH_INBOX names it; the placeholder
+// default means "nothing configured" until the env var or kv override is set.
+const DEFAULT_OUTREACH_INBOX = (process.env.OUTREACH_INBOX || "operator@example.com")
+  .trim()
+  .toLowerCase();
 
 /** Which inbox + scope query the vending outreach counts come from. kv overrides win. */
 export function outreachConfig(): { inbox: string | null; query: string } {
   const query = (kvGet<string>("vending.outreach_query") || DEFAULT_OUTREACH_QUERY).trim();
   let inbox = (kvGet<string>("vending.outreach_inbox") || "").trim().toLowerCase() || null;
   if (!inbox) {
-    // Default to the connected outreach address, preferring arjun@ (the outreach mailbox).
+    // Default to a connected account on the outreach domain, preferring the
+    // configured address itself when it is connected.
+    const domain = DEFAULT_OUTREACH_INBOX.split("@")[1] || "example.com";
     const row = get<any>(
       `SELECT email FROM google_accounts
-       WHERE enabled=1 AND email LIKE '%@example.com'
-       ORDER BY (email='operator@example.com') DESC, added_at LIMIT 1`
+       WHERE enabled=1 AND email LIKE ?
+       ORDER BY (email=?) DESC, added_at LIMIT 1`,
+      `%@${domain}`,
+      DEFAULT_OUTREACH_INBOX
     );
     inbox = row?.email ?? null;
   }
@@ -405,7 +414,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 }
 
 /**
- * Recompute the vending/venue outreach snapshot from the configured outreach inbox.
+ * Recompute the vending/venue outreach snapshot from the configured business inbox.
  * Distinct recipient venues we emailed (subject-scoped) = "reached out"; venues that
  * sent anything back = "responded". Resilient: a Gmail error keeps the last snapshot.
  */

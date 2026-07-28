@@ -60,13 +60,13 @@ export type EmailStatus = "untested" | "emailed" | "replied" | "bounced" | "wron
 
 export type TouchpointType = "call" | "vm" | "note" | "email" | "visit" | "followup";
 
-export interface Phone { number: string; status: PhoneStatus; meta: string; }        // meta = "mobile · PF primary"
+export interface Phone { number: string; status: PhoneStatus; meta: string; }        // meta = "mobile · vendor primary"
 export interface EmailAddr { addr: string; status: EmailStatus; }
 export interface Contact {
   name: string;
   title: string;                    // "Owner" | "Franchisee" | "Manager" | "Needs Review" | ...
   conf: "high" | "medium" | "review";
-  source: string;                   // "PeopleFinder · property record + LLC filing match"
+  source: string;                   // "Lead vendor · property record + LLC filing match"
   phones: Phone[];
   emails: EmailAddr[];
 }
@@ -75,7 +75,7 @@ export interface Touchpoint {
   outcome: string; notes?: string; next?: string | null;
 }
 export interface Lead {
-  id: number; score: number; venue: string; cluster: string;   // "LEX-01 · weekend route"
+  id: number; score: number; venue: string; cluster: string;   // "RT-01 · weekend route"
   stage: Stage;
   active: boolean;      // DERIVED RULE: false until first touchpoint is logged
   category: string;     // one of the 8 category chips
@@ -90,38 +90,38 @@ Reference mock lead (one venue, two contacts, multiple numbers — copy the rest
 
 ```ts
 export const MOCK_LEADS: Lead[] = [{
-  id: 1, score: 86, venue: "Lucky Star Convenience", cluster: "LEX-01 · weekend route",
+  id: 1, score: 86, venue: "Maple Street Convenience", cluster: "RT-01 · weekend route",
   stage: "call_queue", active: false, category: "Convenience",
-  address: "116 Example Street, Springfield ZZ", phone: "(781) 555-0107",
-  rating: 4.6, reviews: 214, web: "venue.example", window: "7-10 PM", tags: ["weekend","pm"],
+  address: "312 Maple St, Springfield", phone: "(781) 555-0107",
+  rating: 4.6, reviews: 214, web: "maplestreetconvenience.example.com", window: "7-10 PM", tags: ["weekend","pm"],
   notes: "Counter space right of register. Kids traffic after 3pm…",
-  next: "Call Minh on best line, ask for 5 min pitch", nextDue: "due Thu · 7-10 PM",
+  next: "Call Jordan on best line, ask for 5 min pitch", nextDue: "due Thu · 7-10 PM",
   contacts: [
-    { name: "Minh Tran", title: "Owner", conf: "high",
-      source: "PeopleFinder · property record + LLC filing match",
+    { name: "Jordan Avery", title: "Owner", conf: "high",
+      source: "Lead vendor · property record + LLC filing match",
       phones: [
-        { number: "(781) 555-0142", status: "untested",  meta: "mobile · PF primary" },
-        { number: "(617) 555-8830", status: "no_answer", meta: "mobile · PF alt" },
+        { number: "(781) 555-0142", status: "untested",  meta: "mobile · vendor primary" },
+        { number: "(617) 555-8830", status: "no_answer", meta: "mobile · vendor alt" },
         { number: "(781) 555-2291", status: "bad",       meta: "landline · disconnected" },
       ],
       emails: [
-        { addr: "contact@example.com",  status: "untested" },
-        { addr: "owner@example.com", status: "emailed"  },
+        { addr: "j.avery@example.com",  status: "untested" },
+        { addr: "maplestreetstore@example.com", status: "emailed"  },
       ]},
-    { name: "Priya Patel", title: "Needs Review", conf: "review",
-      source: "PeopleFinder · same-address hit, possible co-owner",
+    { name: "Casey Bell", title: "Needs Review", conf: "review",
+      source: "Lead vendor · same-address hit, possible co-owner",
       phones: [
         { number: "(857) 555-1176", status: "untested",     meta: "mobile · unverified" },
-        { number: "(781) 555-0033", status: "wrong_person", meta: "reached a P. Patel — realtor" },
+        { number: "(781) 555-0033", status: "wrong_person", meta: "reached a C. Bell (realtor)" },
       ],
-      emails: [{ addr: "contact1@example.com", status: "untested" }]},
+      emails: [{ addr: "cbell.realty@example.com", status: "untested" }]},
   ],
   timeline: [
-    { type: "call", actor: "Arjun", ts: "Jul 5 · 8:12 PM", outcome: "Call — no answer",
+    { type: "call", actor: "operator", ts: "Jul 5 · 8:12 PM", outcome: "Call — no answer",
       notes: "(617) 555-8830, rang out. Try primary next.", next: null },
-    { type: "vm",   actor: "Arjun", ts: "Jul 5 · 8:14 PM", outcome: "Left voicemail",
-      notes: "Short pitch VM on store line.", next: "Call Minh Thu 7-10 PM" },
-    { type: "note", actor: "Dev",   ts: "Jul 4 · 5:40 PM", outcome: "Drive-by note",
+    { type: "vm",   actor: "operator", ts: "Jul 5 · 8:14 PM", outcome: "Left voicemail",
+      notes: "Short pitch VM on store line.", next: "Call Jordan Thu 7-10 PM" },
+    { type: "note", actor: "helper",   ts: "Jul 4 · 5:40 PM", outcome: "Drive-by note",
       notes: "Busy at 5:30pm, lots of families.", next: null },
   ],
 }];
@@ -155,7 +155,7 @@ PokemonCrmPage ("use client"; state: leads, query, filter, cats[], selectedId)
 ```
 
 Empty state (no CSV yet): replace filters+table with one `Section` →
-`EmptyState title="no leads imported" hint="Leads start inactive until you log a call, visit, email, or follow-up." action={<Button variant="accent">Import PeopleFinder CSV</Button>}`.
+`EmptyState title="no leads imported" hint="Leads start inactive until you log a call, visit, email, or follow-up." action={<Button variant="accent">Import lead CSV</Button>}`.
 
 ## 5. PokemonLeadTable
 
@@ -172,7 +172,7 @@ Score | Venue | Stage | Category | Address | Biz phone | Rtg | Revs | Web | Note
 - **Score**: `Badge` tone by priority — `score>=80 → healthy`, `>=60 → accent`, `>=45 → warn`, else `off`; `font-bold min-w-[26px] justify-center`
 - **Venue**: `text-[13px] font-medium text-txt-primary truncate` + inline active chip (`Badge tone={active?"accent":"off"}` text `active`/`not active`, `text-[8.5px]`) + second line cluster `font-mono text-[9.5px] uppercase tracking-wider text-txt-faint`
 - **Stage**: native `<select>` (stopPropagation) `rounded-[6px] border border-border bg-base px-2 py-1 font-mono text-[10.5px] uppercase appearance-none`, text color by stage: new→txt-muted, call/visit_queue→accent, contacted→txt-primary, interested/placed→healthy, follow_up→warn, no→error, hold→off
-- **Category**: `Badge tone="muted"` with short label (`7-11 / Franchise`, `Arcade / FEC`, …)
+- **Category**: `Badge tone="muted"` with short label (`Franchise`, `Arcade / FEC`, …)
 - **Address** `text-[11.5px] text-txt-faint truncate`; **Biz phone** `font-mono text-[11px] text-txt-muted`
 - **Rtg/Revs** `font-mono tabular`; rating ≥4.3 healthy, ≥4.0 muted, else warn
 - **Web**: `yes ↗` accent / `—` faint; **Notes**: `1n` / `—`
@@ -187,7 +187,7 @@ Row 1 — mutually exclusive filter tabs (TabsTrigger styling):
 `font-mono text-[11px] uppercase px-2.5 py-1 rounded-[6px]`, active = `bg-accent/15 text-accent border border-accent/40`, idle = `text-txt-muted`. Each shows its live count in `text-[9.5px]`.
 
 Row 2 — multi-select category chips prefixed by mono micro-label `category`:
-Convenience · 7-Eleven / Franchise C-store · Gas + Convenience · Grocery / Specialty Market · Arcade / Bowling / Family Entertainment · Toy / Card / Hobby · Dessert / Bubble Tea / Pizza · Smoke / Vape / Liquor.
+Convenience · Franchise C-store · Gas + Convenience · Grocery / Specialty Market · Arcade / Bowling / Family Entertainment · Toy / Card / Hobby · Dessert / Bubble Tea / Pizza · Smoke / Vape / Liquor.
 `rounded-full border px-2.5 py-0.5 text-[11px]`; selected = `border-accent/50 bg-accent/10 text-accent`.
 
 Filter predicates: `not_active !active` · `active` · stage equals for queues · `untested` = any phone with status `untested` · `weekend` = tags includes weekend · `7-10 PM` / `7-9 AM` = `lead.window`.
@@ -215,7 +215,7 @@ Emails block (below phones, visually secondary): separated by `border-t border-d
 Header row has quick-log ghost buttons `+ visit · + note · + follow-up` (each prepends a touchpoint, activates lead). Items newest-first with a vertical hairline (`absolute left-[26px] w-px bg-border/90`):
 
 - Type chip 40px wide, mono `text-[8.5px] font-bold`: CALL→accent, VM→warn, NOTE/MAIL→muted, VISIT→healthy, FLW→warn
-- Line 1: outcome `text-xs font-semibold text-txt-primary` + actor `font-mono text-[9.5px]` (Arjun→accent, friend→accent-glow) + timestamp faint
+- Line 1: outcome `text-xs font-semibold text-txt-primary` + actor `font-mono text-[9.5px]` (operator→accent, helper→accent-glow) + timestamp faint
 - Notes `text-[11.5px] text-txt-muted`
 - Optional next-action pill: `border-warn/35 bg-warn/[0.08] text-warn font-mono text-[10px]` → `→ {next}`
 - Empty: "no touchpoints yet — lead stays not active until one is logged"

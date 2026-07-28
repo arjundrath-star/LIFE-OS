@@ -11,7 +11,7 @@ The navigation follows the operator's loop: **Command** scans, **Pipeline** wins
 - Dense but calm: flat sections, row rhythm, restrained borders, and limited card rounding.
 - Business identity: warm white, graphite, steel, and cobalt; unit colors appear only on semantic tags.
 - Decision-ready: surfaces emphasize next action, owner/contact signal, freshness, confidence, and blockers.
-- Honest state: supplied aggregates are labeled; named rows and financial values are visibly prototype data.
+- Honest state: sample aggregates are labeled; named rows and financial values are visibly prototype data.
 - Evidence before polish: key metrics, tables, and drawers identify source and freshness.
 - Progressive detail: cross-business scanning first, drill-down in drawers, specialist screens second.
 
@@ -24,7 +24,7 @@ The navigation follows the operator's loop: **Command** scans, **Pipeline** wins
 5. **Finance**: read-only cash and expense visibility, settlement/payment matching, per-machine economics, bills, close checklist, and links back to tax-ready evidence. It is not a general ledger.
 6. **Intelligence**: dated sourcing and retailer observations, price/margin signals, drop calendar with timezone and confidence tier, and freshness/source badges. “Verified empty” differs from “not checked.”
 7. **Automations**: only business-relevant Pokemon/charging agents, a live workboard, schedules, run history, explicit approval gates, and blockers. No personal agents appear.
-8. **Connections**: Drive, LIFE-OS SQLite, Mercury, accounting, Discord/webhooks, and calendar/email with health, last sync, provenance, scope, and re-auth state.
+8. **Connections**: Drive, LIFE-OS SQLite, the bank API, accounting, Discord/webhooks, and calendar/email with health, last sync, provenance, scope, and re-auth state.
 
 ## Data and provenance rules
 
@@ -36,18 +36,18 @@ Inventory changes are immutable movement events; corrections append reversals. A
 
 | Domain | Current / proposed source | Authority and UI treatment |
 | --- | --- | --- |
-| CRM and touchpoints | LIFE-OS SQLite Pokemon CRM | Operational source of truth; supplied aggregates: 162 leads, 38 touchpoints |
-| Vending and sourcing | LIFE-OS SQLite | Operational source; supplied aggregates: 1 machine, 1 purchase lot, 0 sales, 71 observations, 0 recommendations |
-| Agents and systems | LIFE-OS SQLite | Run/connection source; supplied aggregates: 171 runs, 10 connections, 16 accounts |
-| Books and expenses | the operating entity Books - Live Tracker | Phase 1 accounting source of truth; deep-link evidence rather than copying a ledger |
-| Placement leads | Pokemon CRM folder, Pokemon vending lead/active files, Miscellaneous Leads, `MAIN: RVH_Charging_Lead_Pipeline.xlsx` | CRM is primary where present; Drive files expose sync state and provenance |
-| Hardware | HeyCharge Hardware Price Schedule 2026 PDF | Reference document with document date and link |
-| Cash activity | Mercury API, only after authorization | Read-only accounts/transactions and incoming settlement matching; webhook freshness shown |
+| CRM and touchpoints | LIFE-OS SQLite Pokemon CRM | Operational source of truth; sample aggregates: 120 leads, 45 touchpoints |
+| Vending and sourcing | LIFE-OS SQLite | Operational source; sample aggregates: 3 machines, 2 purchase lots, 41 sales, 96 observations, 0 recommendations |
+| Agents and systems | LIFE-OS SQLite | Run/connection source; sample aggregates: 210 runs, 10 connections, 16 accounts |
+| Books and expenses | Vending Books - Live Tracker | Phase 1 accounting source of truth; deep-link evidence rather than copying a ledger |
+| Placement leads | Pokemon CRM folder, Pokemon vending lead/active files, Miscellaneous Leads, `MAIN: Charging_Lead_Pipeline.xlsx` | CRM is primary where present; Drive files expose sync state and provenance |
+| Hardware | Supplier hardware price schedule 2026 PDF | Reference document with document date and link |
+| Cash activity | Bank API, only after authorization | Read-only accounts/transactions and incoming settlement matching; webhook freshness shown |
 | Alerts | Durable LIFE-OS event ledger → Discord bot/webhook | Database first, delivery second; no user-token automation |
 
 ## Accounting recommendation
 
-Phase 1 should keep the operating entity Books - Live Tracker as the accounting source of truth, add Mercury read-only ingestion when credentials are deliberately authorized, and enforce a monthly close checklist with linked evidence. The Business Hub should match settlements and explain machine/site economics, but must not post journal entries or pretend to replace an accounting ledger.
+Phase 1 should keep the Vending Books - Live Tracker as the accounting source of truth, add bank-API read-only ingestion when credentials are deliberately authorized, and enforce a monthly close checklist with linked evidence. The Business Hub should match settlements and explain machine/site economics, but must not post journal entries or pretend to replace an accounting ledger.
 
 Choose QuickBooks Online or Xero later with accountant input. QuickBooks remains the accountant/tax compatibility leader, while inventory-oriented features sit in higher tiers. Its official list pricing observed July 20, 2026 is $38 / $75 / $115 / $275 per month before promotions. Xero provides reconciliation, reports, and unlimited users; US list prices observed for Early/Growing/Established are $25 / $55 / $90, with projects and expenses concentrated higher. Wave is the low-cost path (Starter free, Pro pricing should be rechecked at decision time) but has less multi-location operations depth. Zoho Books/Inventory has strong multi-location physical stock capabilities but introduces another ecosystem and may exceed current needs. Operations inventory remains in LIFE-OS regardless of ledger selection.
 
@@ -69,7 +69,7 @@ Production implementation must cover loading skeletons, scoped empty states, con
 
 ## Implementation boundaries
 
-This packet is design only. It introduces no routes, APIs, schema, migrations, connectors, auth changes, credentials, jobs, or deployment configuration. It reads no live data and uses no external network dependency. A future implementation must preserve current auth gates, permission boundaries, outreach approvals, event history, and existing personal workspace behavior. Mercury and Discord states in the prototype do not imply credentials or connections exist.
+This packet is design only. It introduces no routes, APIs, schema, migrations, connectors, auth changes, credentials, jobs, or deployment configuration. It reads no live data and uses no external network dependency. A future implementation must preserve current auth gates, permission boundaries, outreach approvals, event history, and existing personal workspace behavior. Bank and Discord states in the prototype do not imply credentials or connections exist.
 
 ## Unanswered decisions for approval
 
@@ -90,8 +90,7 @@ Primary sources reviewed July 20, 2026. Prices can change and must be rechecked 
 - Wave pricing: https://www.waveapps.com/pricing
 - Zoho Inventory multi-warehouse: https://www.zoho.com/us/inventory/multi-warehouse-stock/
 - Zoho Inventory pricing comparison: https://www.zoho.com/us/inventory/pricing-comparison/
-- Mercury API documentation: https://docs.mercury.com/
-- Mercury API webhooks: https://docs.mercury.com/reference/webhooks
+- Banking provider API and webhook reference documentation (reviewed for the read-only ingestion design)
 - Discord bots: https://docs.discord.com/developers/platform/bots
 - Discord webhooks: https://docs.discord.com/developers/platform/webhooks
 - Discord OAuth2 bot vs. user accounts: https://discord.com/developers/docs/topics/oauth2

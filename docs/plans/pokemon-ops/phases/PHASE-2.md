@@ -1,10 +1,10 @@
 # PHASE 2 — Ingest: CRUD routes + CSV importers + smoke script
 
 Goal: every table is writable through authed API routes and idempotent CSV imports, so
-Arjun can log the cycle-one buy (lots + observations) before the machine is live.
+the operator can log the cycle-one buy (lots + observations) before the machine is live.
 
-Context: PLAN.md §3 ingest-now; discovery §1 (middleware auth is free for /api/*; existing
-importer patterns: PeopleFinder + sink receipts), §6.7. Phase 1's db layer is the only
+Context: PLAN.md §3 ingest-now; middleware auth is free for /api/*; existing importer
+patterns: the CRM lead importer + sink receipts. Phase 1's db layer is the only
 write path — routes must not hand-roll SQL.
 
 Work:

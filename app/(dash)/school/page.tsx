@@ -10,7 +10,9 @@ import { hhmm } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { GraduationCap, CheckSquare, Square, Plus, X, Calendar as CalIcon } from "lucide-react";
 
-const NYU_EMAIL = "student@example.edu";
+// The managed school account whose calendar drives this page. Set at build
+// time; the placeholder default keeps the page rendering with no account wired.
+const SCHOOL_EMAIL = process.env.NEXT_PUBLIC_SCHOOL_EMAIL || "student@university.example";
 
 export default function SchoolPage() {
   const [days, setDays] = useState<number | null>(null);
@@ -31,8 +33,8 @@ export default function SchoolPage() {
   const open = checklist.filter((i: any) => !i.done).length;
 
   const cal = useLiveData<any>("calendar");
-  const nyuConnected = (cal?.events ?? []).some((e: any) => e.account === NYU_EMAIL) || false;
-  const nyuEvents = (cal?.events ?? []).filter((e: any) => e.account === NYU_EMAIL);
+  const schoolConnected = (cal?.events ?? []).some((e: any) => e.account === SCHOOL_EMAIL) || false;
+  const schoolEvents = (cal?.events ?? []).filter((e: any) => e.account === SCHOOL_EMAIL);
 
   const post = async (body: any) => {
     await apiPost("/api/school", body);
@@ -50,7 +52,7 @@ export default function SchoolPage() {
     <ProjectPage
       title="School"
       icon={<GraduationCap size={18} />}
-      subtitle="NYU. The countdown owns the page until classes begin, then it flips to today's schedule."
+      subtitle="The countdown owns the page until classes begin, then it flips to today's schedule."
       statusDot={started ? "healthy" : "off"}
       statusLabel={started ? "in session" : "pre-term"}
       hero={
@@ -76,13 +78,13 @@ export default function SchoolPage() {
     >
       {started ? (
         <Section title="Today's classes" icon={<CalIcon size={13} />}>
-          {!nyuConnected ? (
-            <EmptyState title="NYU calendar not connected" hint={`Connect ${NYU_EMAIL} in the Email panel to see today's classes.`} />
-          ) : nyuEvents.length === 0 ? (
+          {!schoolConnected ? (
+            <EmptyState title="School calendar not connected" hint={`Connect ${SCHOOL_EMAIL} in the Email panel to see today's classes.`} />
+          ) : schoolEvents.length === 0 ? (
             <EmptyState title="no classes today" hint="day is clear" />
           ) : (
             <div className="space-y-1.5">
-              {nyuEvents.map((e: any, i: number) => (
+              {schoolEvents.map((e: any, i: number) => (
                 <div key={i} className="flex items-start gap-3 rounded-inner border border-border/60 bg-panel-2/30 px-3 py-2">
                   <div className="w-16 shrink-0 font-mono text-[11px] text-txt-muted">{e.allDay ? "all day" : hhmm(e.start)}</div>
                   <div className="min-w-0 flex-1">
@@ -124,13 +126,13 @@ export default function SchoolPage() {
           </Section>
 
           {/* calendar feed placeholder */}
-          <Section title="NYU calendar" icon={<CalIcon size={13} />}>
+          <Section title="School calendar" icon={<CalIcon size={13} />}>
             <div className="flex items-center justify-between rounded-inner border border-border/60 bg-panel-2/30 px-3 py-2">
-              <span className="font-mono text-xs text-txt-muted">{NYU_EMAIL}</span>
-              <Badge tone={nyuConnected ? "healthy" : "off"} className="!normal-case">{nyuConnected ? "connected" : "not connected"}</Badge>
+              <span className="font-mono text-xs text-txt-muted">{SCHOOL_EMAIL}</span>
+              <Badge tone={schoolConnected ? "healthy" : "off"} className="!normal-case">{schoolConnected ? "connected" : "not connected"}</Badge>
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-txt-faint/70">
-              The NYU managed calendar layers in automatically once the account is connected (Email panel → Add account) and classes begin. Pre-term it is intentionally quiet; today's classes, assignments due, and the week appear here from {TERM_LABEL.split(" · ")[1]}.
+              The managed school calendar layers in automatically once the account is connected (Email panel → Add account) and classes begin. Pre-term it is intentionally quiet; today's classes, assignments due, and the week appear here from {TERM_LABEL.split(" · ")[1]}.
             </p>
           </Section>
         </div>

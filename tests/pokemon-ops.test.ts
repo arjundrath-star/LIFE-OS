@@ -537,7 +537,7 @@ test("seed is idempotent: two runs leave identical row counts", () => {
     try {
       const one = (sql: string) => (db.prepare(sql).get() as { c: number }).c;
       return {
-        machines: one(`SELECT COUNT(*) AS c FROM machines WHERE name = 'Fixture Corner Store'`),
+        machines: one(`SELECT COUNT(*) AS c FROM machines WHERE name = 'Venue Alpha'`),
         products: one(`SELECT COUNT(*) AS c FROM pk_products`),
         observations: one(`SELECT COUNT(*) AS c FROM pk_price_observations`),
         receipts: one(`SELECT COUNT(*) AS c FROM pk_import_receipts`),

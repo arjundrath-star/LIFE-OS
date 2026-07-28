@@ -4,8 +4,8 @@
 # terminal dashboard event for this run.
 set -Eeuo pipefail
 
-PROJECT_DIR="${POKEMON_PROJECT_DIR:-/home/Arjun/command-center/Pokemon Machines}"
-RATH_DIR="${POKEMON_RATH_DIR:-/home/Arjun/rathworkspace}"
+PROJECT_DIR="${POKEMON_PROJECT_DIR:-$HOME/command-center/Pokemon Machines}"
+RATH_DIR="${POKEMON_RATH_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 PROMPT_FILE="${POKEMON_PROMPT_FILE:-$RATH_DIR/agents/pokemon-vending-lead-scout/profile-worker-prompt.md}"
 RUN_ID="${POKEMON_AGENT_RUN_ID:-pokemon-leads-$(date -u +%Y%m%dT%H%M%SZ)}"
 ARCHIVE_ROOT="${POKEMON_ARCHIVE_ROOT:-$PROJECT_DIR/Archive/lead-gen}"
@@ -16,7 +16,7 @@ STATE_FILE="${POKEMON_SINK_STATE_FILE:-$ARCHIVE_ROOT/sink-state.json}"
 EVENT="${POKEMON_EVENT_CMD:-$PROJECT_DIR/agent_event.sh}"
 SCRAPER="${POKEMON_SCRAPER_CMD:-$PROJECT_DIR/scripts/pokemon_lead_system.py}"
 SYNC="${POKEMON_SYNC_CMD:-$PROJECT_DIR/scripts/sync_pokemon_vending_drive.py}"
-GOOGLE_PY="${POKEMON_PYTHON:-/home/Arjun/.hermes/google-venv/bin/python}"
+GOOGLE_PY="${POKEMON_PYTHON:-$HOME/.hermes/google-venv/bin/python}"
 MIN_CRM_ROWS="${POKEMON_CRM_MIN_ROWS:-100}"
 PIPELINE_CSV="$PROJECT_DIR/pokemon vending/Pokemon_Vending_Lead_Pipeline.csv"
 ACTIVE_CSV="$PROJECT_DIR/pokemon vending/Pokemon_Vending_Active_Leads.csv"
@@ -50,7 +50,7 @@ case "${1:-}" in
   --check)
     [[ $# -eq 1 ]] || { printf 'Too many arguments.\n' >&2; usage >&2; exit 64; }
     HERMES_CHECK="${HERMES_BIN:-$(command -v hermes || true)}"
-    if [[ -z "$HERMES_CHECK" && -x /home/Arjun/.local/bin/hermes ]]; then HERMES_CHECK="/home/Arjun/.local/bin/hermes"; fi
+    if [[ -z "$HERMES_CHECK" && -x "$HOME/.local/bin/hermes" ]]; then HERMES_CHECK="$HOME/.local/bin/hermes"; fi
     missing=0
     [[ -d "$PROJECT_DIR" ]] || { printf 'Missing project directory: %s\n' "$PROJECT_DIR" >&2; missing=1; }
     [[ -d "$RATH_DIR" ]] || { printf 'Missing Rathworkspace directory: %s\n' "$RATH_DIR" >&2; missing=1; }
@@ -232,7 +232,7 @@ trap 'exit 130' INT TERM
 
 STAGE="checking_prerequisites"
 HERMES_BIN="${HERMES_BIN:-$(command -v hermes || true)}"
-if [[ -z "$HERMES_BIN" && -x /home/Arjun/.local/bin/hermes ]]; then HERMES_BIN="/home/Arjun/.local/bin/hermes"; fi
+if [[ -z "$HERMES_BIN" && -x "$HOME/.local/bin/hermes" ]]; then HERMES_BIN="$HOME/.local/bin/hermes"; fi
 [[ -f "$PROMPT_FILE" ]] || { SUMMARY="Missing prompt file: $PROMPT_FILE"; exit 1; }
 [[ -n "$HERMES_BIN" && -x "$HERMES_BIN" ]] || { SUMMARY="Hermes CLI not found"; exit 1; }
 cd "$PROJECT_DIR"
@@ -252,7 +252,6 @@ Run id: $RUN_ID
 Project dir: $PROJECT_DIR
 Archive dir: $ARCHIVE_DIR
 Stable pointer: $PROJECT_DIR/OPEN_THIS_WEEKLY_FIELD_PACKET.md
-Terminal workdir symlink: /home/Arjun/command-center/Pokemon_Machines
 The dispatcher owns the single terminal dashboard event. Emit progress events only, never completed/failed/blocked.
 
 $(cat "$PROMPT_FILE")
@@ -270,7 +269,6 @@ if [[ "${POKEMON_AGENTIC_RUN:-}" == "1" ]]; then
   USER_PROMPT="$(cat <<EOF
 Run id: $RUN_ID
 Project dir: $PROJECT_DIR
-Terminal workdir symlink: /home/Arjun/command-center/Pokemon_Machines
 The dispatcher owns the single terminal dashboard event. Emit progress events only, never completed/failed/blocked.
 
 $(cat "$PROMPT_FILE")

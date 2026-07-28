@@ -16,14 +16,14 @@
 # worker, this dispatcher does not need its own sink-state JSON. Each price
 # scrape is genuinely new data every run (new observed_date), and the
 # downstream importer (lib/pokemon-ops/import-observations.ts) already owns
-# idempotency at two layers — file-level sha256 receipt (pk_import_receipts)
-# and row-level UNIQUE(source, listing_ref, observed_date, product_id) —
+# idempotency at two layers, a file-level sha256 receipt (pk_import_receipts)
+# and a row-level UNIQUE(source, listing_ref, observed_date, product_id),
 # so calling it repeatedly with the same or overlapping content is always
 # safe and correctly reports imported/skipped counts. Re-inventing that here
 # would just duplicate logic the importer already guarantees.
 set -Eeuo pipefail
 
-RATH_DIR="${POKEMON_SOURCING_RATH_DIR:-/home/Arjun/rathworkspace}"
+RATH_DIR="${POKEMON_SOURCING_RATH_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 AGENT_DIR="$RATH_DIR/agents/pokemon-sourcing-scout"
 SOURCING_PYTHON="${POKEMON_SOURCING_PYTHON:-$AGENT_DIR/venv/bin/python}"
 EBAY_SCRAPER="${POKEMON_SOURCING_EBAY_SCRAPER:-$AGENT_DIR/scripts/ebay_scraper.py}"
@@ -32,14 +32,14 @@ DB_PATH="${RATHWORKSPACE_DB:-$RATH_DIR/data/rathworkspace.db}"
 EBAY_MAX_PER_SET="${POKEMON_SOURCING_EBAY_MAX_PER_SET:-10}"
 
 RUN_ID="${POKEMON_SOURCING_RUN_ID:-pokemon-sourcing-$(date -u +%Y%m%dT%H%M%SZ)}"
-ARCHIVE_ROOT="${POKEMON_SOURCING_ARCHIVE_ROOT:-/home/Arjun/command-center/Pokemon Machines/Archive/sourcing}"
+ARCHIVE_ROOT="${POKEMON_SOURCING_ARCHIVE_ROOT:-$HOME/command-center/Pokemon Machines/Archive/sourcing}"
 ARCHIVE_DATE="${POKEMON_SOURCING_ARCHIVE_DATE:-$(date -u +%F)}"
 ARCHIVE_DIR="$ARCHIVE_ROOT/$ARCHIVE_DATE/$RUN_ID"
 OBSERVED_DATE="${POKEMON_SOURCING_OBSERVED_DATE:-$(date -u +%F)}"
 
 AGENT_SLUG="${POKEMON_SOURCING_AGENT_SLUG:-pokemon-sourcing-scout}"
 AGENT_DISPLAY_NAME="${POKEMON_SOURCING_AGENT_DISPLAY_NAME:-Pokemon Sourcing Scout}"
-AGENT_DESCRIPTION="${POKEMON_SOURCING_AGENT_DESCRIPTION:-Deterministic daily price-feed scanner (TCGplayer + eBay) plus an agentic Target/Costco/Sams Club/Walmart reprint-wave restock watch for pokemon-ops. Writes dated pk_price_observations; never contacts venues or spends money.}"
+AGENT_DESCRIPTION="${POKEMON_SOURCING_AGENT_DESCRIPTION:-Deterministic daily price-feed scanner (TCGplayer + eBay) plus an agentic big-box retail reprint-wave restock watch for pokemon-ops. Writes dated pk_price_observations; never contacts venues or spends money.}"
 AGENT_SCHEDULE_LABEL="${POKEMON_SOURCING_SCHEDULE_LABEL:-daily 06:15 ET}"
 TRIGGER_TYPE="${POKEMON_SOURCING_TRIGGER_TYPE:-manual}"
 TRIGGER_SOURCE="${POKEMON_SOURCING_TRIGGER_SOURCE:-pokemon-sourcing-scout worker}"
@@ -194,7 +194,7 @@ if [[ "$RUN_AGENTIC" == "1" ]]; then
   STAGE="agentic_restock_watch"
   SUMMARY="Running retail-restock agentic phase"
   HERMES_BIN="${HERMES_BIN:-$(command -v hermes || true)}"
-  if [[ -z "$HERMES_BIN" && -x /home/Arjun/.local/bin/hermes ]]; then HERMES_BIN="/home/Arjun/.local/bin/hermes"; fi
+  if [[ -z "$HERMES_BIN" && -x "$HOME/.local/bin/hermes" ]]; then HERMES_BIN="$HOME/.local/bin/hermes"; fi
   if [[ -z "$HERMES_BIN" ]]; then
     RETAIL_ACTION="skipped_no_hermes_cli"
   else
@@ -202,7 +202,7 @@ if [[ "$RUN_AGENTIC" == "1" ]]; then
 Run id: $RUN_ID
 Observed date (UTC): $OBSERVED_DATE
 Staging file (write your findings here, exact absolute path, create it only
-if you have at least one finding — an absent or empty file is fine and
+if you have at least one finding; an absent or empty file is fine and
 expected on most days): $STAGING_CSV
 
 The dispatcher owns the single terminal dashboard event for this run; do not

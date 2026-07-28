@@ -6,8 +6,8 @@ tracked, pushed state. Discovery found prod running unmerged `feature/pokemon-cr
 `0010_pokemon_pipeline_sink_receipts.sql` applied to the live DB but UNTRACKED in git
 (a fresh clone would be missing schema production depends on).
 
-Context: SYSTEM_DISCOVERY.md §1 (deploy model: prod runs the checked-out branch from
-source), §6.1. Repo `AGENTS.md` rules apply.
+Context: deploy model is prod running the checked-out branch from source. Repo
+`AGENTS.md` rules apply.
 
 Work:
 1. `git add db/migrations/0010_pokemon_pipeline_sink_receipts.sql` and commit with a

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Nightly Rathworkspace/VPS/Obsidian developer maintenance dispatcher.
-# Cron invokes ~/.hermes/scripts/rath_platform_dev_nightly.sh, which delegates here.
-# The real reasoning happens in the dedicated rath-platform-dev Hermes profile.
+# Nightly platform/host/vault developer maintenance dispatcher.
+# Cron invokes the profile-level wrapper, which delegates here so the versioned
+# copy in this repo is the one that actually runs. The real reasoning happens in
+# the dedicated rath-platform-dev Hermes profile.
 set -euo pipefail
 
-RW_REPO="/home/Arjun/rathworkspace"
+RW_REPO="${RATHWORKSPACE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+VAULT_DIR="${OBSIDIAN_VAULT:-$HOME/command-center}"
 PROMPT_FILE="$RW_REPO/agents/rathworkspace-platform-developer/nightly-maintenance-prompt.md"
-MEMO_DIR="/home/Arjun/command-center/Hermes/daily-memo-inputs"
-LOG_DIR="/home/Arjun/command-center/Hermes/logs/rath-platform-dev-nightly"
+MEMO_DIR="${RATH_PLATFORM_DEV_MEMO_DIR:-$VAULT_DIR/Hermes/daily-memo-inputs}"
+LOG_DIR="${RATH_PLATFORM_DEV_LOG_DIR:-$VAULT_DIR/Hermes/logs/rath-platform-dev-nightly}"
 RUN_ID="platform-nightly-$(date -u +%Y%m%dT%H%M%SZ)"
 export RATH_PLATFORM_DEV_RUN_ID="$RUN_ID"
 export RATH_PLATFORM_DEV_MEMO_DIR="$MEMO_DIR"
@@ -40,7 +42,7 @@ npm run agent-event -- \
   --kind started \
   --status running \
   --summary "Nightly developer maintenance started" \
-  --schedule-label "nightly 11:45 PM ET + manual" \
+  --schedule-label "${RATH_PLATFORM_DEV_SCHEDULE_LABEL:-nightly + manual}" \
   --trigger-type cron \
   --trigger-source "rath-platform-dev nightly maintenance" >/dev/null || true
 
@@ -50,7 +52,7 @@ USER_PROMPT="$(cat <<EOF
 - Run id: $RUN_ID
 - Memo dir: $MEMO_DIR
 - Repo cwd: $RW_REPO
-- Trigger: cron nightly 11:45 PM ET
+- Trigger: nightly maintenance cron
 - Wrapper mode: background dispatch. Cron should not wait for the whole agent run; write the memo and events from the worker.
 
 $(cat "$PROMPT_FILE")
@@ -88,7 +90,7 @@ Profile: rath-platform-dev
 ## Security
 - Not inspected by fallback wrapper.
 
-## For Arjun tomorrow
+## For the morning
 - Review worker status: $status.
 - Log: $LOG_FILE
 EOF

@@ -1,8 +1,8 @@
-# Rathworkspace Agent Orchestration — Implementation Plan
+# Rathworkspace Agent Orchestration: Implementation Plan
 
 Date: 2026-06-24
 Author: Claude Code (Opus 4.8)
-Repo: /home/Arjun/rathworkspace
+Repo: ~/rathworkspace
 Goal: make rathworkspace the visible control tower for named agent / subagent flows,
 starting with Portable Charging lead-finding / draft-review. Cron = alarm clock,
 Hermes = orchestrator, named agents emit events into the dashboard.
@@ -122,11 +122,11 @@ Flags: `--agent --run --kind --status --summary` (+ optional `--level --detail(J
 - Used at most twice: checkpoint 1 (this plan, before coding) and checkpoint 2 (before email).
 
 ## 9. Completion email (last step, after verification + checkpoint 2)
-- `GOOGLE_WORKSPACE_CLI_CONFIG_DIR=$HOME/.config/gws-arjun`,
-  `gws gmail +send --to operator@example.com --subject "rathworkspace agent orchestration
+- `GOOGLE_WORKSPACE_CLI_CONFIG_DIR=$HOME/.config/<gws-profile>`,
+  `gws gmail +send --to <operator-email> --subject "rathworkspace agent orchestration
   update — <date>" --body "$(cat <body>)"`. Fallback: write body to
   `AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt` and report the failure.
-- Explicitly authorized by the mission prompt (satisfies the ask-before-arjun-send rule).
+- Explicitly authorized by the mission prompt (satisfies the ask-before-send rule).
 
 ## Verification (objective gates — `passes` flips only on real output)
 1. `git status --short`.

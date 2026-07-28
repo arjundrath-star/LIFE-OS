@@ -2,8 +2,7 @@
 
 Status: APPROVED 2026-07-17. This file is STABLE: build sessions read it and MUST NOT edit
 it. Volatile state lives in PROGRESS.md. Per-session instructions live in phases/PHASE-N.md.
-Background and rationale live in PROJECT_CONTEXT.md. Environment facts live in
-SYSTEM_DISCOVERY.md. This PLAN supersedes BUILD_PLAN_PROPOSAL.md where they differ
+This PLAN supersedes BUILD_PLAN_PROPOSAL.md where they differ
 (the material difference: §2 schema unifies pricing into one observation table).
 
 ## 1. Verdict and shape
@@ -17,21 +16,21 @@ surrounding layer. The new module is `pokemon-ops`: migration 0011, `lib/pokemon
 agent, and OS-cron alert scripts. Architecture diagram: see BUILD_PLAN_PROPOSAL.md §1
 (still accurate; only the table set changed).
 
-Hard environment rules (from SYSTEM_DISCOVERY.md, non-negotiable):
+Hard environment rules (non-negotiable):
 - Additive-only migrations; never edit shipped migrations; next number 0011.
 - External writers (Hermes/cron/CLI) use `db.transaction(fn).immediate()` (two-writer WAL
   rule; DEFERRED causes SQLITE_BUSY_SNAPSHOT).
-- No new resident daemons (2 cores / ~4 GiB free). Pollers = scheduler ticks; scans =
+- No new resident daemons on the small host. Pollers = scheduler ticks; scans =
   cron-fired scripts.
-- No inbound ports; all integrations pull-based (Lynx REST polling, SQS receive).
-- Never weaken the Google allowlist. Nayax/eBay creds → `~/.config/rathworkspace/secrets.env`
-  + `connections` registry entries.
+- No new inbound listeners; all integrations pull-based (Lynx REST polling, SQS receive).
+- Never weaken the Google allowlist. Nayax/eBay creds load from the environment and
+  register as `connections` registry entries; nothing committed.
 - Prod runs the checked-out branch from source; deploy = `npm run build` +
   `sudo systemctl restart rathworkspace`.
 
 ## 2. Database schema — migration `0011_pokemon_ops.sql` (LOCKED)
 
-Two domains + one bridge (see PROJECT_CONTEXT.md §8). All tables `pk_`-prefixed.
+Two domains + one bridge. All tables `pk_`-prefixed.
 History-over-overwrite: current state is derived by query, not mutated. All money in
 integer cents. All timestamps UTC ISO-8601. Canonical-name rule: every table references
 `pk_products.id`, never free-text set names ("Mega Evolution" vs "Mega Evolutions" must
@@ -43,7 +42,8 @@ resolve to one row).
 `id, set_name, form (booster|blister|tin_pack|slab|other), display_name, release_date NULL,
 tier (premium|mid|entry|slab|unknown), reprint_status (none|announced|active),
 active (0/1), created_at`.
-Seeded from the 15 carddistro items + Storm Emerald (releases 2026-07-31).
+Seeded from the 15 products in the supplier-quote seed CSV + Storm Emerald
+(releases 2026-07-31).
 
 ### Domain 1 — market pricing (append-only)
 
@@ -60,8 +60,8 @@ dedupe, Learnings 2026-07-06), quantity_available NULL, alerted_at NULL, notes, 
 UNIQUE(source, listing_ref, observed_date, product_id)` for scanner idempotency.
 - The benchmark is NOT a separate table: benchmark = latest TCGplayer market
   observation per product, with latest eBay sold as fallback only when the product
-  has no TCGplayer observation (view `pk_v_benchmark_current`). Carddistro remains
-  a supplier/mentor quote and never defines fair value.
+  has no TCGplayer observation (view `pk_v_benchmark_current`). The `carddistro`
+  source is a distributor quote and never defines fair value.
 - Seed: `seeds/carddistro-2026-07-17.csv` (15 rows, observed_date 2026-07-17).
 - Price history / cross-source comparison = plain queries over this table. That is the
   point of the design; do not denormalize it away.
@@ -71,7 +71,7 @@ UNIQUE(source, listing_ref, observed_date, product_id)` for scanner idempotency.
 **`pk_sku_assignments`** — `id, machine_id FK machines, slot_number (1..8 Mini Wall),
 product_id FK, price_cents, capacity, assigned_at, ended_at NULL while active, note`.
 Price change / rotation = end old row + append new. `note` carries dated merchandising
-rationale (cycle-one note per PROJECT_CONTEXT.md §4 goes here).
+rationale (the cycle-one merchandising note goes here).
 
 **`pk_stock_events`** — `id, machine_id, slot_number, event (refill|audit_count|
 shrink_adjust), qty_delta (audit_count rows carry absolute count in qty_delta with
@@ -94,9 +94,9 @@ landed_cost_per_pack_cents (computed at insert), observation_id FK NULL (the obs
 that triggered the buy), benchmark_price_cents (date-eligible external benchmark at purchase time),
 benchmark_delta_cents, status (in_transit|received|allocated|depleted), notes, created_at`.
 Sales draw down lots FIFO per product (allocation computed in metrics, not stored).
-Lots roll up to "total invested"; a small exporter preserves
-`workspace/vending/finance/rath-vending-expenses.csv` semantics (SQLite is source of
-truth for pokemon spend; CSV remains the holding-company view).
+Lots roll up to "total invested"; a small exporter preserves the semantics of the
+existing expenses CSV (SQLite is source of truth for pokemon spend; the CSV remains
+the ledger view).
 
 ### Rules output
 
@@ -120,16 +120,17 @@ sellout, refill-sync spread, FIFO lot allocation, benchmark deltas over time. Al
   purchase lots and price observations.
 - **Ingest later:** `tickNayax` scheduler tick, 15 min, `lastSales` cursor+dedupe;
   hourly `machineProducts` reconciliation (Nayax MissingStockByMDB/PAR vs our
-  stock-event math → drift recommendation); `status` health tile. See
-  SYSTEM_DISCOVERY.md §5 and the saved docs at `workspace/vending/pokemon/nayax-docs/`.
+  stock-event math → drift recommendation); `status` health tile. Vendor API details
+  come from the saved Lynx OpenAPI spec and doc pages (copied into phase fixtures).
 - **Stretch:** SQS receive tick; Lynx demoted to hourly reconciliation.
 - **Rules engine:** `lib/pokemon-ops/rules.ts`, pure deterministic, no LLM, golden-fixture
   tested. Rules: refill sync (days-of-supply equalization), dynamic-pricing trigger
   (projected sellout < 50% of refill cycle → recommend raise/add-slot), dead stock
-  (21 days no sales → mystery-slot rotation), refill order generator ($1,200 budget +
+  (21 days no sales → mystery-slot rotation), refill order generator (configured budget +
   velocities + freshest observations per product → exact shopping list with source and
   expected landed cost/margin). Config table or kv: refill_cycle_days (default 14 until
-  Arjun confirms), budget_cents (120000), alert_threshold_pct (15), min_margin_cents (1000).
+  the operator confirms), budget_cents, alert_threshold_pct (15), min_margin_cents
+  (defaults live in the migration).
 - **Dashboard:** nav `pokemon-ops` next to `pokemon-crm`; WS channel `pokemon_ops`
   (60s snapshot tick); KPI band (margin $/slot/day primary, total invested, sell-through,
   days-of-supply spread); slot table; recommendations; recent sales; sourcing feed
@@ -139,7 +140,7 @@ sellout, refill-sync spread, FIFO lot allocation, benchmark deltas over time. Al
 - **Hermes sourcing:** `agents/pokemon-sourcing-scout/` cloning the lead-scout dispatcher
   (deterministic Python scrapers + optional agentic phase + archive/idempotency/
   agent-event); skill `~/.hermes/skills/business/pokemon-sourcing-scout/`; `hermes cron`
-  job off-peak (avoid 09:00/10:30/23:45 — single Codex credential). Scans write
+  job scheduled off-peak relative to existing jobs (single upstream credential). Scans write
   `pk_price_observations` (IMMEDIATE-tx CLI). eBay via Browse API if keys provisioned,
   else scraper; TCGplayer via scrape with pokemontcg.io/tcgcsv.com backup; retail-restock
   watch (reprint wave) is the agentic phase and alerts immediately, not in digest.
@@ -166,23 +167,25 @@ independent after 4 (parallel sessions allowed); 8 stretch after 7.
 | 7 | Nayax Lynx poller + reconciliation (needs human checklist §5.1) | mocked fixtures + live healthy/no-dupe |
 | 8 | SQS stream (stretch) | fixture + live message end-to-end |
 
-## 5. Human setup checklist (Arjun, once; front-loaded so sessions never need him)
+## 5. Human setup checklist (operator, once; front-loaded so sessions never need a human)
 
 1. **Nayax (during onboarding this month):** reader registered under YOUR operator
    account (not the distributor's); Core login with operator-admin; device serial;
    self-serve User Token (Core → Account Settings → Security and Login → User Tokens) →
-   `NAYAX_LYNX_TOKEN` + `NAYAX_DEVICE_SERIAL` in `~/.config/rathworkspace/secrets.env`;
-   request roles Transaction Dispatcher + Transactions Report Subscriber; ask VTM if the
-   Mini Wall's DEX port is wired to the Nayax unit. (SQS/AWS setup deferred to Phase 8.)
+   `NAYAX_LYNX_TOKEN` + `NAYAX_DEVICE_SERIAL` set in the environment;
+   request roles Transaction Dispatcher + Transactions Report Subscriber; ask the
+   machine vendor if the Mini Wall's DEX port is wired to the Nayax unit. (SQS/AWS
+   setup deferred to Phase 8.)
 2. **eBay:** developer.ebay.com production keyset (Browse API, free tier) → `EBAY_*`
-   in secrets.env. Skipping = Phase 6 scraper path (works, brittler).
-3. **Mentor list re-drops:** updated carddistro CSVs →
-   `~/rathworkspace/data/imports/mentor-benchmark.csv` (importer appends dated rows).
+   set in the environment. Skipping = Phase 6 scraper path (works, brittler).
+3. **Supplier quote re-drops:** updated distributor quote CSVs →
+   `~/rathworkspace/data/imports/` (importer appends dated rows).
 4. **Machine config facts** (edit into `prompts/PHASE-1-prompt.md` before launching):
-   slot/SKU config and per-slot capacity on the Mini Wall; Fixture Corner Store refill cadence.
+   slot/SKU config and per-slot capacity on the Mini Wall; the first venue's refill
+   cadence.
 5. Verify `sudo systemctl restart rathworkspace` is passwordless once.
-6. **MA tax (business, not code):** file for the ST-4 resale certificate via
-   MassTaxConnect; email the accountant re: MA vend-tax setup.
+6. **Sales tax (business, not code):** resale-certificate filing and vend-tax
+   registration are tracked outside this repo.
 
 ## 6. Session protocol (hard rules; every phase spec restates them)
 
@@ -196,7 +199,7 @@ independent after 4 (parallel sessions allowed); 8 stretch after 7.
 4. **PROGRESS.md:** current-state block is the only mutable region; everything below is
    append-only.
 5. **Specs are read-only to build sessions.** Spec problems → PROGRESS.md "spec issues"
-   → stop at the phase boundary. Planning sessions (or Arjun) amend specs.
+   → stop at the phase boundary. Planning sessions (or the operator) amend specs.
 6. **DoD commands are copy-paste runnable and binary** (exit codes, grep strings,
    screenshot paths). "Looks right" is not a DoD.
 7. Follow repo `AGENTS.md` (lifecycle events, build verification, allowlist untouchable).

@@ -126,7 +126,7 @@ run_case() {
   local case_dir="$TMP_ROOT/$name"
   local successful_pointer_sentinel
   mkdir -p "$case_dir/repo" "$case_dir/archive"
-  printf 'prior-carddistro-observation\n' >"$case_dir/prior-observations.txt"
+  printf 'prior-supplier-observation\n' >"$case_dir/prior-observations.txt"
   if [[ "$pointer_mode" == "directory" ]]; then
     mkdir "$case_dir/archive/latest-successful-run.json"
     successful_pointer_sentinel="$case_dir/archive/latest-successful-run.json/previous.json"
@@ -241,17 +241,17 @@ assert_carddistro_degraded_case() {
   grep -Fq 'pokemon:source-products' "$CASE_DIR/commands.log" || fail "valuation did not run after successful mandatory TCGplayer pipeline in $name"
   grep -Eq 'pokemon:source-products .*--expected-tcg-csv .*tcgplayer\.csv' "$CASE_DIR/commands.log" || fail "valuation was not bound to the mandatory TCGplayer CSV in $name"
   if grep -Eq 'pokemon:source-products .*--expected-carddistro-csv' "$CASE_DIR/commands.log"; then
-    fail "valuation was incorrectly bound to a CardDistro CSV after CardDistro degraded in $name"
+    fail "valuation was incorrectly bound to a supplier CSV after the supplier feed degraded in $name"
   fi
   if [[ "$expected_import_state" == "skipped" ]] && grep -Eq '^npm .*import:pokemon-ops .*carddistro\.csv' "$CASE_DIR/commands.log"; then
-    fail "CardDistro import ran after an earlier optional failure in $name"
+    fail "supplier import ran after an earlier optional failure in $name"
   fi
   if [[ "$expected_import_state" == "attempted" ]] && ! grep -Eq '^npm .*import:pokemon-ops .*carddistro\.csv' "$CASE_DIR/commands.log"; then
-    fail "CardDistro import was not attempted in $name"
+    fail "supplier import was not attempted in $name"
   fi
   current_hash="$(sha256sum "$CASE_DIR/prior-observations.txt" | cut -d' ' -f1)"
-  [[ "$current_hash" == "$CASE_PRIOR_HASH" ]] || fail "prior CardDistro observation sentinel changed in $name"
-  grep -Fq '"status": "failed"' "$CASE_DIR/archive/$name/source-outcomes.json" || fail "CardDistro source outcome was not failed in $name"
+  [[ "$current_hash" == "$CASE_PRIOR_HASH" ]] || fail "prior supplier observation sentinel changed in $name"
+  grep -Fq '"status": "failed"' "$CASE_DIR/archive/$name/source-outcomes.json" || fail "supplier source outcome was not failed in $name"
   grep -Fq 'run-summary.json' "$CASE_DIR/archive/$name/manifest.json" || fail "archive manifest omitted run-summary.json in $name"
   grep -Fq 'source-outcomes.json' "$CASE_DIR/archive/$name/manifest.json" || fail "archive manifest omitted source-outcomes.json in $name"
 }
@@ -261,7 +261,7 @@ assert_carddistro_degraded_case carddistro-validation-failure 0 6 0 skipped
 assert_carddistro_degraded_case carddistro-import-failure 0 0 6 attempted
 
 run_case carddistro-db-coverage-failure 0 0 0 0 0 0 0 0 30s file 0 0 6
-[[ "$CASE_RC" -eq 16 ]] || fail "CardDistro database coverage failure exit=$CASE_RC, expected=16"
+[[ "$CASE_RC" -eq 16 ]] || fail "supplier database coverage failure exit=$CASE_RC, expected=16"
 assert_status "$CASE_DIR/archive/carddistro-db-coverage-failure/run-summary.json" failed
 assert_status "$CASE_DIR/archive/latest-successful-run.json" previous
 assert_successful_pointer_unchanged
@@ -295,4 +295,4 @@ then
   fail "recovery manifest does not match rewritten failed run artifacts"
 fi
 
-printf 'PASS: mandatory stages and post-import verification fail closed (including timeout), pre-import optional CardDistro failures degrade, and finalizer recovery publishes failed exit-70 metadata without advancing latest-successful\n'
+printf 'PASS: mandatory stages and post-import verification fail closed (including timeout), pre-import optional supplier-feed failures degrade, and finalizer recovery publishes failed exit-70 metadata without advancing latest-successful\n'

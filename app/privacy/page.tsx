@@ -5,9 +5,13 @@ export const metadata: Metadata = {
   description: "How rathworkspace handles connected-account data.",
 };
 
-// Public page (exempt from the auth gate in middleware.ts). Plain static text — no
+// Public page (exempt from the auth gate in middleware.ts). Plain static text: no
 // data, no live channels. Serves as the privacy-policy URL for connected apps such
 // as WHOOP, which presents this link during the OAuth consent flow.
+// The contact address is build-time config so the operator's real mailbox is not
+// baked into source. OAuth reviewers require a working address here, so set it.
+const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "operator@example.com";
+
 export default function PrivacyPage() {
   const updated = "June 24, 2026";
   return (
@@ -64,8 +68,8 @@ export default function PrivacyPage() {
           <h2 className="mb-2 font-mono text-xs uppercase tracking-[0.14em] text-txt-faint">Contact</h2>
           <p>
             Questions about this policy can be sent to{" "}
-            <a href="mailto:operator@example.com" className="text-accent underline-offset-2 hover:underline">
-              operator@example.com
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-accent underline-offset-2 hover:underline">
+              {CONTACT_EMAIL}
             </a>
             .
           </p>

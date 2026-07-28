@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Tests for tcgplayer_scraper.py.
 
-Run: /home/Arjun/.hermes/google-venv/bin/python -m pytest \
+Run: python3 -m pytest \
        agents/pokemon-sourcing-scout/tests/test_tcgplayer_scraper.py -v
-(or plain `python -m unittest` — no pytest-only features are used, so both
-work; see the __main__ block.)
+(or plain `python -m unittest`, since no pytest-only features are used;
+see the __main__ block.)
 """
 from __future__ import annotations
 

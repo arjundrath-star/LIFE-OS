@@ -31,8 +31,11 @@ DATA_CLI="$REPO_ROOT/scripts/pokemon-ops-alerts-data.ts"
 TSX_BIN="$REPO_ROOT/node_modules/.bin/tsx"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/pokemon-ops-alerts.log"
-TG_ENV="$HOME/.hermes/.env"
-CHAT_ID="ALERT_CHAT_ID"
+# Delivery config comes from the environment (cron exports it):
+#   POKEMON_ALERTS_CHAT_ID  target Telegram chat id (required for live sends)
+#   TELEGRAM_BOT_TOKEN      bot token, or
+#   TELEGRAM_ENV_FILE       path to an env file that defines TELEGRAM_BOT_TOKEN
+CHAT_ID="${POKEMON_ALERTS_CHAT_ID:-}"
 
 mkdir -p "$LOG_DIR"
 
@@ -51,10 +54,16 @@ tsx_cli() {
 # without checking curl's own exit code separately.
 send_telegram() {
   local text="$1"
-  local token
-  token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$TG_ENV" 2>/dev/null | cut -d= -f2- | tr -d '"') || true
+  local token="${TELEGRAM_BOT_TOKEN:-}"
+  if [ -z "$token" ] && [ -n "${TELEGRAM_ENV_FILE:-}" ]; then
+    token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$TELEGRAM_ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"') || true
+  fi
   if [ -z "${token:-}" ]; then
     echo '{"ok":false,"error_description":"no TELEGRAM_BOT_TOKEN found"}'
+    return 0
+  fi
+  if [ -z "${CHAT_ID:-}" ]; then
+    echo '{"ok":false,"error_description":"POKEMON_ALERTS_CHAT_ID not set"}'
     return 0
   fi
   curl -s -m 10 "https://api.telegram.org/bot${token}/sendMessage" \
@@ -65,10 +74,10 @@ send_telegram() {
 
 DIGEST=0
 # Non-live-DB safety: alerts computed from a test/temp DB must never reach
-# Arjun's phone. If RATHWORKSPACE_DB points anywhere but the production DB,
-# force dry-run (incident 2026-07-17: a dispatcher dry run against a temp DB
-# live-sent two real alerts).
-if [ -n "${RATHWORKSPACE_DB:-}" ] && [ "${RATHWORKSPACE_DB}" != "/home/Arjun/rathworkspace/data/rathworkspace.db" ]; then
+# the operator's phone. If RATHWORKSPACE_DB points anywhere but the production
+# DB, force dry-run (incident 2026-07-17: a dispatcher dry run against a temp
+# DB live-sent two real alerts).
+if [ -n "${RATHWORKSPACE_DB:-}" ] && [ "${RATHWORKSPACE_DB}" != "$REPO_ROOT/data/rathworkspace.db" ]; then
   FORCE_DRY_NONLIVE=1
 else
   FORCE_DRY_NONLIVE=0

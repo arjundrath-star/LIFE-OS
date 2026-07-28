@@ -1,25 +1,25 @@
-# Agent Orchestration — Progress
+# Agent Orchestration: Progress
 
 > Historical implementation record for the June 2026 orchestration build. It is not a
 > live operations checklist. Use `AGENTS.md`, `docs/agent-orchestration.md`, the versioned
 > agent manifests, and the gated `/agents` page for current behavior and runtime state.
 
 Mission: turn rathworkspace into the visible control tower for named agent/subagent flows.
-Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-features.json`.
+Plan: `docs/orchestration/plan.md`. Feature gates: `docs/orchestration/feature-acceptance-gates.json`.
 
 ## Current state
 - [x] Explored repo (db layer, scheduler, live hub, panels, auth gate, source pattern).
-- [x] Wrote plan → `.agent-orchestration/PLAN.md`.
-- [x] Hermes advisory checkpoint 1 (log: `.agent-orchestration/hermes-checkpoint1.log`) — feedback folded into the plan.
+- [x] Wrote plan → `docs/orchestration/plan.md`.
+- [x] Hermes advisory checkpoint 1 (transcript reviewed, not retained in the repo) — feedback folded into the plan.
 - [x] Implemented migration / lib / CLI / API / scheduler / UI / PC docs + wrapper.
 - [x] Verified: migrate (idempotent), CLI smoke + negatives, read model, build, deploy, demo, auth 401/401/200, WS channels, screenshot.
 - [x] Adversarial review workflow (4 lenses × verify pass, 26 agents, 22 findings) — 5 fix-now
   + cheap hardening applied and re-verified. Auth / SQL-injection / XSS / atomicity confirmed clean.
-- [x] Hermes advisory checkpoint 2 (log: `.agent-orchestration/hermes-checkpoint2.log`) — clean
+- [x] Hermes advisory checkpoint 2 (transcript reviewed, not retained in the repo) — clean
   pass, no blockers; polish notes (don't claim lint passed; demo review-packet is simulated)
   honored in the email.
-- [x] Committed + pushed to `origin/main` (`c4d5a04`); completion email sent from
-  operator@example.com to operator@example.com (Gmail message/thread id `MESSAGE_ID`).
+- [x] Committed + pushed to `origin/main` (`c4d5a04`); completion email sent to the
+  operator's inbox.
 - [x] Post-review semantic correction: renamed the top-level registry row from `daily-orchestrator`
   to `hermes-orchestrator` so the dashboard represents Hermes/this assistant as the orchestrator,
   not a separate fictional agent. Build re-verified after the rename.
@@ -28,7 +28,7 @@ Plan: `.agent-orchestration/PLAN.md`. Feature gates: `agent-orchestration-featur
   dashboard registry row, and a Portable Charging cron prelude/helper so real daily runs emit
   to `/agents` instead of only demo runs.
 
-## DONE — all feature gates pass (agent-orchestration-features.json).
+## DONE: all feature gates pass (feature-acceptance-gates.json).
 
 ## Review fixes applied (all re-verified)
 1. **Snapshot showed OLDEST 40 events, not latest** — for a run >40 events the live tail was

@@ -4,14 +4,14 @@ Goal: automated Domain 1 feeds. Daily scans write dated pk_price_observations fo
 products from eBay, TCGplayer(-or-backup), and the 2026 reprint-wave retail-restock
 watch; threshold beats alert immediately via Phase 5's pipeline.
 
-Context: PLAN.md §3 Hermes sourcing; discovery §3 (dispatcher reference:
-pokemon_machines_profile_worker.sh; agents/pokemon-vending-lead-scout as the template;
-google-venv python; headless Chrome CDP :18800; single Codex credential → schedule
-off-peak, away from 09:00/10:30/23:45). This phase is one-coherent-context work; skip
-Codex subprocesses.
+Context: PLAN.md §3 Hermes sourcing; dispatcher reference:
+pokemon_machines_profile_worker.sh with agents/pokemon-vending-lead-scout as the
+template; the shared python venv; the existing local headless-Chrome CDP endpoint;
+single upstream credential → schedule off-peak relative to the existing jobs. This
+phase is one-coherent-context work; skip Codex subprocesses.
 
-Decision at session start: if EBAY_* keys exist in secrets.env → Browse API path; else
-scraper path. Record which in PROGRESS.md.
+Decision at session start: if EBAY_* keys exist in the environment → Browse API path;
+else scraper path. Record which in PROGRESS.md.
 
 Work:
 1. `agents/pokemon-sourcing-scout/` cloning the lead-scout dispatcher architecture:

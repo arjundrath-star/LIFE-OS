@@ -1,6 +1,6 @@
 # BUILD_PLAN_PROPOSAL — Pokemon Card Vending Ops System
 
-Date: 2026-07-17. Companion to `SYSTEM_DISCOVERY.md`. Design only; no code written.
+Date: 2026-07-17. Output of a read-only discovery session. Design only; no code written.
 
 ---
 
@@ -9,7 +9,7 @@ Date: 2026-07-17. Companion to `SYSTEM_DISCOVERY.md`. Design only; no code writt
 **Verdict: extend the existing stack. No new stack is justified.** rathworkspace already provides SQLite + migrations, a scheduler/WebSocket data plane, Google-allowlisted auth, panel conventions, an agent-event build harness, and a sibling Pokemon CRM. Hermes already provides the `pokemon-scout` profile, skill format, cron scheduler, and Telegram delivery. Everything below slots into those.
 
 ```
-                    ┌─ rathworkspace (Next.js, 127.0.0.1:3000, Cloudflare tunnel) ─┐
+                    ┌─ rathworkspace (Next.js, loopback bind, tunnel ingress) ─────┐
  manual entry UI ──▶│  app/(dash)/pokemon-ops/          components/panels/          │
  CSV upload ───────▶│  app/api/pokemon-ops/*            PokemonOpsPanel             │
                     │            │                            ▲                     │
@@ -24,7 +24,7 @@ Date: 2026-07-17. Companion to `SYSTEM_DISCOVERY.md`. Design only; no code writt
                                  │ IMMEDIATE txns (two-writer rule)
         ┌────────────────────────┼──────────────────────┐
         │ Hermes cron script job │                      │ alert cron (bash curl)
-        │ agents/pokemon-sourcing-scout/                │ Telegram → Arjun
+        │ agents/pokemon-sourcing-scout/                │ Telegram → operator
         │ (eBay/TCGplayer/retail-restock scans)         │
         └───────────────────────────────────────────────┘
 ```
@@ -34,8 +34,8 @@ Date: 2026-07-17. Companion to `SYSTEM_DISCOVERY.md`. Design only; no code writt
 All tables prefixed `pk_` to sit beside the CRM's `pokemon_*` without collision. History-over-overwrite per the `rathworkspace-data` skill: current state is derived by query, not mutated in place.
 
 - **`pk_products`** — pack-type catalog: set name, product form (booster, blister, ETB pack), display name. One row per sellable pack type.
-- **`pk_purchase_lots`** — source (ebay | target | costco | local_shop | mentor | other), purchase_date, product_id FK, pack_count, total_cost_cents (tax + shipping included), landed_cost_per_pack_cents (stored, computed at insert), benchmark_price_cents at time of purchase, benchmark_delta_cents, status (in_transit | received | allocated | depleted), notes.
-- **`pk_benchmarks`** — mentor supplier price list: product_id, price_per_pack_cents, effective_date. Append rows on each list update; current = latest per product.
+- **`pk_purchase_lots`** — source (ebay | target | costco | local_shop | supplier | other), purchase_date, product_id FK, pack_count, total_cost_cents (tax + shipping included), landed_cost_per_pack_cents (stored, computed at insert), benchmark_price_cents at time of purchase, benchmark_delta_cents, status (in_transit | received | allocated | depleted), notes.
+- **`pk_benchmarks`** — supplier price list: product_id, price_per_pack_cents, effective_date. Append rows on each list update; current = latest per product.
 - **`pk_sku_assignments`** — machine_id FK `machines`, slot_number (1–8 on VTM Mini Wall), product_id, price_cents, capacity, assigned_at, ended_at NULL while active. Reassignment/price change = end old row + append new (full pricing history preserved for the rules engine).
 - **`pk_stock_events`** — machine_id, slot_number, event (refill | audit_count | shrink_adjust), qty_delta, lot_id NULL-able (which lot the packs came from), at. Current stock per slot = Σ(qty_delta) − sales since. Physical count on a service visit = `audit_count` event that resets the baseline.
 - **`pk_sales`** — machine_id, slot_number, product_id, qty, unit_price_cents, sold_at, source (manual | csv | lynx | sqs), external_txn_id (nullable; store '' not NULL — it's in the dedupe key, and NULL-in-UNIQUE silently disables dedupe, per Learnings 2026-07-06), UNIQUE(source, external_txn_id) partial for source='lynx'. Manual and Lynx rows share one table; the hot-swap is a source swap, not a schema change.
@@ -45,13 +45,13 @@ All tables prefixed `pk_` to sit beside the CRM's `pokemon_*` without collision.
 
 **Not stored:** margin per pack, margin $/slot/day, velocity, days of supply, projected sellout. All computed in SQL/TS from the tables above (`lib/pokemon-ops/metrics.ts`) — single source of truth, no sync bugs.
 
-**Expenses ledger:** purchase lots roll up into a "total invested" figure; a small export keeps `vending/finance/rath-vending-expenses.csv` semantics (SQLite becomes the source of truth for pokemon spend, CSV stays for the holding-company view).
+**Expenses ledger:** purchase lots roll up into a "total invested" figure; a small export keeps the existing expenses-CSV semantics (SQLite becomes the source of truth for pokemon spend, the CSV stays as the ledger view).
 
 ### Ingest layer
 
 - **Now (v1):** panel forms → `app/api/pokemon-ops/*` routes (auth free via middleware) for lots, benchmark updates, SKU assignments, refills, and quick sales entry ("sold N of slot X since last check" — computes per-day attribution from timestamps). CSV import route for bulk sales/lots using `pk_import_receipts`.
-- **Later (Lynx):** `tickNayax` in `server/scheduler.ts` every 15 min — pulls per-machine transactions since last cursor (kv table), maps Nayax product/selection codes → `pk_sku_assignments` via a mapping kept in the machine config, inserts `pk_sales` with `source='lynx'` + external_txn_id dedupe. A backfill command (`npm run backfill-nayax -- --from ...`) reuses the same mapper. Manual entry stays available (fallback when the reader is offline). Nayax creds live in `~/.config/rathworkspace/secrets.env`; a `ConnectionDef` in `lib/connections/registry.ts` gives 3-state health on the connections panel.
-- **Stretch (SQS):** a scheduler tick doing short `ReceiveMessage` batches on the Nayax SQS queue (outbound HTTPS, fits the no-inbound-ports constraint; no resident consumer daemon on this 2-core box). Writes the same `pk_sales` table; Lynx polling drops to hourly reconciliation.
+- **Later (Lynx):** `tickNayax` in `server/scheduler.ts` every 15 min — pulls per-machine transactions since last cursor (kv table), maps Nayax product/selection codes → `pk_sku_assignments` via a mapping kept in the machine config, inserts `pk_sales` with `source='lynx'` + external_txn_id dedupe. A backfill command (`npm run backfill-nayax -- --from ...`) reuses the same mapper. Manual entry stays available (fallback when the reader is offline). Nayax creds load from the environment; a `ConnectionDef` in `lib/connections/registry.ts` gives 3-state health on the connections panel.
+- **Stretch (SQS):** a scheduler tick doing short `ReceiveMessage` batches on the Nayax SQS queue (outbound HTTPS, fits the pull-only constraint; no resident consumer daemon on this small box). Writes the same `pk_sales` table; Lynx polling drops to hourly reconciliation.
 
 ### Metrics + rules engine
 
@@ -60,7 +60,7 @@ All tables prefixed `pk_` to sit beside the CRM's `pokemon_*` without collision.
 1. **Refill sync**: compute days-of-supply per SKU; when spread exceeds threshold, emit slot-reallocation / price-nudge recommendation to equalize sellout dates with the refill visit.
 2. **Dynamic pricing trigger**: projected sellout < 50% of refill cycle → recommend price raise or extra slot.
 3. **Dead stock**: no sales in 21 days → recommend rotate to mystery slot.
-4. **Refill order generator**: given budget (default $1,200), current velocities, days-of-supply gaps, and best current sourcing offers (benchmark vs `pk_sourcing_offers`), output an exact shopping list (product, qty, source, expected landed cost, expected margin) as a `refill_order` recommendation payload.
+4. **Refill order generator**: given the configured budget, current velocities, days-of-supply gaps, and best current sourcing offers (benchmark vs `pk_sourcing_offers`), output an exact shopping list (product, qty, source, expected landed cost, expected margin) as a `refill_order` recommendation payload.
 
 Every rule is unit-tested against golden fixtures (synthetic sales histories with known correct outputs) so the engine is verifiable without a live machine.
 
@@ -73,9 +73,9 @@ New nav entry `pokemon-ops` (sits next to `pokemon-crm`), page `app/(dash)/pokem
 New agent dir `rathworkspace/agents/pokemon-sourcing-scout/` copying the lead-scout dispatcher architecture (deterministic Python scrapers + optional agentic phase, archive + idempotency + `agent_event.sh` built in), plus a Hermes skill `~/.hermes/skills/business/pokemon-sourcing-scout/SKILL.md` under the existing `pokemon-scout` profile:
 
 - **eBay scan** (daily): sold + active listings for target sets, compute $/pack, write `pk_sourcing_offers` (IMMEDIATE txns via a small CLI like the existing `agent-event`). eBay Browse API if a developer key is provisioned (human checklist); otherwise the scraper path the lead-scout already uses via the headless-Chrome/CDP setup.
-- **TCGplayer market prices** (daily): market price per target product as the "fair value" line next to the mentor benchmark. TCGplayer's own API keys are effectively closed to new operators; primary path is scraping their market-price pages, with pokemontcg.io / tcgcsv.com as backup structured sources — dealer's choice at build time based on which is stable.
+- **TCGplayer market prices** (daily): market price per target product as the "fair value" line next to the supplier benchmark. TCGplayer's own API keys are effectively closed to new operators; primary path is scraping their market-price pages, with pokemontcg.io / tcgcsv.com as backup structured sources — dealer's choice at build time based on which is stable.
 - **Retail restock watch** (2026 reprint wave: Destined Rivals, Prismatic Evolutions at Target/Costco/Sam's): agentic Hermes phase checking stock-tracker sources + retailer pages, since this is fuzzy web work, not a stable API. MSRP restocks are the cheapest sourcing channel, so alerts fire immediately, not in the digest.
-- **Alerting**: offers beating benchmark by threshold → Telegram via the gateway (`deliver: origin`); scheduled off-peak from the existing 09:00 / 10:30 / 23:45 jobs (single Codex credential). A separate tiny OS-cron bash script (curl pattern from `hermes-codex-watchdog.sh`) sends rules-engine alerts/digest so deterministic alerts don't depend on Hermes at all.
+- **Alerting**: offers beating benchmark by threshold → Telegram via the gateway (`deliver: origin`); scheduled off-peak relative to the existing jobs (single upstream credential). A separate tiny OS-cron bash script (curl pattern from the existing watchdog script) sends rules-engine alerts/digest so deterministic alerts don't depend on Hermes at all.
 
 ---
 
@@ -85,10 +85,10 @@ Each phase = one autonomous session, no mid-session human input, machine-verifia
 
 ### Human setup checklist (do once, before Phase 6/7 land; nothing else needs you)
 
-1. **Nayax** (during onboarding this month): (a) make sure VTM registers the card reader under **your own operator account** in Nayax Core, not the distributor's, and give you a Core login with operator-admin rights plus the reader's device serial; (b) once you can log in, generate your **User Token** yourself (Core → username top-right → Account Settings → Security and Login → User Tokens → Show Token) — that token IS the API credential; paste it into `~/.config/rathworkspace/secrets.env` as `NAYAX_LYNX_TOKEN` (plus `NAYAX_DEVICE_SERIAL`); (c) ask for roles **Transaction Dispatcher** and **Transactions Report Subscriber** on your Core user (needed later for SQS); (d) ask VTM whether the Mini Wall's controller has its **DEX port wired to the Nayax unit** (yes = machine-audited stock counts; no = still fine, sales-decrement stock works). For the SQS stretch goal you'd also create an AWS account + SQS queue + IAM keys and paste them into Core's Transactions Report tab — defer until Phase 8 is actually wanted.
+1. **Nayax** (during onboarding this month): (a) make sure VTM registers the card reader under **your own operator account** in Nayax Core, not the distributor's, and give you a Core login with operator-admin rights plus the reader's device serial; (b) once you can log in, generate your **User Token** yourself (Core → username top-right → Account Settings → Security and Login → User Tokens → Show Token) — that token IS the API credential; set it in the environment as `NAYAX_LYNX_TOKEN` (plus `NAYAX_DEVICE_SERIAL`); (c) ask for roles **Transaction Dispatcher** and **Transactions Report Subscriber** on your Core user (needed later for SQS); (d) ask VTM whether the Mini Wall's controller has its **DEX port wired to the Nayax unit** (yes = machine-audited stock counts; no = still fine, sales-decrement stock works). For the SQS stretch goal you'd also create an AWS account + SQS queue + IAM keys and paste them into Core's Transactions Report tab — defer until Phase 8 is actually wanted.
 2. **eBay**: create a developer account at developer.ebay.com and generate a production keyset (Browse API is free-tier); paste as `EBAY_*` keys. If you skip this, Phase 6 falls back to scraping — works, but brittler.
-3. **Mentor price list**: drop the supplier's current price list as a CSV (any columns; Phase 2's importer is told the format in its spec) at `~/rathworkspace/data/imports/mentor-benchmark.csv`, and re-drop when he updates it.
-4. **Machine config facts** (answer in `phases/PHASE-1.md` prompt before launching it): slot count vs SKU count on your VTM Mini Wall config, per-slot capacity, planned refill visit cadence for Fixture Corner Store.
+3. **Supplier price list**: drop the distributor's current quote list as a CSV (any columns; Phase 2's importer is told the format in its spec) under `~/rathworkspace/data/imports/`, and re-drop when it updates.
+4. **Machine config facts** (answer in `phases/PHASE-1.md` prompt before launching it): slot count vs SKU count on your VTM Mini Wall config, per-slot capacity, planned refill visit cadence for the first venue.
 5. Confirm `sudo systemctl restart rathworkspace` works passwordless for build sessions (it has in prior sessions; verify once).
 
 ### Phase 0 — Repo hygiene (blocker removal)
@@ -100,11 +100,11 @@ Migration `0011_pokemon_ops.sql` (tables above), `lib/pokemon-ops/{db,types}.ts`
 **DoD:** `npm run verify:pokemon-ops` exits 0; migration applies then re-applies as no-op; tag.
 
 ### Phase 2 — Ingest: API routes + CSV import
-CRUD routes for lots / benchmarks / SKU assignments / stock events / manual sales; CSV importers (mentor benchmark, bulk sales, bulk lots) with `pk_import_receipts` idempotency; a `scripts/pokemon-ops-smoke.sh` that exercises every route with curl (session-cookie or a test bypass consistent with existing test patterns) and asserts responses.
+CRUD routes for lots / benchmarks / SKU assignments / stock events / manual sales; CSV importers (supplier benchmark, bulk sales, bulk lots) with `pk_import_receipts` idempotency; a `scripts/pokemon-ops-smoke.sh` that exercises every route with curl (session-cookie or a test bypass consistent with existing test patterns) and asserts responses.
 **DoD:** `verify:pokemon-ops` green (now including route tests); smoke script exits 0; importing the same CSV twice yields identical row counts; tag.
 
 ### Phase 3 — Metrics + rules engine
-`lib/pokemon-ops/metrics.ts` + `rules.ts` + daily scheduler tick writing `pk_recommendations`. Golden-fixture tests: synthetic 30-day sales histories with hand-computed expected outputs for margin $/slot/day, days of supply, projected sellout, each rule's trigger/non-trigger cases, and a full refill-order generation against a $1,200 budget.
+`lib/pokemon-ops/metrics.ts` + `rules.ts` + daily scheduler tick writing `pk_recommendations`. Golden-fixture tests: synthetic 30-day sales histories with hand-computed expected outputs for margin $/slot/day, days of supply, projected sellout, each rule's trigger/non-trigger cases, and a full refill-order generation against the configured budget.
 **DoD:** fixture tests assert exact expected values; `verify:pokemon-ops` green; tag.
 
 ### Phase 4 — Dashboard tab
@@ -120,7 +120,7 @@ Nav entry, page, panels, forms, WS channel `pokemon_ops` + `tickPokemonOps`, API
 **DoD:** scraper unit tests against recorded fixture pages exit 0; a live run writes ≥1 offer row and re-running is idempotent; `hermes cron list` shows the job enabled; sourcing feed renders on the tab; tag.
 
 ### Phase 7 — Lynx poller (needs checklist item 1 done)
-`lib/sources/nayax/` client (Bearer token, prod base `https://lynx.nayax.com/operational`; the full OpenAPI spec + doc pages are already saved at `workspace/vending/pokemon/nayax-docs/` — copy into the phase's fixtures). Startup resolution: `GET /v1/devices/{serial}/machine` → store MachineID in `kv`. `tickNayax` (15 min): `GET /v1/machines/{id}/lastSales` → insert `pk_sales` with `source='lynx'`, dedupe on `TransactionID` (the endpoint has **no date-range or pagination**, so frequent-poll + dedupe is the design, and polling can't backfill history — pre-API history stays manual/CSV); `GET .../machineProducts` hourly → reconcile Nayax `MissingStockByMDB`/`PAR`/`last_sale_dt` against our `pk_stock_events` math and surface drift as a recommendation; `GET .../status` → machine-health tile (`LastKeepAliveDateTime`, `QTYSoldSinceLastVisitOnlineSales`). MDB-code → `pk_sku_assignments` mapping table seeded from `machineProducts`. `ConnectionDef` registry entry (`configured()` = token present, `check()` = status call). Mocked-response tests from recorded fixtures (one-shot capture script run at session start with live creds).
+`lib/sources/nayax/` client (Bearer token, prod base `https://lynx.nayax.com/operational`; the full OpenAPI spec + doc pages are already saved locally — copy into the phase's fixtures). Startup resolution: `GET /v1/devices/{serial}/machine` → store MachineID in `kv`. `tickNayax` (15 min): `GET /v1/machines/{id}/lastSales` → insert `pk_sales` with `source='lynx'`, dedupe on `TransactionID` (the endpoint has **no date-range or pagination**, so frequent-poll + dedupe is the design, and polling can't backfill history — pre-API history stays manual/CSV); `GET .../machineProducts` hourly → reconcile Nayax `MissingStockByMDB`/`PAR`/`last_sale_dt` against our `pk_stock_events` math and surface drift as a recommendation; `GET .../status` → machine-health tile (`LastKeepAliveDateTime`, `QTYSoldSinceLastVisitOnlineSales`). MDB-code → `pk_sku_assignments` mapping table seeded from `machineProducts`. `ConnectionDef` registry entry (`configured()` = token present, `check()` = status call). Mocked-response tests from recorded fixtures (one-shot capture script run at session start with live creds).
 **DoD:** mocked-response tests green; live: connections panel shows nayax `on_healthy`, poller inserts real transactions with zero dupes across two consecutive ticks, stock reconciliation runs without drift alarms on a freshly-audited machine; tag.
 
 ### Phase 8 (stretch) — SQS stream
@@ -167,8 +167,8 @@ Ultracode/Codex fit: phases 1–4 are well-bounded one-shot sessions for Fable d
 ## 4. Open questions (discovery could not answer)
 
 1. **Machine slot config**: your VTM Mini Wall — are all 8 selections one slot each with uniform capacity (~15 packs), or can one SKU span multiple slots? Determines whether `pk_sku_assignments` needs the multi-slot case in v1 (I've modeled slot-level rows, which handles both, but capacity numbers need your reality).
-2. **Refill cadence**: planned visit frequency for Fixture Corner Store (weekly?). The "sellout before 50% of refill cycle" trigger needs the cycle length as config.
-3. **Mentor price list**: what form does it arrive in (text/screenshot/spreadsheet) and roughly how often does it change? Determines whether the benchmark importer is a CSV drop or needs an ingestion step.
+2. **Refill cadence**: planned visit frequency for the first venue (weekly?). The "sellout before 50% of refill cycle" trigger needs the cycle length as config.
+3. **Supplier price list**: what form does it arrive in (text/screenshot/spreadsheet) and roughly how often does it change? Determines whether the benchmark importer is a CSV drop or needs an ingestion step.
 4. **Dynamic pricing execution**: when a price-raise recommendation fires, manual-only (you change it in Nayax Core and log it in the tab), or auto-push? The API does support it (`PUT /v1/machines/{id}/machineProducts` updates `CreditCardPrice`), so this is purely a trust decision, not a feasibility one. Manual is the safe v1 default.
-5. **$1,200 refill budget**: per refill cycle, per month, or a rolling cap? The order generator needs the period.
+5. **Refill budget**: per refill cycle, per month, or a rolling cap? The order generator needs the period.
 6. **eBay developer account**: will you do checklist item 2, or should Phase 6 plan scraping-only from the start?

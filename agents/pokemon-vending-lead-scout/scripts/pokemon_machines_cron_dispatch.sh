@@ -5,9 +5,10 @@
 # the archive, stable pointer, and terminal dashboard event.
 set -Eeuo pipefail
 
-WORKER="${POKEMON_FIELD_PACKET_WORKER:-/home/Arjun/rathworkspace/agents/pokemon-vending-lead-scout/scripts/pokemon_machines_profile_worker.sh}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKER="${POKEMON_FIELD_PACKET_WORKER:-$SCRIPT_DIR/pokemon_machines_profile_worker.sh}"
 RUN_ID="${POKEMON_AGENT_RUN_ID:-pokemon-leads-$(date -u +%Y%m%dT%H%M%SZ)}"
-LOG_DIR="${POKEMON_FIELD_PACKET_LOG_DIR:-/home/Arjun/command-center/Pokemon Machines/Logs/profile-worker}"
+LOG_DIR="${POKEMON_FIELD_PACKET_LOG_DIR:-$HOME/command-center/Pokemon Machines/Logs/profile-worker}"
 LOG_FILE="${POKEMON_FIELD_PACKET_LOG_FILE:-$LOG_DIR/$RUN_ID.log}"
 LOCK_FILE="${POKEMON_FIELD_PACKET_LOCK_FILE:-/tmp/pokemon-field-packet-worker.lock}"
 GRACE_SECONDS="${POKEMON_FIELD_PACKET_DISPATCH_GRACE_SECONDS:-5}"

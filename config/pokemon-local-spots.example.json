@@ -1,0 +1,12 @@
+{
+  "provenance": {
+    "source": "example seed; replace with a real spot-check log reference",
+    "checked_at": "2026-01-01",
+    "inventory_confirmed": false
+  },
+  "spots": [
+    { "name": "Example Bookstore", "route": "North cluster", "address": "100 Main Street, Anytown, USA", "phone": "(555) 555-0100", "note": "Call for sealed product availability and price." },
+    { "name": "Example Game Shop", "route": "North cluster", "address": "200 Main Street, Anytown, USA", "phone": "(555) 555-0101", "note": "Verify seal and exact SKU before buying." },
+    { "name": "Example Big-Box Store", "route": "South cluster", "address": "300 Commerce Way, Anytown, USA", "phone": "", "note": "Check the store app and call before routing." }
+  ]
+}

@@ -12,7 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-BASE = Path('/home/Arjun/command-center/Pokemon Machines')
+# Every path and identity below is environment-overridable so this script is
+# not pinned to one operator's home directory or sending domain.
+BASE = Path(os.environ.get('POKEMON_PROJECT_DIR', str(Path.home() / 'command-center/Pokemon Machines')))
 LEADS = BASE / 'pokemon vending'
 OUTREACH = BASE / 'Gmail Outreach'
 LOG_DIR = OUTREACH / 'send_logs'
@@ -23,24 +25,42 @@ ACTIVE_CSV = LEADS / 'Pokemon_Vending_Active_Leads.csv'
 MAIN_XLSX = LEADS / 'Pokemon_Vending_Lead_Pipeline.xlsx'
 ACTIVE_XLSX = LEADS / 'Pokemon_Vending_Active_Leads.xlsx'
 SYNC_SCRIPT = BASE / 'scripts' / 'sync_pokemon_vending_drive.py'
-RATH = Path('/home/Arjun/rathworkspace')
-GOOGLE_PY = Path('/home/Arjun/.hermes/google-venv/bin/python')
-SENDER = 'operator@example.com'
+RATH = Path(os.environ.get('RATHWORKSPACE_REPO', str(Path(__file__).resolve().parents[3])))
+GOOGLE_PY = Path(os.environ.get('GOOGLE_WORKSPACE_PYTHON', str(Path.home() / '.hermes/google-venv/bin/python')))
+# The Gmail account the approved batch is sent from. Set OUTREACH_SENDER in the
+# environment; the default is a placeholder and is not a live mailbox.
+SENDER = os.environ.get('OUTREACH_SENDER', 'operator@example.com')
 AGENT_NAME = 'pokemon-vending-outreach-sender'
 
 ENV = {
     **os.environ,
-    'GOOGLE_WORKSPACE_CLI_CONFIG_DIR': str(Path.home() / '.config/gws-arjun'),
+    # gws reads its OAuth config from this dir. It holds live tokens, so it is
+    # configured per environment and never checked in.
+    'GOOGLE_WORKSPACE_CLI_CONFIG_DIR': os.environ.get(
+        'GOOGLE_WORKSPACE_CLI_CONFIG_DIR', str(Path.home() / '.config/gws')
+    ),
     'PATH': str(Path.home() / '.npm-global/bin') + ':' + str(Path.home() / '.local/bin') + ':/usr/local/bin:/usr/bin:/bin',
 }
 
-VENUE_ALIASES = {
-    "a partner venue / a partner venue": "a partner venue",
-    'a partner venue': 'a partner venue',
-    'a partner venue': 'Eureka!',
-    'a partner venue': 'a partner venue',
-    'a partner venue': 'Broadway Market',
-}
+# Draft packets are written by a human and address a venue the way a human
+# would ("Some Bowling Alley / Some Kitchen"), while the lead sheet keys on the
+# venue's canonical row name. This maps packet spelling -> sheet spelling so a
+# send does not create a duplicate MAIN row for a venue that already exists.
+# Populate from VENUE_ALIASES_PATH (JSON object, packet name -> sheet name);
+# an unset or unreadable path just means no aliases, which is a safe default:
+# lookups fall through to the draft venue string unchanged.
+def _load_venue_aliases() -> dict[str, str]:
+    path = os.environ.get('VENUE_ALIASES_PATH')
+    if not path:
+        return {}
+    try:
+        loaded = json.loads(Path(path).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    return {str(k): str(v) for k, v in loaded.items()} if isinstance(loaded, dict) else {}
+
+
+VENUE_ALIASES = _load_venue_aliases()
 
 
 def now_z() -> str:
@@ -252,7 +272,8 @@ def update_csv_files(sent: list[dict[str, Any]], batch: str) -> dict[str, int]:
             'Owner email': row.get('Owner email', '') or row.get('Public contact email', ''),
             'Owner confidence': row.get('Owner confidence', '') or row.get('Contact confidence', ''),
             'Owner lookup status': row.get('Owner lookup status', ''),
-            'a people-search service URL': row.get('a people-search service URL', ''),
+            # Vendor-neutral column: URL of whatever source confirmed the owner.
+            'Owner lookup source URL': row.get('Owner lookup source URL', ''),
             'Decision-maker role': row.get('Decision-maker role', ''),
             'Decision-maker name': row.get('Decision-maker name', ''),
             'Fit score': row.get('Fit score', ''),
@@ -314,7 +335,7 @@ def monitor_after_send() -> dict[str, Any]:
     for key, q in {
         'bounces_last_hour': 'from:(mailer-daemon OR postmaster) newer_than:1h',
         'auto_replies_last_hour': 'subject:("Automatic reply" OR "Out of Office" OR "OOO") newer_than:1h',
-        'pokemon_replies_last_hour': 'in:inbox newer_than:1h ("Pokemon" OR "trading-card" OR "the operating entity") -from:mailer-daemon -from:postmaster',
+        'pokemon_replies_last_hour': 'in:inbox newer_than:1h ("Pokemon" OR "trading-card" OR "vending") -from:mailer-daemon -from:postmaster',
     }.items():
         rc, raw, data = run_gws(['gmail', 'users', 'messages', 'list', '--params', json.dumps({'userId': 'me', 'q': q, 'maxResults': 50})], timeout=180)
         out[key] = {'returncode': rc, 'count': len(data.get('messages', [])) if isinstance(data, dict) else None, 'raw_tail': raw[-1000:] if rc else ''}

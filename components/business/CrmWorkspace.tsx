@@ -50,7 +50,7 @@ function PokemonCrmWorkspace({ query, setQuery }: { query: string; setQuery: (va
   const selIdRef = useRef<number | null>(null);
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [busy, setBusy] = useState(false);
-  const [actor, setActor] = useState("Arjun");
+  const [actor, setActor] = useState("Operator");
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showError = useCallback((msg: string) => {

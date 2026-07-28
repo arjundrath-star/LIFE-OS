@@ -95,7 +95,7 @@ req_auth_code() {
   fi
 }
 
-MACHINE_ID=$(sqlite3 "$DB_PATH" "SELECT id FROM machines WHERE name='Fixture Corner Store'")
+MACHINE_ID=$(sqlite3 "$DB_PATH" "SELECT id FROM machines WHERE name='Venue Alpha'")
 CHAOS_PRODUCT_ID=$(sqlite3 "$DB_PATH" "SELECT id FROM pk_products WHERE set_name='Chaos Rising'")
 echo "machine_id=$MACHINE_ID chaos_product_id=$CHAOS_PRODUCT_ID"
 
@@ -199,7 +199,7 @@ assert_eq "lots import run2 no-op" "$(echo "$L2" | jq -r '.imported'),$(echo "$L
 SALES_CSV="$TMPDIR/smoke-sales.csv"
 cat >"$SALES_CSV" <<CSV
 sold_at,machine,slot_number,set_name,qty,unit_price_usd,source,external_txn_id
-2026-07-17T09:00:00.000Z,Fixture Corner Store,2,Perfect Order,1,12.00,manual,
+2026-07-17T09:00:00.000Z,Venue Alpha,2,Perfect Order,1,12.00,manual,
 CSV
 S1=$(RATHWORKSPACE_DB="$DB_PATH" node_modules/.bin/tsx scripts/pokemon-ops-import.ts sales "$SALES_CSV")
 echo "sales import run 1: $S1"

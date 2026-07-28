@@ -1,8 +1,8 @@
 Work in ~/rathworkspace. Read, in order:
 1. docs/plans/pokemon-ops/PROGRESS.md (current state)
 2. docs/plans/pokemon-ops/phases/PHASE-7.md (your spec)
-3. Only the sections of docs/plans/pokemon-ops/PLAN.md and SYSTEM_DISCOVERY.md your spec
-   points you to. Do not load PROJECT_CONTEXT.md unless a decision's rationale is unclear.
+3. Only the sections of docs/plans/pokemon-ops/PLAN.md your spec points you to. Keep
+   context small; the spec is self-contained.
 
 Pre-flight: re-run the previous phase's DoD commands. If any fail, fix the regression or
 halt with a PROGRESS.md entry. Never build on a broken base.
@@ -18,6 +18,6 @@ commit + push → annotated tag pokemon-ops/phase-7 → update the PROGRESS.md c
 block → agent-event complete.
 
 PRECONDITION CHECK FIRST: NAYAX_LYNX_TOKEN and NAYAX_DEVICE_SERIAL must exist in
-~/.config/rathworkspace/secrets.env. Missing → halt with a PROGRESS.md entry; do not mock
+the environment. Missing → halt with a PROGRESS.md entry; do not mock
 your way to done. With live creds present, run the capture script ONCE early to record
 real API responses as fixtures, then develop against recordings.

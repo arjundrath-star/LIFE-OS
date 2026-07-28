@@ -1,8 +1,7 @@
 # Claude Code Mission: Rathworkspace Agent Orchestration + Dashboard Hooks
 
-**Repo:** `/home/Arjun/rathworkspace`  
+**Repo:** `~/rathworkspace`  
 **Site:** `https://rathworkspace.cloud`  
-**Owner:** Arjun Rath  
 **Mission type:** long-running Claude Code / Ultra Code implementation mission  
 **Primary outcome:** turn rathworkspace into the visible control tower for named agent/subagent flows, starting with Portable Charging lead-finding/draft-review.
 
@@ -31,11 +30,11 @@ Useful references if network is available:
 The dashboard is already live and protected:
 
 - `rathworkspace.cloud` redirects unauthenticated visitors to `/signin?callbackUrl=%2F`.
-- Next.js custom server runs from `/home/Arjun/rathworkspace/server.ts` on local `127.0.0.1:3000`.
-- Cloudflare tunnel `rathworkspace` exposes the app.
+- Next.js custom server runs from `server.ts`, bound to loopback only.
+- A Cloudflare tunnel exposes the app; no ports are opened publicly.
 - Local embedded services:
-  - `/terminal/` → `ttyd` on `127.0.0.1:7681`
-  - `/files/` → FileBrowser on `127.0.0.1:8088`
+  - `/terminal/` → `ttyd`, loopback-bound
+  - `/files/` → FileBrowser, loopback-bound
 - Both embedded services are gated by the same Google auth allowlist check.
 
 Important code paths:
@@ -75,8 +74,8 @@ Portable Charging Lead Scout
   ✓ found 8 candidates
   ✓ appended 5 qualified leads
   ✓ drafted 5 emails
-  ✓ sent review packet to operator@example.com
-  ⏳ waiting for Arjun approval
+  ✓ sent review packet to the operator's inbox
+  ⏳ waiting for operator approval
 ```
 
 Later:
@@ -182,23 +181,23 @@ pnpm_or_npm_or_tsx scripts/agent-event.ts \
      - review packet sent
      - waiting for review
      - completed/failed
-   - If you can safely modify the existing Hermes cron prompt from inside repo docs only, document the exact event calls; do not mutate Hermes cron config unless explicitly instructed by Arjun in the live session.
+   - If you can safely modify the existing Hermes cron prompt from inside repo docs only, document the exact event calls; do not mutate Hermes cron config unless the operator explicitly instructs it in the live session.
 
 9. **Claude Code / Hermes collaboration hook**
    - Add a practical way for a Claude Code run to ask Hermes for mid-session feedback.
    - Minimum acceptable: document and use this advisory command after exploration/plan and before final completion:
 
 ```bash
-hermes chat -q "Review the rathworkspace agent orchestration plan/progress in /home/Arjun/rathworkspace. Focus on missing safety gates, dashboard integration gaps, and verification. Reply with concise actionable feedback only. Do not edit files."
+hermes chat -q "Review the rathworkspace agent orchestration plan/progress in ~/rathworkspace. Focus on missing safety gates, dashboard integration gaps, and verification. Reply with concise actionable feedback only. Do not edit files."
 ```
 
    - If `hermes chat -q` is unavailable, log the failure and continue with local verification.
    - Do **not** let this recurse forever. Use at most two Hermes advisory calls in this mission: once after plan, once before final.
 
 10. **Completion email**
-   - At the very end, send Arjun a completion email from Klade/GWS:
-     - From/account: `operator@example.com` via configured `gws-arjun` environment
-     - To: `operator@example.com`
+   - At the very end, send the operator a completion email via the Google Workspace CLI:
+     - From/account: the configured `gws` profile
+     - To: the operator's inbox
      - Subject: `rathworkspace agent orchestration update — <YYYY-MM-DD>`
    - Body must summarize:
      - what agents were set up
@@ -210,11 +209,11 @@ hermes chat -q "Review the rathworkspace agent orchestration plan/progress in /h
    - Use:
 
 ```bash
-export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws-arjun"
-gws gmail +send --to operator@example.com --subject "rathworkspace agent orchestration update — $(date +%F)" --body "$(cat /tmp/rathworkspace-agent-orchestration-email.txt)"
+export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/<gws-profile>"
+gws gmail +send --to <operator-email> --subject "rathworkspace agent orchestration update — $(date +%F)" --body "$(cat /tmp/rathworkspace-agent-orchestration-email.txt)"
 ```
 
-   - If sending fails, write the body to `/home/Arjun/rathworkspace/AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt` and mention the failure in final output.
+   - If sending fails, write the body to `AGENT_ORCHESTRATION_COMPLETION_EMAIL.txt` at the repo root and mention the failure in final output.
 
 ---
 
@@ -222,7 +221,7 @@ gws gmail +send --to operator@example.com --subject "rathworkspace agent orchest
 
 Create/update these persistent artifacts early in the run:
 
-1. `/home/Arjun/rathworkspace/AGENT_ORCHESTRATION_PROGRESS.md`
+1. `AGENT_ORCHESTRATION_PROGRESS.md` (repo root)
    - Current state
    - Decisions made
    - Files changed
@@ -230,7 +229,7 @@ Create/update these persistent artifacts early in the run:
    - Blockers
    - Next task
 
-2. `/home/Arjun/rathworkspace/agent-orchestration-features.json`
+2. `agent-orchestration-features.json` (repo root)
    - Use JSON, not markdown, for feature checklist.
    - Each item:
 
@@ -247,7 +246,7 @@ Create/update these persistent artifacts early in the run:
    - Only change `passes` from false to true when verified.
    - Do not delete or weaken acceptance criteria to make the run look complete.
 
-3. Optional scratch under `/home/Arjun/rathworkspace/.agent-orchestration/`
+3. Optional scratch under a local `.agent-orchestration/` directory
    - planning notes
    - screenshots
    - test payloads
@@ -334,7 +333,7 @@ Useful commands to test:
 ```bash
 npm run migrate
 npx tsx scripts/agent-event.ts --agent portable-charging-lead-scout --run pc-test-$(date +%s) --kind started --status running --summary "Test run started"
-npx tsx scripts/agent-event.ts --agent portable-charging-lead-scout --run pc-test-$(date +%s) --kind waiting_for_review --status waiting_for_review --summary "Draft packet ready for Arjun"
+npx tsx scripts/agent-event.ts --agent portable-charging-lead-scout --run pc-test-$(date +%s) --kind waiting_for_review --status waiting_for_review --summary "Draft packet ready for review"
 ```
 
 Adapt if package manager differs. The repo currently has npm scripts.
@@ -365,7 +364,7 @@ Show timeline with compact rows:
 - Do not weaken auth on `rathworkspace.cloud`.
 - Do not make `/terminal`, `/files`, `/ws`, or agent APIs public.
 - Do not send outreach emails to venue leads.
-- Do not mutate Hermes cron config unless Arjun explicitly says to in the live session.
+- Do not mutate Hermes cron config unless the operator explicitly says to in the live session.
 - Do not overwrite existing DB data. Add migrations only.
 - Keep DB files mode-safe; existing DB layer handles chmod.
 - Prefer additive changes.
@@ -384,7 +383,7 @@ Before final completion, verify as much as possible:
 6. The UI compiles and preserves existing nav/routes.
 7. Existing scheduler still starts.
 8. Test event appears in DB queries.
-9. Final email sent to `operator@example.com` or fallback file created.
+9. Final email sent to the operator or fallback file created.
 10. `AGENT_ORCHESTRATION_PROGRESS.md` and `agent-orchestration-features.json` are current.
 
 ---
@@ -393,10 +392,10 @@ Before final completion, verify as much as possible:
 
 ### Checkpoint 1 — after exploration + plan, before coding
 
-Write your plan to `/home/Arjun/rathworkspace/.agent-orchestration/PLAN.md`, then run:
+Write your plan to `.agent-orchestration/PLAN.md`, then run:
 
 ```bash
-hermes chat -q "Review /home/Arjun/rathworkspace/.agent-orchestration/PLAN.md for the rathworkspace agent orchestration mission. Focus on safety, missing dashboard integration steps, migration risks, and verification gaps. Reply with concise actionable feedback only. Do not edit files."
+hermes chat -q "Review .agent-orchestration/PLAN.md in ~/rathworkspace for the rathworkspace agent orchestration mission. Focus on safety, missing dashboard integration steps, migration risks, and verification gaps. Reply with concise actionable feedback only. Do not edit files."
 ```
 
 Incorporate useful feedback into the plan/progress file.
@@ -406,7 +405,7 @@ Incorporate useful feedback into the plan/progress file.
 Run:
 
 ```bash
-hermes chat -q "Review the completed rathworkspace agent orchestration changes in /home/Arjun/rathworkspace. Check AGENT_ORCHESTRATION_PROGRESS.md, agent-orchestration-features.json, git diff, and verification outputs. Reply with any blockers or final polish items. Do not edit files."
+hermes chat -q "Review the completed rathworkspace agent orchestration changes in ~/rathworkspace. Check AGENT_ORCHESTRATION_PROGRESS.md, agent-orchestration-features.json, git diff, and verification outputs. Reply with any blockers or final polish items. Do not edit files."
 ```
 
 Address blockers if reasonable; otherwise document them.
@@ -417,7 +416,7 @@ Address blockers if reasonable; otherwise document them.
 
 When done:
 
-1. Send the completion email to Arjun as described above.
+1. Send the completion email to the operator as described above.
 2. Print a concise final summary in the terminal:
    - Agents set up
    - Files changed

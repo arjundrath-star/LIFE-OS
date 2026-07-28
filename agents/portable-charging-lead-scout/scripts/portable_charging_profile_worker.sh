@@ -4,8 +4,8 @@
 # The LLM work happens in the separate portable-scout profile; stdout is delivered by cron.
 set -euo pipefail
 
-RW_REPO="/home/Arjun/rathworkspace"
-PC_DIR="/home/Arjun/command-center/Portable Charging"
+RW_REPO="${RATHWORKSPACE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+PC_DIR="${CHARGING_PROJECT_DIR:-$HOME/command-center/Portable Charging}"
 PRELUDE="$RW_REPO/agents/portable-charging-lead-scout/scripts/portable_charging_agent_prelude.sh"
 PROMPT_FILE="$RW_REPO/agents/portable-charging-lead-scout/profile-worker-prompt.md"
 HELPER="$PC_DIR/agent_event.sh"

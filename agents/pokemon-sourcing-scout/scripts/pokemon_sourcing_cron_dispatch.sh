@@ -5,9 +5,10 @@
 # terminal dashboard events.
 set -Eeuo pipefail
 
-WORKER="${POKEMON_SOURCING_WORKER:-/home/Arjun/rathworkspace/agents/pokemon-sourcing-scout/scripts/pokemon_sourcing_worker.sh}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKER="${POKEMON_SOURCING_WORKER:-$SCRIPT_DIR/pokemon_sourcing_worker.sh}"
 RUN_ID="${POKEMON_SOURCING_RUN_ID:-pokemon-sourcing-$(date -u +%Y%m%dT%H%M%SZ)}"
-LOG_DIR="${POKEMON_SOURCING_LOG_DIR:-/home/Arjun/command-center/Pokemon Machines/Logs/sourcing-worker}"
+LOG_DIR="${POKEMON_SOURCING_LOG_DIR:-$HOME/command-center/Pokemon Machines/Logs/sourcing-worker}"
 LOG_FILE="${POKEMON_SOURCING_LOG_FILE:-$LOG_DIR/$RUN_ID.log}"
 LOCK_FILE="${POKEMON_SOURCING_LOCK_FILE:-/tmp/pokemon-sourcing-worker.lock}"
 GRACE_SECONDS="${POKEMON_SOURCING_DISPATCH_GRACE_SECONDS:-5}"

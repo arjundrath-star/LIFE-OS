@@ -4,8 +4,8 @@ Goal: the decision layer. Pure deterministic functions (no LLM) computing every 
 metric and emitting pk_recommendations, golden-fixture tested so it is verifiable with
 zero live machine data.
 
-Context: PLAN.md §3 rules engine + §2 "derived only" list. PROJECT_CONTEXT.md §9 for the
-operator heuristics the defaults encode. Ultracode-recommended phase.
+Context: PLAN.md §3 rules engine + §2 "derived only" list. The defaults encode the
+operator's merchandising heuristics. Ultracode-recommended phase.
 
 Work:
 1. `lib/pokemon-ops/metrics.ts`: margin per pack (FIFO lot allocation per product),
@@ -25,8 +25,8 @@ Work:
    on-demand `POST /api/pokemon-ops/rules/run`.
 4. Golden fixtures in `tests/pokemon-ops/fixtures/`: synthetic 30-day sales histories
    with HAND-COMPUTED expected outputs (document the arithmetic in the fixture files);
-   trigger and non-trigger cases per rule; one full refill-order run against a $1,200
-   budget with expected list. Assert EXACT values.
+   trigger and non-trigger cases per rule; one full refill-order run against a fixed
+   fixture budget with expected list. Assert EXACT values.
 
 Out of scope: UI, alert delivery (Phase 5 reads pk_recommendations), scanners, Nayax.
 
