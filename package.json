@@ -1,13 +1,14 @@
 {
-  "name": "rathworkspace",
+  "name": "life-os",
   "version": "1.0.0",
   "private": true,
-  "description": "rathworkspace.cloud — personal life-OS command center",
+  "description": "Personal life OS and business operating system: one gated Next.js app, two UIs, run by an agent harness on a single VPS.",
   "scripts": {
     "dev": "tsx watch server.ts",
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
     "test:agentmemory": "tsx --test tests/agentmemory.test.ts",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx db/index.ts --migrate-only",
@@ -26,8 +27,7 @@
     "verify:pokemon-ops": "tsx scripts/verify-pokemon-ops.ts",
     "import:pokemon-ops": "tsx scripts/pokemon-ops-import.ts",
     "smoke:pokemon-ops": "bash scripts/pokemon-ops-smoke.sh",
-    "pokemon:alerts": "tsx scripts/pokemon-ops-alerts.ts",
-    "pokemon:ingest": "tsx scripts/pokemon-sourcing-ingest.ts",
+    "pokemon:alerts": "bash scripts/pokemon-ops-alerts.sh",
     "pokemon:source-products": "tsx scripts/pokemon-source-products-refresh.ts",
     "e2e:pokemon-ops": "tsx scripts/pokemon-ops-e2e.ts",
     "e2e:vending-service": "tsx scripts/vending-service-e2e.ts"

@@ -8,19 +8,20 @@ node_modules/
 out/
 next-env.d.ts
 
-# data (sqlite lives on the box, never in git)
-data/*.db
-data/**/*.db
-data/*.db-*
-data/*.db.backup*
-data/*.backup*
-data/*.sqlite*
+# data (sqlite and operator-local config live on the box, never in git)
+data/
+!data/.gitkeep
 
-# secrets — the real store is ~/.config/rathworkspace/secrets.env, never here
+# secrets — the real store is outside the repo, never here
 .env
 .env.local
 .env*.local
 *.secret
+secrets.env
+*.secrets.env
+*.pem
+*.key
+*.p12
 
 # logs / os
 npm-install.log
@@ -39,3 +40,12 @@ server-test.log
 
 # TS incremental build cache
 tsconfig.tsbuildinfo
+
+# local databases anywhere
+*.db
+*.sqlite
+*.sqlite3
+
+# session / working artifacts
+SESSION_PROGRESS.md
+.pytest_cache/
