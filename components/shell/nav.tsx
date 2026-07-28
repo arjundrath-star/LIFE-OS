@@ -1,5 +1,5 @@
 "use client";
-// Flat, all-top-level nav (Arjun's explicit choice). One source of truth for the
+// Flat, all-top-level nav (deliberate: no nesting). One source of truth for the
 // rail and the command palette. Order is intentional and must not be re-sorted.
 import {
   Home,

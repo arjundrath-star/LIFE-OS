@@ -9,7 +9,7 @@
 #        source scripts/pc-lead-scout.sh         # sets AGENT, RUN, and the emit() fn
 #        emit started running "Daily lead scout run started"
 #        emit found running "Found 8 candidate leads"
-#        emit waiting_for_review waiting_for_review "Draft packet ready for Arjun"
+#        emit waiting_for_review waiting_for_review "Draft packet ready for review"
 #
 #   2. Run a self-contained demo that walks a full sample run (no email, no real leads):
 #        scripts/pc-lead-scout.sh --demo
@@ -66,7 +66,7 @@ trap 'rm -f "$DETAIL_TMP"' EXIT
 
 PC_TRIGGER_TYPE="demo" PC_TRIGGER_SOURCE="pc-lead-scout.sh --demo" \
   emit started running "Daily lead scout run started" info \
-    --description "Finds venue leads for portable charging, dedupes, drafts outreach, and sends a review packet to Arjun. Never sends outreach itself." \
+    --description "Finds venue leads for portable charging, dedupes, drafts outreach, and sends a review packet to the operator. Never sends outreach itself." \
     --detail-file "$DETAIL_TMP"
 sleep 1
 emit spreadsheet_pull running "Simulated spreadsheet pull (no external request)" info \

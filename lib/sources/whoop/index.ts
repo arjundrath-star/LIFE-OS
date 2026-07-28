@@ -1,4 +1,4 @@
-// WHOOP v2 integration. Single user (Arjun). OAuth authorization-code flow against
+// WHOOP v2 integration. Single user. OAuth authorization-code flow against
 // developer.whoop.com; refresh token stored ENCRYPTED in SQLite (whoop_tokens) and
 // ROTATED on every refresh (WHOOP issues a fresh refresh_token each time). Read-only:
 // recovery / sleep / strain pulled into whoop_daily. Server-only — never import client-side.
