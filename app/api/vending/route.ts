@@ -20,6 +20,11 @@ export async function POST(req: Request) {
       run("INSERT INTO deals (name, stage, location, machine_type, note) VALUES (?,?,?,?,?)",
         body.name, body.stage || "lead", body.location || null, body.machine_type || null, body.note || null);
       break;
+    case "update_deal":
+      if (!body.id || !body.name) return NextResponse.json({ error: "id and name required" }, { status: 400 });
+      run("UPDATE deals SET name=?, location=?, note=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+        body.name, body.location || null, body.note || null, body.id);
+      break;
     case "set_stage":
       run("UPDATE deals SET stage=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?", body.stage, body.id);
       break;

@@ -23,6 +23,7 @@ import {
   type NewPriceObservation,
   type NewProduct,
   type NewPurchaseLot,
+  type PurchaseLotPatch,
   type NewRecommendation,
   type NewSale,
   type NewSkuAssignment,
@@ -427,6 +428,91 @@ export function insertPurchaseLot(input: NewPurchaseLot): number {
 
 export function getPurchaseLot(id: number): PkPurchaseLot | undefined {
   return get<PkPurchaseLot>(`SELECT * FROM pk_purchase_lots WHERE id = ?`, id);
+}
+
+/**
+ * Corrects operator-entered purchase details while keeping all derived economics
+ * in sync. Structural FIFO fields cannot move once the lot has fed a machine
+ * or its product has recorded sales; cost and notes remain correctable so an
+ * operator can repair the accounting basis without orphaning historical units.
+ */
+export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): PkPurchaseLot {
+  assertInt(id, "purchase lot id");
+  return immediate(() => {
+    const current = getPurchaseLot(id);
+    if (!current) throw new Error(`purchase lot ${id} not found`);
+
+    const purchaseDate = patch.purchase_date ?? current.purchase_date;
+    const source = patch.source ?? current.source;
+    const productId = patch.product_id ?? current.product_id;
+    const packCount = patch.pack_count ?? current.pack_count;
+    const totalCost = patch.total_cost_cents ?? current.total_cost_cents;
+    const status = patch.status ?? current.status;
+    const notes = patch.notes === undefined ? current.notes : patch.notes;
+
+    assertDate(purchaseDate, "purchase_date");
+    assertEnum(source, OBSERVATION_SOURCES, "lot source");
+    assertInt(productId, "product_id");
+    assertInt(packCount, "pack_count");
+    assertInt(totalCost, "total_cost_cents");
+    assertEnum(status, LOT_STATUSES, "lot status");
+    if (packCount <= 0) throw new Error(`pack_count must be > 0, got ${packCount}`);
+    if (totalCost < 0) throw new Error(`total_cost_cents must be >= 0, got ${totalCost}`);
+    if (!getProduct(productId)) throw new Error(`product ${productId} not found`);
+
+    const allocated = get<{ qty: number }>(
+      `SELECT COALESCE(SUM(qty_delta), 0) qty
+       FROM pk_stock_events WHERE lot_id = ? AND event = 'refill' AND qty_delta > 0`,
+      id
+    )?.qty ?? 0;
+    const structuralChange =
+      productId !== current.product_id ||
+      purchaseDate !== current.purchase_date ||
+      packCount !== current.pack_count ||
+      ((status === "in_transit") !== (current.status === "in_transit"));
+    const currentProductSales = get<{ count: number }>(
+      `SELECT COUNT(*) count FROM pk_sales WHERE product_id = ?`,
+      current.product_id
+    )?.count ?? 0;
+    const destinationProductSales = productId === current.product_id
+      ? currentProductSales
+      : get<{ count: number }>(`SELECT COUNT(*) count FROM pk_sales WHERE product_id = ?`, productId)?.count ?? 0;
+    if (structuralChange && (allocated > 0 || currentProductSales > 0 || destinationProductSales > 0)) {
+      throw new Error("cannot change product, purchase date, pack count, or transit state after refill allocation or sales history exists");
+    }
+
+    const landed = Math.round(totalCost / packCount);
+    const benchmarkIdentityChanged =
+      productId !== current.product_id || purchaseDate !== current.purchase_date;
+    const benchmarkPrice = benchmarkIdentityChanged
+      ? benchmarkForProductAtDate(productId, purchaseDate)?.price_per_pack_cents ?? null
+      : current.benchmark_price_cents;
+    const observationId =
+      productId !== current.product_id || purchaseDate !== current.purchase_date || source !== current.source
+        ? null
+        : current.observation_id;
+    getDb().prepare(
+      `UPDATE pk_purchase_lots
+       SET purchase_date = ?, source = ?, product_id = ?, pack_count = ?,
+           total_cost_cents = ?, landed_cost_per_pack_cents = ?,
+           observation_id = ?, benchmark_price_cents = ?, benchmark_delta_cents = ?, status = ?, notes = ?
+       WHERE id = ?`
+    ).run(
+      purchaseDate,
+      source,
+      productId,
+      packCount,
+      totalCost,
+      landed,
+      observationId,
+      benchmarkPrice,
+      benchmarkPrice === null ? null : landed - benchmarkPrice,
+      status,
+      notes,
+      id
+    );
+    return getPurchaseLot(id)!;
+  });
 }
 
 export function listPurchaseLots(): Array<PkPurchaseLot & { set_name: string }> {

@@ -38,7 +38,7 @@ export function SlotTable({ slots }: { slots: PokemonOpsSlotRow[] }) {
               <td className="py-2 pr-3 font-mono text-txt-primary">{s.slot_number}</td>
               <td className="py-2 pr-3 text-txt-primary">{s.set_name}</td>
               <td className="py-2 pr-3 font-mono text-txt-muted">{formatCents(s.price_cents)}</td>
-              <td className="py-2 pr-3 font-mono text-txt-muted">{s.current_stock} / {s.capacity}</td>
+              <td className="py-2 pr-3 text-txt-muted"><strong className="block font-mono text-txt-primary">{s.current_stock} verified units</strong><small className="block">{s.capacity} capacity</small></td>
               <td className="py-2 pr-3 font-mono text-txt-muted">{s.in_transit_units || "—"}</td>
               <td className="py-2 pr-3 font-mono text-txt-muted">{s.landed_cost_per_pack_cents == null ? "Unknown" : formatCents(s.landed_cost_per_pack_cents)}</td>
               <td className="py-2 pr-3 text-txt-muted">{s.source_lot_id == null ? "Unknown" : `#${s.source_lot_id} · ${s.source_lot_name}`}</td>

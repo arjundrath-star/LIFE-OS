@@ -5,9 +5,9 @@ import {
   getPurchaseLot,
   insertPurchaseLot,
   listPurchaseLotsFiltered,
-  updateLotStatus,
+  updatePurchaseLotFields,
 } from "@/lib/pokemon-ops/db";
-import { LOT_STATUSES, OBSERVATION_SOURCES } from "@/lib/pokemon-ops/types";
+import { LOT_STATUSES, OBSERVATION_SOURCES, type PurchaseLotPatch } from "@/lib/pokemon-ops/types";
 
 export const dynamic = "force-dynamic";
 
@@ -89,11 +89,28 @@ export async function PATCH(req: Request) {
   }
   const id = asId(body.id);
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  if (typeof body.status !== "string") {
-    return NextResponse.json({ error: "status required" }, { status: 400 });
+  const patch: PurchaseLotPatch = {};
+  if (body.purchase_date !== undefined) patch.purchase_date = body.purchase_date;
+  if (body.source !== undefined) patch.source = body.source;
+  if (body.product_id !== undefined) {
+    const productId = asId(body.product_id);
+    if (!productId) return NextResponse.json({ error: "bad product_id" }, { status: 400 });
+    patch.product_id = productId;
+  }
+  if (body.pack_count !== undefined) patch.pack_count = Number(body.pack_count);
+  if (body.total_cost_cents !== undefined) patch.total_cost_cents = Number(body.total_cost_cents);
+  if (body.status !== undefined) patch.status = body.status;
+  if (body.notes !== undefined) {
+    if (body.notes !== null && typeof body.notes !== "string") {
+      return NextResponse.json({ error: "notes must be text or null" }, { status: 400 });
+    }
+    patch.notes = body.notes;
+  }
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "at least one editable field is required" }, { status: 400 });
   }
   try {
-    const lot = updateLotStatus(id, body.status);
+    const lot = updatePurchaseLotFields(id, patch);
     return NextResponse.json({ ok: true, lot });
   } catch (e: any) {
     const notFound = /not found/.test(e?.message || "");

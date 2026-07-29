@@ -50,6 +50,89 @@ test("migration seeds pk_config with confirmed values", async () => {
   assert.equal(ops.getConfigInt("test_key"), 7);
 });
 
+test("purchase lots can be corrected while landed cost and benchmark delta stay derived", async () => {
+  const { ops } = await mods();
+  const productId = ops.ensureProduct({
+    set_name: "ZZ Editable Lot Set",
+    form: "booster",
+    tier: "mid",
+  });
+  const observationWrite = ops.insertPriceObservation({
+    observed_date: "2026-01-20",
+    source: "tcgplayer",
+    product_id: productId,
+    price_per_pack_cents: 1500,
+    listing_ref: "editable-lot-benchmark",
+  });
+  assert.ok(observationWrite.id);
+  const observationId = observationWrite.id;
+  const lotId = ops.insertPurchaseLot({
+    purchase_date: "2026-01-21",
+    source: "other",
+    product_id: productId,
+    pack_count: 40,
+    total_cost_cents: 54634,
+    observation_id: observationId,
+    status: "received",
+    notes: "original allocation",
+  });
+  ops.insertPriceObservation({
+    observed_date: "2026-01-21",
+    source: "tcgplayer",
+    product_id: productId,
+    price_per_pack_cents: 1600,
+    listing_ref: "later-backdated-market-observation",
+  });
+
+  const corrected = ops.updatePurchaseLotFields(lotId, {
+    pack_count: 40,
+    total_cost_cents: 56000,
+    status: "received",
+    notes: "corrected to $14 per pack",
+  });
+
+  assert.equal(corrected.total_cost_cents, 56000);
+  assert.equal(corrected.landed_cost_per_pack_cents, 1400);
+  assert.equal(corrected.benchmark_price_cents, 1500);
+  assert.equal(corrected.benchmark_delta_cents, -100);
+  assert.equal(corrected.notes, "corrected to $14 per pack");
+  assert.equal(corrected.observation_id, observationId);
+
+  const reclassified = ops.updatePurchaseLotFields(lotId, { source: "target" });
+  assert.equal(reclassified.observation_id, null);
+});
+
+test("purchase lot structural edits cannot rewrite FIFO history after sales", async () => {
+  const { ops } = await mods();
+  const mId = await testMachine();
+  const productId = ops.ensureProduct({ set_name: "ZZZ Historical Guard Set", form: "booster", tier: "mid" });
+  const otherProductId = ops.ensureProduct({ set_name: "ZZZ Historical Guard Destination", form: "booster", tier: "mid" });
+  const lotId = ops.insertPurchaseLot({
+    purchase_date: "2025-01-01",
+    source: "other",
+    product_id: productId,
+    pack_count: 10,
+    total_cost_cents: 10000,
+    status: "received",
+  });
+  ops.insertSale({
+    machine_id: mId,
+    slot_number: 9,
+    product_id: productId,
+    qty: 2,
+    unit_price_cents: 1500,
+    sold_at: "2025-01-02T00:00:00.000Z",
+    source: "manual",
+  });
+
+  assert.throws(() => ops.updatePurchaseLotFields(lotId, { product_id: otherProductId }), /sales history exists/);
+  assert.throws(() => ops.updatePurchaseLotFields(lotId, { pack_count: 9 }), /sales history exists/);
+  assert.throws(() => ops.updatePurchaseLotFields(lotId, { purchase_date: "2025-01-03" }), /sales history exists/);
+  assert.throws(() => ops.updatePurchaseLotFields(lotId, { status: "in_transit" }), /sales history exists/);
+  const accountingCorrection = ops.updatePurchaseLotFields(lotId, { total_cost_cents: 11000, notes: "basis corrected" });
+  assert.equal(accountingCorrection.landed_cost_per_pack_cents, 1100);
+});
+
 test("0012 backfills legacy lot snapshots with date-eligible external benchmarks", () => {
   const migrationDbPath = path.join(tmpDir, "external-benchmark-migration.db");
   const raw = new Database(migrationDbPath);

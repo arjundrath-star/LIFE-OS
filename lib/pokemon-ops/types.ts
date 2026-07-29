@@ -263,6 +263,16 @@ export interface NewPurchaseLot {
   notes?: string | null;
 }
 
+export interface PurchaseLotPatch {
+  purchase_date?: string;
+  source?: ObservationSource;
+  product_id?: number;
+  pack_count?: number;
+  total_cost_cents?: number;
+  status?: LotStatus;
+  notes?: string | null;
+}
+
 export interface NewSkuAssignment {
   machine_id: number;
   slot_number: number;

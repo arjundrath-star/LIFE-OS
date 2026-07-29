@@ -159,7 +159,22 @@ test("inventory KPI cards use explicit high-contrast light-theme colors", () => 
 
 test("Inventory workspace separates general unassigned stock from machine inventory", () => {
   const source = fs.readFileSync(path.join(ROOT, "components/business/OpsWorkspace.tsx"), "utf8");
+  const lots = fs.readFileSync(path.join(ROOT, "components/pokemon-ops/RecentLots.tsx"), "utf8");
   assert.match(source, /General Inventory/);
   assert.match(source, /Machine Inventory/);
   assert.match(source, /GeneralInventoryPanel/);
+  assert.match(source, /inventory-stock-grid/);
+  assert.match(source, /Add purchase lot/);
+  assert.match(lots, /Edit lot/);
+  assert.match(lots, /landed.*pack/i);
+  assert.match(lots, /method: "PATCH"/);
+});
+
+test("Locations workspace makes machine creation and editing explicit", () => {
+  const source = fs.readFileSync(path.join(ROOT, "components/business/LocationsWorkspace.tsx"), "utf8");
+  assert.match(source, /Add a machine/);
+  assert.match(source, /location-machine-grid/);
+  assert.match(source, /Edit machine/);
+  assert.match(source, /Machine name/);
+  assert.match(source, /Site \/ location/);
 });
