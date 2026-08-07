@@ -15,7 +15,7 @@
 - Engagements need a separate, deliberately smaller lifecycle (active, paused, ended) so memberships and ongoing roles are not forced through an application funnel.
 - Deadline triage is separate from pipeline status: the next-14-day strip sorts ascending and uses error emphasis only at three days or fewer.
 - Discovery stays review-gated: email and web evidence create deduplicated pending suggestions, and only acceptance mutates an endeavor.
-- Sources: Notion database, property, view, board, and timeline help; Huntr Job Board help; Teal and Simplify Job Tracker help (researched 2026-08-07).
+- Sources: [Notion databases](https://www.notion.com/help/intro-to-databases), [properties](https://www.notion.com/en-gb/help/database-properties), [views](https://www.notion.com/en-gb/help/views-filters-and-sorts), [timeline](https://www.notion.com/help/timelines), [Huntr](https://help.huntr.co/en/articles/13413245-the-job-board), [Teal](https://help.tealhq.com/en/articles/14435727-how-to-track-your-job-applications), and [Simplify](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker) (researched 2026-08-07).
 - Engineering call: store one primary URL plus a JSON URL list so imports remain simple while the drawer can preserve both application and Drive-folder/document links.
 - Engineering call: the existing Google reader has no Drive scope and Career adds no broader scope, so drafted rows use the approved track folder links instead of pretending individual Doc discovery succeeded.
 - Engineering call: opportunity hunting uses one shared bounded fetch job, callable by Hermes/CLI and scheduled daily; it only proposes when a configured page returns a concrete open/deadline/event signal.
