@@ -1,0 +1,21 @@
+# Career tab research notes
+
+- Notion treats each database row as an item/page: compact properties stay in the view, while long notes and history belong in a detail surface.
+- The same canonical records should power every view; table, board, and timeline are projections, not separate stores.
+- Table view is the fastest scan/edit surface, so title, organization, category, kind, status, deadline, and location should be editable in place.
+- Board view is most useful grouped by status, with card properties limited to category, organization, and deadline.
+- Timeline view requires a date property; Career will plot application deadlines and omit undated items into an explicit “No deadline” list.
+- Notion view settings are per-view, but the requested category/status filters and search should remain shared while switching views.
+- Side-peek is Notion’s default database-item interaction; Career will use a right-side detail drawer with every property, notes, links, contact, and append-only events.
+- Quick-add should create a minimally valid item immediately, then allow refinement inline or in the drawer.
+- Status is a first-class select property and the board’s grouping key; category remains independent so Work, Klade, and Community can share one pipeline.
+- Huntr’s default funnel (wishlist, applied, interview, offer, rejected) and Teal’s finer applying stage support the locked application statuses here.
+- “Researching” maps to saved/wishlist, “drafting” maps to applying, and “submitted” maps to applied; interviewing and offer remain explicit active stages.
+- Accepted, rejected, withdrawn, and missed-deadline are terminal application outcomes and should remain visible but visually quieter than active work.
+- Engagements need a separate, deliberately smaller lifecycle (active, paused, ended) so memberships and ongoing roles are not forced through an application funnel.
+- Deadline triage is separate from pipeline status: the next-14-day strip sorts ascending and uses error emphasis only at three days or fewer.
+- Discovery stays review-gated: email and web evidence create deduplicated pending suggestions, and only acceptance mutates an endeavor.
+- Sources: Notion database, property, view, board, and timeline help; Huntr Job Board help; Teal and Simplify Job Tracker help (researched 2026-08-07).
+- Engineering call: store one primary URL plus a JSON URL list so imports remain simple while the drawer can preserve both application and Drive-folder/document links.
+- Engineering call: the existing Google reader has no Drive scope and Career adds no broader scope, so drafted rows use the approved track folder links instead of pretending individual Doc discovery succeeded.
+- Engineering call: opportunity hunting uses one shared bounded fetch job, callable by Hermes/CLI and scheduled daily; it only proposes when a configured page returns a concrete open/deadline/event signal.

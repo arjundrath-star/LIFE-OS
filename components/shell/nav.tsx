@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Link2,
   BrainCircuit,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ export const NAV: NavItem[] = [
   { key: "business", label: "Business", href: "/business", Icon: BriefcaseBusiness },
   { key: "ad-agency", label: "Ad Agency", href: "/ad-agency", Icon: Clapperboard },
   { key: "school", label: "School", href: "/school", Icon: GraduationCap },
+  { key: "career", label: "Career", href: "/career", Icon: Target },
   { key: "health", label: "Health", href: "/health", Icon: Activity },
   { key: "connections", label: "Connections", href: "/connections", Icon: Plug },
   { key: "projects", label: "Projects", href: "/projects", Icon: FolderGit2 },

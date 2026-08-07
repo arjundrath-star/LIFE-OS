@@ -7,7 +7,7 @@ import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
 import { hasSecret, secret } from "@/lib/secrets";
 import { run } from "@/lib/shell";
-import { all } from "@/db";
+import { all, get, kvGet } from "@/db";
 
 export type Surface = "dashboard" | "hermes" | "claude";
 export type ReconnectMethod = "oauth" | "device_code" | "api_key" | "service" | "none";
@@ -141,6 +141,31 @@ export const REGISTRY: ConnectionDef[] = [
       }
     },
   },
+  ...([
+    { id:"career-google-klade", label:"Career Gmail · Klade", target:"klade", exact:"arjun@kladeai.com", domain:"" },
+    { id:"career-google-personal", label:"Career Gmail · Personal", target:"personal", exact:"arjundrath@gmail.com", domain:"" },
+    { id:"career-google-nyu", label:"Career Gmail · NYU", target:"nyu", exact:"", domain:"nyu.edu" },
+  ] as const).map((account): ConnectionDef => ({
+    id:account.id,
+    label:account.label,
+    surfaces:["dashboard"],
+    reconnect:"oauth",
+    defaultEnabled:false,
+    configured:() => hasSecret("GOOGLE_CLIENT_ID") && hasSecret("GOOGLE_CLIENT_SECRET"),
+    note:"Gmail read-only for Career status suggestions; no send scope",
+    check:async () => {
+      const row = account.exact
+        ? get<any>("SELECT email,last_error,enabled FROM google_accounts WHERE lower(email)=?", account.exact)
+        : get<any>("SELECT email,last_error,enabled FROM google_accounts WHERE lower(email) LIKE ? ORDER BY added_at DESC LIMIT 1", `%@${account.domain}`);
+      if (!row) {
+        const prior = kvGet<string>(`career.google.${account.target}_error`);
+        return { ok:false, detail:prior || `connect ${account.exact || `an @${account.domain} account`}` };
+      }
+      if (!row.enabled) return { ok:false, detail:`${row.email} is disabled` };
+      if (row.last_error) return { ok:false, detail:`${row.email} needs re-auth` };
+      return { ok:true, detail:`${row.email} · Gmail read-only` };
+    },
+  })),
   {
     id: "whoop",
     label: "Whoop",

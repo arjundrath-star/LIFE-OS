@@ -21,7 +21,7 @@ export function redirectUri(): string {
 }
 
 // ---- OAuth flow ----
-export function connectUrl(state: string): string {
+export function connectUrl(state: string, options: { loginHint?: string; hostedDomain?: string } = {}): string {
   const p = new URLSearchParams({
     client_id: requireSecret("GOOGLE_CLIENT_ID"),
     redirect_uri: redirectUri(),
@@ -32,6 +32,8 @@ export function connectUrl(state: string): string {
     scope: SCOPES,
     state,
   });
+  if (options.loginHint) p.set("login_hint", options.loginHint);
+  if (options.hostedDomain) p.set("hd", options.hostedDomain);
   return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
 }
 
@@ -395,6 +397,22 @@ async function listMatching(token: string, q: string, cap = 400): Promise<string
     pageToken = j.nextPageToken;
   } while (pageToken && out.length < cap);
   return out.slice(0, cap);
+}
+
+export type GmailMetadata = { id:string; threadId:string; subject:string; from:string; internalDate:string|null };
+
+/** Paginated Gmail search for specialist read-only jobs. Counts actual ids; never trusts resultSizeEstimate. */
+export async function gmailSearchMetadata(email: string, query: string, cap = 120): Promise<GmailMetadata[]> {
+  const account = email.trim().toLowerCase();
+  const token = await accessTokenFor(account);
+  if (!token) throw new Error(`Gmail account ${account} is not authorized`);
+  const ids = await listMatching(token, query, cap);
+  return mapLimit(ids, 8, async (id) => {
+    const msg = await gapi(token, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`);
+    const headers: any[] = msg.payload?.headers ?? [];
+    const header = (name:string) => headers.find((h) => h.name?.toLowerCase() === name)?.value ?? "";
+    return { id, threadId:msg.threadId || id, subject:header("subject"), from:header("from"), internalDate:msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : null };
+  });
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {

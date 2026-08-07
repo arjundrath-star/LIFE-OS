@@ -45,6 +45,10 @@ function indicatorFor(item: NavItem, live: Live): Indicator | null {
     }
     case "school":
       return live.days === null ? null : { badge: `${live.days}d`, badgeTone: "warn" };
+    case "career": {
+      const pending = live.career?.stats?.pendingSuggestions ?? 0;
+      return pending > 0 ? { badge: pending > 99 ? "99+" : String(pending), badgeTone:"warn" } : null;
+    }
     case "connections": {
       const broken = (live.conns || []).filter((c) => c.state === "on_broken").length;
       return broken > 0 ? { dot: { state: "warn", pulse: true } } : null;
@@ -59,6 +63,7 @@ type Live = {
   kanban: any;
   email: any;
   cal: any;
+  career: any;
   conns: { state: string }[];
   days: number | null;
   connStatus: "connecting" | "open" | "closed";
@@ -83,6 +88,7 @@ export function NavRail({
   const kanban = useLiveData<any>("kanban");
   const email = useLiveData<any>("email");
   const cal = useLiveData<any>("calendar");
+  const career = useLiveData<any>("career");
   const conns = useLiveData<{ state: string }[]>("connections");
   const connStatus = useConnStatus();
   const [days, setDays] = useState<number | null>(null);
@@ -93,7 +99,7 @@ export function NavRail({
     return () => clearInterval(t);
   }, []);
 
-  const live: Live = { pulse, kanban, email, cal, conns: conns || [], days, connStatus };
+  const live: Live = { pulse, kanban, email, cal, career, conns: conns || [], days, connStatus };
 
   return (
     <nav

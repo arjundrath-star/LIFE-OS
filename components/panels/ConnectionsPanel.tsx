@@ -260,9 +260,10 @@ function ReconnectAction({ conn, onKey, onWhoopSetup, onDiscordSetup }: { conn: 
       </a>
     );
   }
-  if (conn.reconnect === "oauth" && conn.service === "google") {
+  if (conn.reconnect === "oauth" && (conn.service === "google" || conn.service.startsWith("career-google-"))) {
+    const target = conn.service.startsWith("career-google-") ? `?target=${encodeURIComponent(conn.service.slice("career-google-".length))}` : "";
     return (
-      <a href="/api/google/connect">
+      <a href={`/api/google/connect${target}`}>
         <Button variant="accent" size="sm">
           <ExternalLink size={12} /> connect
         </Button>

@@ -248,6 +248,23 @@ async function tickKanban() {
   hub.broadcast("kanban", kanbanSnapshot());
 }
 
+async function tickCareer() {
+  const { careerSnapshot } = await import("@/lib/career");
+  getHub().broadcast("career", careerSnapshot());
+}
+
+async function tickCareerEmail() {
+  const { runCareerEmailSync } = await import("@/lib/career-scout");
+  await runCareerEmailSync();
+  await tickCareer();
+}
+
+async function tickCareerHunter() {
+  const { runCareerOpportunityHunter } = await import("@/lib/career-scout");
+  await runCareerOpportunityHunter();
+  await tickCareer();
+}
+
 function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -278,6 +295,9 @@ export function startScheduler() {
   const kanban = guarded("kanban", tickKanban);
   const pokemonOpsRules = guarded("pokemonOpsRules", tickPokemonOpsRules);
   const pokemonOps = guarded("pokemonOps", tickPokemonOps);
+  const career = guarded("career", tickCareer);
+  const careerEmail = guarded("careerEmail", tickCareerEmail);
+  const careerHunter = guarded("careerHunter", tickCareerHunter);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -292,6 +312,8 @@ export function startScheduler() {
   kanban();
   pokemonOpsRules();
   pokemonOps();
+  career();
+  careerEmail();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -306,6 +328,9 @@ export function startScheduler() {
     setInterval(kanban, 5000), // Hermes Kanban: read shared board + broadcast, cheap and bounded
     setInterval(pokemonOpsRules, 24 * 60 * 60 * 1000), // pokemon-ops rules: daily cadence (+ boot burst above); on-demand via POST /api/pokemon-ops/rules/run
     setInterval(pokemonOps, 60000), // pokemon-ops dashboard snapshot: cheap read + broadcast, 60s per PHASE-4
+    setInterval(career, 15000), // canonical SQLite snapshot; writes also broadcast immediately
+    setInterval(careerEmail, 30 * 60 * 1000), // approved Gmail metadata only; review-gated suggestions
+    setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
   ];
 
   console.log("[scheduler] started");

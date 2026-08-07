@@ -15,7 +15,7 @@ import { daysUntilTerm, TERM_LABEL } from "@/lib/school";
 import { cn } from "@/lib/cn";
 import {
   Bot, Cpu, Send, Terminal as TermIcon, Mail, Calendar as CalIcon, MapPin,
-  CheckSquare, Square, Plus, Activity, Boxes, Clapperboard, GraduationCap, FolderGit2, ArrowRight,
+  CheckSquare, Square, Plus, Activity, Boxes, Clapperboard, GraduationCap, FolderGit2, ArrowRight, Target,
 } from "lucide-react";
 
 // ---------------------------------------------------------------- hero
@@ -321,6 +321,7 @@ function ProjectsGlance() {
   const { data: vending } = useApi<any>("/api/vending");
   const { data: ad } = useApi<any>("/api/adagency");
   const projects = useLiveData<any[]>("projects");
+  const career = useLiveData<any>("career");
   const [days, setDays] = useState<number | null>(null);
   useEffect(() => setDays(daysUntilTerm()), []);
 
@@ -334,10 +335,11 @@ function ProjectsGlance() {
       <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-txt-faint">
         <FolderGit2 size={12} /> projects
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <GlanceCard href="/vending" icon={<Boxes size={15} />} name="Vending Ops" chip={vendChip} chipTone={vending?.revenueConnected ? "accent" : "muted"} sub={vending?.needsRefill ? `${vending.needsRefill} need refill` : "deal pipeline live"} dot={vending?.needsRefill ? "warn" : undefined} />
         <GlanceCard href="/ad-agency" icon={<Clapperboard size={15} />} name="Klade Ad Agency" chip={ad?.connected ? `${ad.account?.credits ?? "—"} credits` : "connect CLI"} chipTone={ad?.connected ? "accent" : "muted"} sub={ad?.connected ? `${ad.videos?.length ?? 0} recent generations` : "Higgsfield"} />
         <GlanceCard href="/school" icon={<GraduationCap size={15} />} name="School" chip={days === null ? "—" : `${days}d`} chipTone="warn" sub={`until ${TERM_LABEL}`} />
+        <GlanceCard href="/career" icon={<Target size={15}/>} name="Career" chip={career?`${career.stats?.applications??0} applications`:"—"} chipTone={career?.stats?.pendingSuggestions?"warn":"accent"} sub={career?.stats?.pendingSuggestions?`${career.stats.pendingSuggestions} suggestions · next ${career.stats?.nextDeadline?.deadline||"—"}`:`next ${career?.stats?.nextDeadline?.deadline||"deadline not set"}`}/>
         <GlanceCard href="/projects" icon={<FolderGit2 size={15} />} name="Vault projects" chip={projects ? `${projects.length}` : "—"} chipTone="muted" sub="from command-center" />
       </div>
     </div>
