@@ -10,6 +10,7 @@ const suggestionTitle = `Career E2E accepted suggestion ${stamp}`;
 const dedupe = `e2e:${stamp}`;
 const db = getDb();
 let browser: import("puppeteer-core").Browser|null = null;
+let currentPage: import("puppeteer-core").Page|null = null;
 
 function cleanup(){
   const tx=db.transaction(()=>{
@@ -27,26 +28,33 @@ async function main(){
   const puppeteer = await import("puppeteer-core");
   browser = await puppeteer.launch({executablePath:process.env.E2E_CHROMIUM||"/usr/bin/chromium",headless:true,args:["--no-sandbox"]});
   const page = await browser.newPage();
+  currentPage=page;
   await page.setViewport({width:1600,height:1100});
   await page.setCookie({name:"__Secure-next-auth.session-token",value:cookie,url:origin,httpOnly:true,secure:true,sameSite:"Lax"});
+  console.log("step=navigate");
   const response = await page.goto(`${origin}/career`,{waitUntil:"networkidle0",timeout:60000});
   if(!response?.ok())throw new Error(`career page returned ${response?.status()}`);
+  console.log("step=table");
   await page.waitForSelector("[data-testid='career-table']");
   const rows = await page.$$eval("[data-testid='career-row']",(nodes)=>nodes.length);
   if(rows<38)throw new Error(`expected at least 38 seeded rows, saw ${rows}`);
-  await page.waitForFunction(()=>document.body.innerText.includes("tracked · open"),{timeout:30000});
+  await page.waitForFunction(()=>document.body.innerText.toLowerCase().includes("tracked · open"),{timeout:30000});
 
+  console.log("step=quick-add");
   await page.type("[data-testid='career-quick-title']",quickTitle);
   await Promise.all([page.waitForResponse((r)=>r.url().includes("/api/career")&&r.request().method()==="POST"&&r.ok()),page.click("[data-testid='career-quick-add']")]);
   await page.waitForSelector("button[aria-label='Close']");
   await page.click("button[aria-label='Close']");
+  console.log("step=board");
   await page.click("[data-testid='career-view-board']");
   await page.waitForSelector("[data-testid='career-board'] [data-testid='career-board-card']");
   const cards=await page.$$eval("[data-testid='career-board-card']",(nodes)=>nodes.length);
+  console.log("step=timeline");
   await page.click("[data-testid='career-view-timeline']");
   await page.waitForSelector("[data-testid='career-timeline']");
   await page.click("[data-testid='career-suggestions-toggle']");
   await page.waitForSelector(`[data-testid='accept-suggestion-${suggestion.id}']`);
+  console.log("step=suggestion-accept");
   await Promise.all([page.waitForResponse((r)=>r.url().includes("/api/career")&&r.request().method()==="POST"&&r.ok()),page.click(`[data-testid='accept-suggestion-${suggestion.id}']`)]);
   const accepted=db.prepare("SELECT id FROM endeavors WHERE title=? AND source='discovery'").get(suggestionTitle) as any;
   if(!accepted)throw new Error("suggestion acceptance did not create discovery endeavor");
@@ -55,4 +63,4 @@ async function main(){
   console.log(JSON.stringify({origin,authenticated:true,seededRows:rows,boardCards:cards,table:true,board:true,timeline:true,quickAdd:true,suggestionAccepted:true,websocket:"open",screenshot:shot}));
 }
 
-main().finally(async()=>{if(browser)await browser.close();cleanup();}).catch((error)=>{console.error(error instanceof Error?error.message:error);process.exitCode=1});
+main().catch(async(error)=>{try{await currentPage?.screenshot({path:"/tmp/career-e2e-failure.png",fullPage:true})}catch{}console.error(error instanceof Error?error.stack||error.message:error);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();cleanup();});
