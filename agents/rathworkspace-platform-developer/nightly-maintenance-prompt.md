@@ -33,6 +33,8 @@ Dashboard agent slug: `rathworkspace-platform-developer`.
 
 Use the provided `RATH_PLATFORM_DEV_RUN_ID` environment variable if set; otherwise create `platform-nightly-$(date -u +%Y%m%dT%H%M%SZ)`.
 
+The versioned background dispatcher emits the `started/running` event before launching this worker so the run is visible immediately. Verify that event exists, but do not emit a second `started` event for the same run id. The worker owns the remaining lifecycle events and terminal status.
+
 Emit events via:
 
 ```bash
@@ -42,7 +44,7 @@ npm run agent-event -- --agent rathworkspace-platform-developer --run "$RATH_PLA
 
 Emit at least:
 
-1. started/running
+1. started/running (dispatcher-owned; verify only)
 2. inventory_complete/running
 3. verification_complete/running
 4. completed/completed or blocked/blocked or failed/failed
