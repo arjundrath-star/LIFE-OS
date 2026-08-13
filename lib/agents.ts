@@ -21,7 +21,10 @@ export const RUN_STATUSES = [
 ] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
 const RUN_STATUS_SET = new Set<string>(RUN_STATUSES);
-const TERMINAL = new Set<string>(["completed", "failed"]);
+// `blocked` means this run has stopped and needs a new run id after the
+// operator resolves the blocker. Keeping it non-terminal leaves stale runs in
+// the live channel with no finished_at timestamp.
+const TERMINAL = new Set<string>(["blocked", "completed", "failed"]);
 
 export const LEVELS = ["info", "success", "warn", "error"] as const;
 export type Level = (typeof LEVELS)[number];
@@ -344,7 +347,7 @@ export function agentsOrchestrationSnapshot() {
     `SELECT id, agent_slug, status, summary, started_at, finished_at, trigger_type, trigger_source
        FROM agent_runs r
        JOIN agent_registry a ON a.slug = r.agent_slug AND a.last_run_id = r.id
-      WHERE r.status IN ('running','queued','waiting_for_review','blocked')
+      WHERE r.status IN ('running','queued','waiting_for_review')
       ORDER BY r.started_at DESC
       LIMIT 100`
   );
