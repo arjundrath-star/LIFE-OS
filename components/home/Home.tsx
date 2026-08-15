@@ -13,6 +13,7 @@ import { useApi, apiPost } from "@/hooks/useApi";
 import { hhmm, timeAgo } from "@/lib/time";
 import { daysUntilTerm, TERM_LABEL } from "@/lib/school";
 import { cn } from "@/lib/cn";
+import { selectCurrentHealthSnapshot } from "@/lib/health/client-freshness";
 import {
   Bot, Cpu, Send, Terminal as TermIcon, Mail, Calendar as CalIcon, MapPin,
   CheckSquare, Square, Plus, Activity, Boxes, Clapperboard, GraduationCap, FolderGit2, ArrowRight, Target,
@@ -247,46 +248,29 @@ function TodayTodos() {
 
 // ---------------------------------------------------------------- whoop
 function WhoopSnapshot() {
-  const snap = useLiveData<any>("health");
-  const connected = !!snap?.connected;
+  const liveSnap = useLiveData<any>("health");
+  const transport=useConnStatus();
+  const [nowMs,setNowMs]=useState(()=>Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNowMs(Date.now()),30_000);return()=>clearInterval(timer)},[]);
+  const snap=selectCurrentHealthSnapshot({live:liveSnap,rest:null,transport,restRequestSucceeded:false,restLoading:false,nowMs}).snapshot;
   const fmt = (v: number | null | undefined, d = 0) => (v == null ? "—" : v.toFixed(d));
-
-  if (!connected) {
-    const SLOTS = [
-      { label: "Recovery", unit: "%" },
-      { label: "Sleep", unit: "h" },
-      { label: "Strain", unit: "" },
-      { label: "HRV", unit: "" },
-    ];
-    return (
-      <Section title="Whoop" icon={<Activity size={13} />} right={<span className="font-mono text-[10px] uppercase tracking-wider text-off">connect me</span>}>
-        <div className="grid grid-cols-4 gap-2">
-          {SLOTS.map((s) => (
-            <div key={s.label} className="rounded-inner border border-dashed border-border bg-panel-2/20 p-2 text-center">
-              <div className="font-mono text-xl text-off">—{s.unit}</div>
-              <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-txt-faint">{s.label}</div>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-txt-faint/70">Whoop not connected. Create the app at developer.whoop.com (v2, offline scope), then authorize from Connections.</p>
-      </Section>
-    );
-  }
-
-  const recTone = snap.recovery == null ? "text-off" : snap.recovery >= 67 ? "text-healthy" : snap.recovery >= 34 ? "text-warn" : "text-error";
+  const status=transport!=="open"?`transport ${transport}`:snap?.dataQuality?.status ?? "loading";
+  const recovery=snap?.whoop?.recovery;
+  const readinessAvailable=transport==="open"&&!!snap?.readiness?.available;
+  const recTone = !readinessAvailable ? "text-off" : recovery.value >= 67 ? "text-healthy" : recovery.value >= 34 ? "text-warn" : "text-error";
   const STATS = [
-    { label: "Recovery", value: `${fmt(snap.recovery)}%`, tone: recTone },
-    { label: "Sleep", value: `${fmt(snap.sleepHours, 1)}h`, tone: "text-txt-primary" },
-    { label: "Strain", value: fmt(snap.strain, 1), tone: "text-accent" },
-    { label: "HRV", value: `${fmt(snap.hrv)}`, tone: "text-txt-primary" },
+    { label: "Readiness", value: readinessAvailable ? `${fmt(recovery?.value)}%` : "withheld", tone: recTone },
+    { label: "Sleep", value: `${fmt(snap?.whoop?.sleepHours?.value, 1)}h`, tone: "text-txt-primary" },
+    { label: "Weight", value: snap?.body?.latest?.weightKg == null ? "—" : `${(snap.body.latest.weightKg*2.20462262).toFixed(1)}lb`, tone: "text-txt-primary" },
+    { label: "7d strength", value: snap?.training?.weekly?.coverage==="unknown" ? "—" : `${snap?.training?.weekly?.frequency ?? 0} lifts`, tone: "text-accent" },
   ];
   return (
     <Section
-      title="Whoop"
+      title="Health"
       icon={<Activity size={13} />}
-      right={<span className="font-mono text-[10px] uppercase tracking-wider text-healthy">{snap.athlete ?? "connected"}</span>}
+      right={<span className={cn("font-mono text-[10px] uppercase tracking-wider",transport==="open"&&status==="good"?"text-healthy":status==="broken"||transport==="closed"?"text-error":"text-warn")}>{status}</span>}
     >
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {STATS.map((s) => (
           <div key={s.label} className="rounded-inner border border-border bg-panel-2/20 p-2 text-center">
             <div className={cn("font-mono text-xl", s.tone)}>{s.value}</div>
@@ -294,7 +278,8 @@ function WhoopSnapshot() {
           </div>
         ))}
       </div>
-      {snap.asOf && <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-txt-faint">latest cycle {snap.asOf}</p>}
+      <p className="mt-2 text-[11px] text-txt-faint">{transport!=="open"?`Live transport is ${transport}; retained values are not live.`:snap?.recommendation?.current?`${snap.recommendation.category} recommendation · inputs ${snap.recommendation.inputAgeHours ?? "unknown"}h old`:snap?.readiness?.reason ?? "Loading the first authenticated Health snapshot…"}</p>
+      {snap&&<p className="mt-1 text-[10px] text-txt-faint">sleep {snap.whoop?.sleepHours?.freshness ?? "missing"}{snap.whoop?.sleepHours?.asOf?` · ${timeAgo(snap.whoop.sleepHours.asOf)}`:""} · weight {snap.body?.latestFreshness ?? "missing"}{snap.body?.latestAgeHours!=null?` · ${snap.body.latestAgeHours}h old`:""} · training {snap.training?.weekly?.coverage ?? "unknown"} · mixed-source quality {snap.dataQuality?.status ?? "unknown"}</p>}
     </Section>
   );
 }

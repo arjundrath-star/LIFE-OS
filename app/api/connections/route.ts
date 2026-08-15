@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getStates, ensureSeeded } from "@/lib/connections";
-import { requireUser } from "@/lib/guard";
+import { filterConnectionStates } from "@/lib/connections/access";
+import { requireConnectionAccess } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const access=await requireConnectionAccess();
+  if (!access) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   ensureSeeded();
-  return NextResponse.json({ connections: getStates() });
+  return NextResponse.json({ connections: filterConnectionStates(getStates(),access) });
 }

@@ -128,8 +128,17 @@ export function setSecret(key: string, value: string): void {
 
 /** Allowlist of emails permitted past the Google gate. */
 export function allowedEmails(): string[] {
-  return (secret("GOOGLE_ALLOWED_EMAILS") || "")
+  return [...new Set((secret("GOOGLE_ALLOWED_EMAILS") || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean))];
+}
+
+/** Explicit subset permitted to access private Health data and live Health payloads. */
+export function healthAllowedEmails(): string[] {
+  const appAllowed = new Set(allowedEmails());
+  return [...new Set((secret("HEALTH_ALLOWED_EMAILS") || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((email) => email.length > 0 && appAllowed.has(email)))];
 }

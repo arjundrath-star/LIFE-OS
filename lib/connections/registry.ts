@@ -24,7 +24,7 @@ export type ConnectionDef = {
   // a not-yet-configured integration shows an honest "connect me" (off), not broken
   configured: () => boolean;
   // cheap check that proves the credential / endpoint works
-  check: () => Promise<HealthResult>;
+  check: (options?: { force?: boolean }) => Promise<HealthResult>;
   note?: string;
 };
 
@@ -177,6 +177,19 @@ export const REGISTRY: ConnectionDef[] = [
     check: async () => {
       const mod = await import("@/lib/sources/whoop");
       return mod.healthCheck();
+    },
+  },
+  {
+    id: "hevy",
+    label: "Hevy",
+    surfaces: ["dashboard"],
+    reconnect: "api_key",
+    defaultEnabled: false,
+    configured: () => hasSecret("HEVY_API_KEY"),
+    note: "Official read-only workout and body-measurement sync. Hevy Pro required.",
+    check: async (options) => {
+      const mod = await import("@/lib/sources/hevy");
+      return mod.healthCheck({ force: options?.force });
     },
   },
   {

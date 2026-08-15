@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { setSecret } from "@/lib/secrets";
 import { refreshAll } from "@/lib/connections";
 import { getHub } from "@/server/live";
-import { requireUser } from "@/lib/guard";
+import { requireHealthUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 // Stores the WHOOP developer-app client_id + client_secret server-side in the secret
 // store. Never echoes them back. After this the Connect (OAuth) button is enabled.
 export async function POST(req: Request) {
-  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await requireHealthUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { clientId, clientSecret } = await req.json();
   const id = typeof clientId === "string" ? clientId.trim() : "";
   const secret = typeof clientSecret === "string" ? clientSecret.trim() : "";

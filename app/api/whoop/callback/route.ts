@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { handleCallback, pollWhoop, healthSnapshot } from "@/lib/sources/whoop";
+import { handleCallback, pollWhoop } from "@/lib/sources/whoop";
+import { dashboardHealthSnapshot } from "@/lib/health";
 import { refreshAll, setEnabled } from "@/lib/connections";
 import { getHub } from "@/server/live";
-import { requireUser } from "@/lib/guard";
+import { requireHealthUser } from "@/lib/guard";
 import { pushEvent } from "@/db";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 export async function GET(req: Request) {
-  if (!(await requireUser())) return NextResponse.redirect(new URL("/signin", base));
+  if (!(await requireHealthUser())) return NextResponse.redirect(new URL("/signin", base));
 
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -18,14 +19,14 @@ export async function GET(req: Request) {
   const error = url.searchParams.get("error");
   const cookieState = req.headers.get("cookie")?.match(/rw_whoop_state=([a-f0-9]+)/)?.[1];
 
-  if (error) return NextResponse.redirect(new URL(`/connections?whoop_error=${encodeURIComponent(error)}`, base));
+  if (error) return NextResponse.redirect(new URL("/connections?whoop_error=oauth_denied", base));
   if (!code || !state || state !== cookieState) {
     return NextResponse.redirect(new URL("/connections?whoop_error=state_mismatch", base));
   }
 
   try {
-    const { name } = await handleCallback(code);
-    pushEvent("whoop", `Connected WHOOP account (${name})`, "success");
+    await handleCallback(code);
+    pushEvent("whoop", "WHOOP account connected", "success");
     // authorizing IS the user enabling Whoop — flip it on so the panel shows healthy.
     setEnabled("whoop", "dashboard", true);
     const states = await refreshAll();
@@ -33,12 +34,12 @@ export async function GET(req: Request) {
     // first pull so the Health panel fills immediately instead of waiting for the tick
     try {
       await pollWhoop();
-      getHub().broadcast("health", healthSnapshot());
+      getHub().broadcast("health", dashboardHealthSnapshot());
     } catch {}
-    const res = NextResponse.redirect(new URL(`/connections?whoop_connected=${encodeURIComponent(name)}`, base));
+    const res = NextResponse.redirect(new URL("/connections?whoop_connected=1", base));
     res.cookies.delete("rw_whoop_state");
     return res;
-  } catch (e: any) {
-    return NextResponse.redirect(new URL(`/connections?whoop_error=${encodeURIComponent(String(e?.message || e).slice(0, 140))}`, base));
+  } catch {
+    return NextResponse.redirect(new URL("/connections?whoop_error=oauth_callback_failed", base));
   }
 }

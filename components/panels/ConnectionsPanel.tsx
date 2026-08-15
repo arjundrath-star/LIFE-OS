@@ -54,7 +54,7 @@ export function ConnectionsPanel({ onExpand, expanded = false }: { onExpand?: ()
     const p = new URLSearchParams(window.location.search);
     const ok = p.get("whoop_connected");
     const err = p.get("whoop_error");
-    if (ok) setNotice({ tone: "ok", text: `Whoop connected (${ok}). Vitals will fill in shortly.` });
+    if (ok) setNotice({ tone: "ok", text: "Whoop connected. Vitals will fill in shortly." });
     else if (err) setNotice({ tone: "err", text: `Whoop connect failed: ${err.replace(/_/g, " ")}` });
     if (ok || err) window.history.replaceState({}, "", window.location.pathname);
   }, []);

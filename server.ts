@@ -7,11 +7,16 @@ import { createServer } from "node:http";
 import { parse } from "node:url";
 import next from "next";
 import { WebSocketServer, type WebSocket } from "ws";
-import { getToken } from "next-auth/jwt";
 import httpProxy from "http-proxy";
 import { getDb } from "@/db";
 import { getHub } from "@/server/live";
 import { startScheduler } from "@/server/scheduler";
+import {
+  authorizeWebSocketCookie,
+  guardAppWebSocketSession,
+  guardPrivilegedProxySocket,
+  type WebSocketAuth,
+} from "@/lib/ws-auth";
 
 // Embedded localhost services, proxied same-origin behind the gate (never public).
 const TTYD_PORT = process.env.TTYD_PORT || "7681";
@@ -51,39 +56,8 @@ const port = parseInt(process.env.PORT || "3000", 10);
 // missing systemd HOST override cannot accidentally expose the origin on every interface.
 const hostname = process.env.HOST || "127.0.0.1";
 
-const ALLOWED = (process.env.GOOGLE_ALLOWED_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-const SECURE_COOKIE = (process.env.NEXTAUTH_URL || "").startsWith("https://");
-
-function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!header) return out;
-  for (const part of header.split(";")) {
-    const i = part.indexOf("=");
-    if (i === -1) continue;
-    const k = part.slice(0, i).trim();
-    out[k] = decodeURIComponent(part.slice(i + 1).trim());
-  }
-  return out;
-}
-
-async function authorizeUpgrade(cookieHeader: string | undefined): Promise<boolean> {
-  if (!cookieHeader) return false;
-  try {
-    const cookies = parseCookies(cookieHeader);
-    const token = await getToken({
-      // this next-auth version reads req.cookies (a map), so pass both
-      req: { headers: { cookie: cookieHeader }, cookies } as any,
-      secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: SECURE_COOKIE,
-    });
-    const email = (token?.email as string | undefined)?.toLowerCase();
-    return !!email && ALLOWED.includes(email);
-  } catch {
-    return false;
-  }
+async function authorizeUpgrade(cookieHeader: string | undefined): Promise<WebSocketAuth | null> {
+  return authorizeWebSocketCookie(cookieHeader);
 }
 
 async function main() {
@@ -98,8 +72,8 @@ async function main() {
     const proxy = proxyFor(parsed.pathname);
     if (proxy) {
       // Gate the embedded services with the same allowlist check as everything else.
-      const ok = await authorizeUpgrade(req.headers.cookie);
-      if (!ok) {
+      const auth = await authorizeUpgrade(req.headers.cookie);
+      if (!auth) {
         res.writeHead(302, { location: "/signin" });
         res.end();
         return;
@@ -120,12 +94,13 @@ async function main() {
     // Embedded ttyd/filebrowser WebSockets — gated, then proxied to localhost.
     const proxy = proxyFor(pathname);
     if (proxy) {
-      const ok = await authorizeUpgrade(req.headers.cookie);
-      if (!ok) {
+      const auth = await authorizeUpgrade(req.headers.cookie);
+      if (!auth) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;
       }
+      guardPrivilegedProxySocket(socket, req.headers.cookie, auth, { authorize: authorizeUpgrade });
       proxy.ws(req, socket, head);
       return;
     }
@@ -139,19 +114,27 @@ async function main() {
       }
       return;
     }
-    const ok = await authorizeUpgrade(req.headers.cookie);
-    if (!ok) {
+    const auth = await authorizeUpgrade(req.headers.cookie);
+    if (!auth) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;
     }
+    (req as any).rathAuth = auth;
+    (req as any).rathCookie = req.headers.cookie;
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
     });
   });
 
-  wss.on("connection", (ws: WebSocket) => {
-    hub.addClient(ws);
+  wss.on("connection", (ws: WebSocket, req) => {
+    const initialAuth = (req as any).rathAuth as WebSocketAuth;
+    const cookieHeader = (req as any).rathCookie as string | undefined;
+    if (!hub.addClient(ws, initialAuth)) {
+      try { ws.close(4001, "session expired"); } catch {}
+      return;
+    }
+    guardAppWebSocketSession(ws, cookieHeader, initialAuth, { authorize: authorizeUpgrade });
     ws.on("close", () => hub.removeClient(ws));
     ws.on("error", () => hub.removeClient(ws));
     // keepalive ping

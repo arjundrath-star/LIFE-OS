@@ -4,11 +4,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isHealthApiPath } from "@/lib/connections/access";
 
-const ALLOWED = (process.env.GOOGLE_ALLOWED_EMAILS || "")
+const CONFIGURED_EMAILS = [...new Set((process.env.GOOGLE_ALLOWED_EMAILS || "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+  .filter(Boolean))];
+const ALLOWED = CONFIGURED_EMAILS;
+const HEALTH_ALLOWED = [...new Set((process.env.HEALTH_ALLOWED_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter((email) => email.length > 0 && ALLOWED.includes(email)))];
 
 // Paths that must stay open for the gate itself to function.
 // Tree prefixes match on SEGMENT boundaries only (never bare startsWith, which
@@ -51,7 +57,9 @@ export async function middleware(req: NextRequest) {
     secureCookie: useSecure,
   });
   const email = (token?.email as string | undefined)?.toLowerCase();
-  const ok = !!email && ALLOWED.includes(email);
+  const appAllowed = !!email && ALLOWED.includes(email);
+  const healthPath = isHealthApiPath(pathname);
+  const ok = appAllowed && (!healthPath || (!!email && HEALTH_ALLOWED.includes(email)));
 
   if (!ok) {
     // API routes get a clean 401; pages redirect to the sign-in screen.

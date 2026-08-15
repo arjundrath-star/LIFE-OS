@@ -12,17 +12,43 @@ import {
 
 type ConnStatus = "connecting" | "open" | "closed";
 
-class LiveStore {
+export class LiveStore {
   private data = new Map<string, any>();
   private listeners = new Map<string, Set<() => void>>();
   status: ConnStatus = "connecting";
   private statusListeners = new Set<() => void>();
+  private epoch = 0;
   lastMessageAt = 0;
 
-  set(channel: string, payload: any) {
+  private clearData() {
+    const channels = [...this.data.keys()];
+    this.data.clear();
+    this.lastMessageAt = 0;
+    for (const channel of channels) this.listeners.get(channel)?.forEach((listener) => listener());
+  }
+  beginConnection() {
+    this.epoch += 1;
+    this.clearData();
+    this.setStatus("connecting");
+    return this.epoch;
+  }
+  markOpen(epoch: number) {
+    if (epoch !== this.epoch) return false;
+    this.setStatus("open");
+    return true;
+  }
+  closeConnection(epoch: number) {
+    if (epoch !== this.epoch) return false;
+    this.clearData();
+    this.setStatus("closed");
+    return true;
+  }
+  setForEpoch(epoch: number, channel: string, payload: any) {
+    if (epoch !== this.epoch || this.status !== "open") return false;
     this.data.set(channel, payload);
     this.lastMessageAt = Date.now();
     this.listeners.get(channel)?.forEach((l) => l());
+    return true;
   }
   get(channel: string) {
     return this.data.get(channel);
@@ -63,36 +89,37 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
     const connect = () => {
       if (closed) return;
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      store.setStatus("connecting");
+      const epoch = store.beginConnection();
+      let socket: WebSocket;
       try {
-        ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+        socket = new WebSocket(`${proto}://${window.location.host}/ws`);
+        ws = socket;
       } catch {
+        store.closeConnection(epoch);
         schedule();
         return;
       }
-      ws.onopen = () => {
-        retry = 0;
-        store.setStatus("open");
+      socket.onopen = () => {
+        if (store.markOpen(epoch)) retry = 0;
       };
-      ws.onmessage = (ev) => {
+      socket.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
           if (Array.isArray(msg)) {
-            for (const m of msg) if (m?.channel) store.set(m.channel, m.payload);
+            for (const m of msg) if (m?.channel) store.setForEpoch(epoch, m.channel, m.payload);
           } else if (msg?.channel) {
-            store.set(msg.channel, msg.payload);
+            store.setForEpoch(epoch, msg.channel, msg.payload);
           }
         } catch {
           /* ignore malformed */
         }
       };
-      ws.onclose = () => {
-        store.setStatus("closed");
-        schedule();
+      socket.onclose = () => {
+        if (store.closeConnection(epoch)) schedule();
       };
-      ws.onerror = () => {
+      socket.onerror = () => {
         try {
-          ws?.close();
+          socket.close();
         } catch {}
       };
     };

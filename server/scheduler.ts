@@ -4,7 +4,7 @@ import { getHub } from "@/server/live";
 import { fetchHermesStatus } from "@/lib/sources/hermes";
 import { readTelegramActivity } from "@/lib/sources/telegram";
 import { listProjects } from "@/lib/sources/vault";
-import { refreshAll, getStates } from "@/lib/connections";
+import { refreshAll, getStates, isConnectionEnabled } from "@/lib/connections";
 import { agentsOrchestrationSnapshot } from "@/lib/agents";
 import { kanbanSnapshot } from "@/lib/kanban";
 import { all, get, run, pushEvent, recentEvents, nowIso } from "@/db";
@@ -193,17 +193,22 @@ async function tickVending() {
 
 async function tickHealth() {
   const hub = getHub();
-  const mod = await import("@/lib/sources/whoop");
-  // Only hit the WHOOP API when actually connected; otherwise just broadcast the
-  // honest "not connected" snapshot so the Health panel shows connect-me, never fake vitals.
-  if (mod.isConnected()) {
-    try {
-      await mod.pollWhoop();
-    } catch (e) {
-      console.error("[scheduler] whoop poll failed:", (e as Error).message);
+  try {
+    const whoop = await import("@/lib/sources/whoop");
+    if (isConnectionEnabled("whoop") && whoop.isAuthorized()) {
+      await whoop.pollWhoop();
     }
+  } catch (e) {
+    console.error("[scheduler] whoop poll failed:", (e as Error).message);
   }
-  hub.broadcast("health", mod.healthSnapshot());
+  try {
+    const { syncHevy } = await import("@/lib/sources/hevy");
+    if(isConnectionEnabled("hevy"))await syncHevy();
+  } catch (e) {
+    console.error("[scheduler] hevy poll failed:", (e as Error).message);
+  }
+  const { dashboardHealthSnapshot } = await import("@/lib/health");
+  hub.broadcast("health", dashboardHealthSnapshot());
 }
 
 async function tickAgentRuns() {
@@ -265,7 +270,7 @@ async function tickCareerHunter() {
   await tickCareer();
 }
 
-function guarded(name: string, fn: () => Promise<void>) {
+export function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
     if (running) return;
@@ -322,7 +327,7 @@ export function startScheduler() {
     setInterval(projects, 60000),
     setInterval(email, 60000),
     setInterval(calendar, 120000),
-    setInterval(health, 15 * 60 * 1000), // WHOOP data updates ~once/day; 15 min is ample
+    setInterval(health, 30 * 60 * 1000), // bounded WHOOP + Hevy read-only polling
     setInterval(vending, 10 * 60 * 1000), // outreach moves slowly; 10 min keeps Gmail load tiny
     setInterval(agentRuns, 5000), // named-agent runs: read SQLite + broadcast, cheap and bounded
     setInterval(kanban, 5000), // Hermes Kanban: read shared board + broadcast, cheap and bounded
