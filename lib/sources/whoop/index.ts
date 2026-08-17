@@ -26,6 +26,7 @@ const AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const API = "https://api.prod.whoop.com/developer/v2";
 const DEFAULT_TIMEOUT_MS = 12_000;
+const POLL_LOOKBACK_DAYS = 45;
 type Requester = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 async function boundedRequest(request:Requester,input:RequestInfo|URL,init:RequestInit={},timeoutMs=DEFAULT_TIMEOUT_MS):Promise<Response>{
@@ -266,12 +267,14 @@ export async function pollWhoop(options:{request?:Requester;timeoutMs?:number;le
       const db=getDb();db.transaction(()=>{if(accountStillCurrent(db,acct)&&sourceLeaseStillCurrent(db,"whoop",lease,clock()))db.prepare("UPDATE whoop_tokens SET auth_error=COALESCE(auth_error,'WHOOP_AUTH_FAILED'),auth_checked_at=? WHERE user_id=? AND enabled=1").run(clock(),acct.user_id)})();
       return {status:"degraded",detail:"WHOOP authorization failed"};
     }
+    const recentStart=new Date(Date.parse(runStartedAt)-POLL_LOOKBACK_DAYS*24*60*60*1000).toISOString();
+    const collectionPath=(path:string)=>`${path}?${new URLSearchParams({limit:"25",start:recentStart}).toString()}`;
     const labels=["cycles","recoveries","sleep","workouts","body"];
     const settled=await Promise.allSettled([
-      getWhoopPages(token,"/cycle?limit=25",6,{request,timeoutMs}),
-      getWhoopPages(token,"/recovery?limit=25",6,{request,timeoutMs}),
-      getWhoopPages(token,"/activity/sleep?limit=25",6,{request,timeoutMs}),
-      getWhoopPages(token,"/activity/workout?limit=25",6,{request,timeoutMs}),
+      getWhoopPages(token,collectionPath("/cycle"),6,{request,timeoutMs}),
+      getWhoopPages(token,collectionPath("/recovery"),6,{request,timeoutMs}),
+      getWhoopPages(token,collectionPath("/activity/sleep"),6,{request,timeoutMs}),
+      getWhoopPages(token,collectionPath("/activity/workout"),6,{request,timeoutMs}),
       getJson(token,"/user/measurement/body",request,timeoutMs),
     ]);
     const failures=settled.flatMap((entry,index)=>entry.status==="rejected"?[labels[index]]:[]);
