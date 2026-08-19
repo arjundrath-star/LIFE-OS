@@ -145,8 +145,10 @@ atomic_write(
 # Pointer ordering is intentional: all immutable run artifacts and the manifest
 # are complete before latest-run moves, and latest-successful moves last.
 atomic_write(root / "latest-run.json", json.dumps(summary, indent=2) + "\n")
+atomic_write(root / "latest-run.md", markdown)
 if not recovery and exit_code == 0:
     atomic_write(root / "latest-successful-run.json", json.dumps(summary, indent=2) + "\n")
+    atomic_write(root / "latest-successful-run.md", markdown)
 PY
 }
 

@@ -238,6 +238,8 @@ assert_carddistro_degraded_case() {
   assert_status "$CASE_DIR/archive/$name/run-summary.json" degraded
   assert_status "$CASE_DIR/archive/latest-run.json" degraded
   assert_status "$CASE_DIR/archive/latest-successful-run.json" degraded
+  grep -Fq "Run: \`$name\`" "$CASE_DIR/archive/latest-run.md" || fail "latest-run Markdown pointer was not updated in $name"
+  grep -Fq "Run: \`$name\`" "$CASE_DIR/archive/latest-successful-run.md" || fail "latest-successful Markdown pointer was not updated in $name"
   grep -Fq 'pokemon:source-products' "$CASE_DIR/commands.log" || fail "valuation did not run after successful mandatory TCGplayer pipeline in $name"
   grep -Eq 'pokemon:source-products .*--expected-tcg-csv .*tcgplayer\.csv' "$CASE_DIR/commands.log" || fail "valuation was not bound to the mandatory TCGplayer CSV in $name"
   if grep -Eq 'pokemon:source-products .*--expected-carddistro-csv' "$CASE_DIR/commands.log"; then
