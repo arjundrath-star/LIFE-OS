@@ -6,6 +6,7 @@ import { useApi, apiPost } from "@/hooks/useApi";
 import { useLiveData } from "@/hooks/useLiveData";
 import { timeAgo } from "@/lib/time";
 import { BusinessPage, BusinessSection, Fact, SourceStamp } from "./Page";
+import VendingIntegrationsWorkspace from "./VendingIntegrationsWorkspace";
 import { PokemonDataBoundary } from "./BusinessContext";
 
 const STAGES = ["lead", "contacted", "verbal_yes", "placing", "live"];
@@ -124,6 +125,13 @@ export default function LocationsWorkspace() {
           <div className="fleet-actions"><Link data-testid={`machine-link-${item.id}`} href={`/business/locations/${item.id}`}>Edit machine</Link>{item.status === "live" && item.condition !== "retired" && item.active_slot_count > 0 ? <Link href={`/business/locations/${item.id}/service`}>Start service</Link> : <span>Setup required</span>}</div>
         </article>)}</div>}
       </BusinessSection>
+
+      <VendingIntegrationsWorkspace
+        localFleet={service?.machines ?? null}
+        localFleetLoading={serviceLoading}
+        localFleetError={serviceError}
+        onRefreshLocalFleet={refetchService}
+      />
 
       <BusinessSection title="Placement board" className="placement-section" note={<SourceStamp>add details now; advance stages as the deal moves</SourceStamp>}>
         <div id="placement-board" className="placement-add-bar">
