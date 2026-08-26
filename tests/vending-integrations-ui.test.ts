@@ -44,7 +44,8 @@ test("vending integration UI exposes provider progress, safe controls, unknown s
     "Nayax Lynx",
     "MoMa",
     "Separate API / token",
-    "No supported public API is proven",
+    "No live VTM connector is configured",
+    "Archival import only — this does not count as connected",
     "Order list .xlsx",
     "Optional fallback: user-converted CSV",
     "Current aisle / slot inventory",
@@ -57,6 +58,7 @@ test("vending integration UI exposes provider progress, safe controls, unknown s
   assert.match(component, /\/api\/vending\/integrations\/mappings/);
   assert.match(component, /type="file"/);
   assert.match(component, /disabled=\{!nayax\.connection\.configured/);
+  assert.match(component, /Live integration unavailable/);
   assert.match(component, /role=\{feedback\.tone === "error" \? "alert" : "status"\}/);
   assert.match(component, /aria-busy/);
   assert.doesNotMatch(component, /source_import_sha256|sourceImportSha|fingerprint|CardNumber|type="password"/i);

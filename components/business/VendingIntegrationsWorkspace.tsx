@@ -15,7 +15,7 @@ type Mapping = {
 };
 type ProviderSnapshot = {
   provider: Provider;
-  connection: { configured: boolean; access: string; status: string };
+  connection: { configured: boolean; connected: boolean; access: string; status: string };
   sync: { lastAttemptAt: string | null; lastSuccessAt: string | null; lastStatus: string; machinesSeen: number; slotsSeen: number; salesSeen: number };
   mappedMachines: Mapping[];
   unmappedRecords: { slots: any[]; sales: any[] };
@@ -51,7 +51,7 @@ type Props = {
 const labels: Record<string, string> = {
   NAYAX_TOKEN_MISSING: "Lynx token missing",
   UNMAPPED_PROVIDER_MACHINES: "Machine mapping needed",
-  VTM_API_UNDOCUMENTED_USE_ORDER_LIST_XLSX_IMPORT: "No supported public API proven",
+  VTM_LIVE_CONNECTOR_NOT_CONFIGURED: "No live VTM connector is configured",
   NAYAX_REQUEST_FAILED: "Last Lynx request failed",
   NAYAX_SYNC_BUSY: "Sync already running",
 };
@@ -62,7 +62,7 @@ const money = (value: unknown, currency = "USD") => typeof value === "number"
   ? new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value / 100)
   : "Unknown";
 const pct = (value: number, max: number) => max > 0 ? Math.max(0, Math.min(100, Math.round((value / max) * 100))) : 0;
-const statusTone = (status: string) => status === "success" ? "ok" : status === "failed" || status === "blocked" ? "warn" : "neutral";
+const statusTone = (status: string) => status === "success" ? "ok" : status === "failed" || status === "blocked" || status === "not_connected" ? "warn" : "neutral";
 
 async function requestJson(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -206,12 +206,14 @@ export default function VendingIntegrationsWorkspace({
       </article>
 
       <article className="vending-provider-card">
-        <ProviderHeader title="VTM" provider={vtm} subtitle="Official portal export" />
-        <p>No supported public API is proven. Import the official portal <strong>Order list .xlsx</strong>.</p>
-        <dl><div><dt>Last import</dt><dd>{dateTime(vtm.lastRun?.completedAt || vtm.sync.lastAttemptAt)}</dd></div><div><dt>Import status</dt><dd>{vtm.lastRun ? `${vtm.lastRun.status} · ${vtm.lastRun.mode}` : "Never imported"}</dd></div></dl>
+        <ProviderHeader title="VTM" provider={vtm} subtitle="Live integration unavailable" />
+        <p><strong>No live VTM connector is configured.</strong> VTM must provide a supported API or webhook contract before this can be called connected.</p>
+        <dl><div><dt>Live connection</dt><dd>Not connected</dd></div><div><dt>Last archival import</dt><dd>{dateTime(vtm.lastRun?.completedAt || vtm.sync.lastAttemptAt)}</dd></div></dl>
         <Blockers items={vtm.blockers} />
-        <label className="vending-upload">Order list file<input data-testid="vtm-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] || null)} /><small>Preferred: official .xlsx · Optional fallback: user-converted CSV</small></label>
-        <button className="business-primary-action" data-testid="vtm-import" onClick={importVtm} disabled={!file || working !== null} aria-busy={working === "vtm-import"}>{working === "vtm-import" ? "Importing…" : "Import Order list"}</button>
+        <details><summary>Archival import only — this does not count as connected</summary>
+          <label className="vending-upload">Order list .xlsx<input data-testid="vtm-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] || null)} /><small>Preferred: official .xlsx · Optional fallback: user-converted CSV</small></label>
+          <button className="business-primary-action" data-testid="vtm-import" onClick={importVtm} disabled={!file || working !== null} aria-busy={working === "vtm-import"}>{working === "vtm-import" ? "Importing…" : "Import archival Order list"}</button>
+        </details>
       </article>
     </div>
 

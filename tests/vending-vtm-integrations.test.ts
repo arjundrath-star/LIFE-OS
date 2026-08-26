@@ -124,13 +124,16 @@ test("official VTM Order list XLSX ingests only Delivered rows with exact normal
     assert.equal((f.db.prepare("SELECT COUNT(*) count FROM vending_provider_sales").get() as { count: number }).count, 1);
 
     const snapshot = vendingIntegrationsSnapshot(f.db).providers.vtm;
-    assert.equal(snapshot.connection.access, "official_order_list_xlsx_import");
+    assert.equal(snapshot.connection.configured, false);
+    assert.equal(snapshot.connection.connected, false);
+    assert.equal(snapshot.connection.access, "none");
+    assert.equal(snapshot.connection.status, "not_connected");
     assert.equal(snapshot.lastRun?.mode, "xlsx");
     assert.equal(snapshot.lastRun?.unmappedRecords, 1);
     assert.equal(snapshot.counts.unmappedMachines, 1);
     assert.equal(snapshot.mappedMachines[0].mapped, false);
     assert.ok(snapshot.blockers.includes("UNMAPPED_PROVIDER_MACHINES"));
-    assert.ok(snapshot.blockers.includes("VTM_API_UNDOCUMENTED_USE_ORDER_LIST_XLSX_IMPORT"));
+    assert.ok(snapshot.blockers.includes("VTM_LIVE_CONNECTOR_NOT_CONFIGURED"));
   } finally {
     f.close();
   }

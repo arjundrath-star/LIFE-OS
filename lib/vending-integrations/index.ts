@@ -45,15 +45,16 @@ function providerSnapshot(provider: "nayax" | "vtm", db: Database.Database) {
     ORDER BY s.sold_at DESC,s.id DESC LIMIT 50`).all(accountId) as any[];
   const blockers: string[] = [];
   if (provider === "nayax" && !hasSecret("NAYAX_LYNX_TOKEN")) blockers.push("NAYAX_TOKEN_MISSING");
-  if (provider === "vtm") blockers.push("VTM_API_UNDOCUMENTED_USE_ORDER_LIST_XLSX_IMPORT");
+  if (provider === "vtm") blockers.push("VTM_LIVE_CONNECTOR_NOT_CONFIGURED");
   if (sync?.last_status === "failed" && diagnostic(sync.last_error_code)) blockers.push(sync.last_error_code);
   if (counts.unmappedMachines > 0) blockers.push("UNMAPPED_PROVIDER_MACHINES");
   return {
     provider,
     connection: {
-      configured: provider === "nayax" ? hasSecret("NAYAX_LYNX_TOKEN") : true,
-      access: provider === "nayax" ? "official_read_only_api" : "official_order_list_xlsx_import",
-      status: sync?.last_status || "never",
+      configured: provider === "nayax" ? hasSecret("NAYAX_LYNX_TOKEN") : false,
+      connected: provider === "nayax" && sync?.last_status === "success",
+      access: provider === "nayax" ? "official_read_only_api" : "none",
+      status: provider === "vtm" ? "not_connected" : sync?.last_status || "never",
     },
     sync: {
       lastAttemptAt: sync?.last_attempt_at || null,
