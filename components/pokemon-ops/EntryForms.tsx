@@ -85,6 +85,7 @@ export function PurchaseLotForm({ products, onSubmitted, prefill }: { products: 
   const [source, setSource] = useState<string>(validSource);
   const [packCount, setPackCount] = useState(prefill?.priceCents?"1":"10");
   const [totalUsd, setTotalUsd] = useState(prefill?.priceCents&&prefill.priceCents>0?(prefill.priceCents/100).toFixed(2):"");
+  const [costPending, setCostPending] = useState(false);
   const [status, setStatus] = useState<string>("in_transit");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -100,13 +101,14 @@ export function PurchaseLotForm({ products, onSubmitted, prefill }: { products: 
         purchase_date: purchaseDate,
         source,
         pack_count: Number(packCount),
-        total_cost_cents: usdToCents(totalUsd),
+        total_cost_cents: costPending ? null : usdToCents(totalUsd),
+        cost_confirmed: !costPending,
         status,
         notes: notes || undefined,
       });
       if (res?.error) setMsg(`error: ${res.error}`);
       else {
-        setMsg(`lot #${res.lot.id} added — landed $${(res.lot.landed_cost_per_pack_cents / 100).toFixed(2)}/pack`);
+        setMsg(costPending ? `lot #${res.lot.id} added — cost pending` : `lot #${res.lot.id} added — landed $${(res.lot.landed_cost_per_pack_cents / 100).toFixed(2)}/pack`);
         setTotalUsd("");
         setNotes("");
         onSubmitted();
@@ -167,9 +169,11 @@ export function PurchaseLotForm({ products, onSubmitted, prefill }: { products: 
           className={inputCls}
           value={totalUsd}
           onChange={(e) => setTotalUsd(e.target.value)}
-          required
+          required={!costPending}
+          disabled={costPending}
         />
       </Field>
+      <label className="flex items-center gap-2 text-xs text-txt-muted"><input data-testid="lot-form-cost-pending" type="checkbox" checked={costPending} onChange={e=>setCostPending(e.target.checked)}/> Cost not confirmed yet</label>
       <Field label="Status">
         <select
           data-testid="lot-form-status"

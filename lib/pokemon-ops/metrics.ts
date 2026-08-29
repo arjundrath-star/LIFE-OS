@@ -40,7 +40,7 @@ function parseIso(label: string, iso: string): number {
 export interface FifoLotDraw {
   lot_id: number;
   qty: number;
-  landed_cost_per_pack_cents: number;
+  landed_cost_per_pack_cents: number | null;
 }
 
 export interface FifoSaleAllocation {
@@ -57,7 +57,11 @@ export interface FifoSaleAllocation {
    * the unit drew from). Units with no lot to draw from (unallocated) are
    * costed at 0 — see unallocated_qty.
    */
-  margin_cents: number;
+  /** Null when any allocated unit comes from a lot whose cost is pending. */
+  margin_cents: number | null;
+  /** Partial margin from units whose costs are confirmed; never a full-margin substitute. */
+  known_margin_cents: number;
+  pending_cost_qty: number;
   /** Units sold beyond total lot supply (data-entry gap: sales recorded with
    *  no covering purchase lot). Costed at 0 cents and flagged here so callers
    *  can surface the gap instead of silently mispricing it. */
@@ -99,7 +103,8 @@ export function fifoAllocation(productId: number): FifoSaleAllocation[] {
   for (const sale of sales) {
     let toAllocate = sale.qty;
     const draws: FifoLotDraw[] = [];
-    let margin = 0;
+    let knownMargin = 0;
+    let pendingCostQty = 0;
     while (toAllocate > 0 && lotIdx < lots.length) {
       if (remainingInLot === 0) {
         lotIdx += 1;
@@ -108,13 +113,16 @@ export function fifoAllocation(productId: number): FifoSaleAllocation[] {
       }
       const lot = lots[lotIdx];
       const take = Math.min(toAllocate, remainingInLot);
-      draws.push({ lot_id: lot.id, qty: take, landed_cost_per_pack_cents: lot.landed_cost_per_pack_cents });
-      margin += take * (sale.unit_price_cents - lot.landed_cost_per_pack_cents);
+      const landedCost = lot.cost_confirmed ? lot.landed_cost_per_pack_cents : null;
+      draws.push({ lot_id: lot.id, qty: take, landed_cost_per_pack_cents: landedCost });
+      if (landedCost === null) pendingCostQty += take;
+      else knownMargin += take * (sale.unit_price_cents - landedCost);
       toAllocate -= take;
       remainingInLot -= take;
     }
-    // Unallocated units: costed at 0 (full price counts as margin) + flagged.
-    margin += toAllocate * sale.unit_price_cents;
+    // Unallocated units retain the legacy flagged behavior. Pending-cost lot
+    // units are different: they make the complete margin unknowable.
+    knownMargin += toAllocate * sale.unit_price_cents;
     out.push({
       sale_id: sale.id,
       machine_id: sale.machine_id,
@@ -123,7 +131,9 @@ export function fifoAllocation(productId: number): FifoSaleAllocation[] {
       qty: sale.qty,
       unit_price_cents: sale.unit_price_cents,
       allocations: draws,
-      margin_cents: margin,
+      margin_cents: pendingCostQty === 0 ? knownMargin : null,
+      known_margin_cents: knownMargin,
+      pending_cost_qty: pendingCostQty,
       unallocated_qty: toAllocate,
     });
   }
@@ -146,7 +156,7 @@ export function marginPerSlotDay(
   slotNumber: number,
   windowDays: number,
   asOf: string
-): number {
+): number | null {
   if (!Number.isInteger(windowDays) || windowDays <= 0) {
     throw new Error(`windowDays must be a positive integer, got ${String(windowDays)}`);
   }
@@ -164,7 +174,10 @@ export function marginPerSlotDay(
     for (const alloc of fifoAllocation(pid)) {
       if (alloc.machine_id !== machineId || alloc.slot_number !== slotNumber) continue;
       const soldMs = parseIso("sold_at", alloc.sold_at);
-      if (soldMs > startMs && soldMs <= asOfMs) total += alloc.margin_cents;
+      if (soldMs > startMs && soldMs <= asOfMs) {
+        if (alloc.margin_cents === null) return null;
+        total += alloc.margin_cents;
+      }
     }
   }
   return Math.round(total / windowDays);
@@ -266,15 +279,30 @@ export function refillSyncSpread(
 // ---- capital ----
 
 /**
- * totalInvested = Σ pk_purchase_lots.total_cost_cents over ALL lots, all-time,
- * every status included (in_transit money is spent; depleted lots stay in the
- * lifetime total). Per PLAN §2: "Lots roll up to total invested".
+ * Known subtotal of confirmed purchase costs over ALL lots, all-time. Callers
+ * must pair this with purchaseCostStatus() before presenting it as a complete
+ * lifetime total.
  */
 export function totalInvested(): number {
   const row = all<{ s: number }>(
-    `SELECT COALESCE(SUM(total_cost_cents), 0) AS s FROM pk_purchase_lots`
+    `SELECT COALESCE(SUM(total_cost_cents), 0) AS s FROM pk_purchase_lots WHERE cost_confirmed = 1`
   )[0];
   return row.s;
+}
+
+export interface PurchaseCostStatus {
+  known_cost_cents: number;
+  pending_cost_lot_count: number;
+  pending_cost_units: number;
+}
+
+export function purchaseCostStatus(): PurchaseCostStatus {
+  return all<PurchaseCostStatus>(
+    `SELECT COALESCE(SUM(CASE WHEN cost_confirmed = 1 THEN total_cost_cents ELSE 0 END), 0) known_cost_cents,
+            COALESCE(SUM(CASE WHEN cost_confirmed = 0 THEN 1 ELSE 0 END), 0) pending_cost_lot_count,
+            COALESCE(SUM(CASE WHEN cost_confirmed = 0 THEN pack_count ELSE 0 END), 0) pending_cost_units
+       FROM pk_purchase_lots`
+  )[0];
 }
 
 // ---- benchmark deltas over time ----

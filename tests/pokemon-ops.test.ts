@@ -733,6 +733,6 @@ test("general inventory reports unassigned on-hand units and honest cost and mar
     in_transit_cost_cents: 3000,
   });
   assert.ok(snapshot.kpis.general_inventory_units >= 7);
-  assert.ok(snapshot.kpis.general_inventory_cost_cents >= 3500);
+  assert.ok((snapshot.kpis.general_inventory_cost_cents ?? 0) >= 3500);
   assert.ok(snapshot.kpis.in_transit_units >= 5);
 });

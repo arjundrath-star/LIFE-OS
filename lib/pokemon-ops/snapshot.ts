@@ -45,7 +45,7 @@ export interface PokemonOpsSlotRow {
   /** Infinity (never sells out) serializes to null. */
   days_of_supply: number | null;
   /** Sum of FIFO-allocated sale margin for this slot / VELOCITY_WINDOW_DAYS. */
-  margin_per_slot_day_cents: number;
+  margin_per_slot_day_cents: number | null;
   projected_sellout_date: string | null;
   /** Proven only when the latest stock event for this slot references a lot. */
   source_lot_id: number | null;
@@ -76,14 +76,14 @@ export interface PokemonOpsGeneralInventoryRow {
   set_name: string;
   on_hand_units: number;
   /** Landed-cost value of on_hand_units. */
-  cost_value_cents: number;
+  cost_value_cents: number | null;
   /** Current TCGplayer/eBay-sold estimate, or null when no benchmark exists. */
   estimated_market_value_cents: number | null;
   market_price_per_pack_cents: number | null;
   market_source: string | null;
   market_observed_date: string | null;
   in_transit_units: number;
-  in_transit_cost_cents: number;
+  in_transit_cost_cents: number | null;
 }
 
 export interface PokemonOpsSnapshot {
@@ -115,11 +115,11 @@ export interface PokemonOpsSnapshot {
     days_of_supply_spread: number | null;
     /** Arrived purchase-lot units not yet moved into a machine. */
     general_inventory_units: number;
-    general_inventory_cost_cents: number;
+    general_inventory_cost_cents: number | null;
     /** null when any on-hand product lacks a current market benchmark. */
     general_inventory_market_cents: number | null;
     in_transit_units: number;
-    in_transit_cost_cents: number;
+    in_transit_cost_cents: number | null;
   };
   slots: PokemonOpsSlotRow[];
   general_inventory: PokemonOpsGeneralInventoryRow[];
@@ -219,6 +219,7 @@ interface InventoryLotBalance {
   set_name: string;
   pack_count: number;
   landed_cost_per_pack_cents: number;
+  cost_confirmed: 0 | 1;
   status: string;
   refilled_units: number;
 }
@@ -231,7 +232,7 @@ interface InventoryLotBalance {
 function generalInventory(): PokemonOpsGeneralInventoryRow[] {
   const lots = all<InventoryLotBalance>(
     `SELECT l.product_id, p.set_name, l.pack_count,
-            l.landed_cost_per_pack_cents, l.status,
+            l.landed_cost_per_pack_cents, l.cost_confirmed, l.status,
             COALESCE(SUM(CASE
               WHEN e.event = 'refill' AND e.qty_delta > 0 THEN e.qty_delta
               ELSE 0
@@ -265,14 +266,18 @@ function generalInventory(): PokemonOpsGeneralInventoryRow[] {
 
     if (lot.status === "in_transit") {
       row.in_transit_units += lot.pack_count;
-      row.in_transit_cost_cents += lot.pack_count * lot.landed_cost_per_pack_cents;
+      row.in_transit_cost_cents = lot.cost_confirmed === 0 || row.in_transit_cost_cents === null
+        ? null
+        : row.in_transit_cost_cents + lot.pack_count * lot.landed_cost_per_pack_cents;
       continue;
     }
     if (lot.status === "depleted") continue;
 
     const available = Math.max(0, lot.pack_count - lot.refilled_units);
     row.on_hand_units += available;
-    row.cost_value_cents += available * lot.landed_cost_per_pack_cents;
+    row.cost_value_cents = lot.cost_confirmed === 0 || row.cost_value_cents === null
+      ? null
+      : row.cost_value_cents + available * lot.landed_cost_per_pack_cents;
     if (row.estimated_market_value_cents !== null && row.market_price_per_pack_cents !== null) {
       row.estimated_market_value_cents += available * row.market_price_per_pack_cents;
     }
@@ -318,9 +323,9 @@ export function pokemonOpsSnapshot(asOf: string): PokemonOpsSnapshot {
         in_transit_units: transit,
       };
     });
-    marginPerSlotDayTotal = slots.length > 0
-      ? slots.reduce((sum, s) => sum + s.margin_per_slot_day_cents, 0)
-      : null;
+    marginPerSlotDayTotal = slots.length === 0 || slots.some(slot => slot.margin_per_slot_day_cents === null)
+      ? null
+      : slots.reduce((sum, slot) => sum + (slot.margin_per_slot_day_cents ?? 0), 0);
     sellThrough = sellThroughPct(machine.id, asOf);
     spread = refillSyncSpread(machine.id, asOf);
   }
@@ -331,14 +336,18 @@ export function pokemonOpsSnapshot(asOf: string): PokemonOpsSnapshot {
   });
   const general = generalInventory();
   const generalUnits = general.reduce((sum, row) => sum + row.on_hand_units, 0);
-  const generalCost = general.reduce((sum, row) => sum + row.cost_value_cents, 0);
+  const generalCost = general.some(row => row.on_hand_units > 0 && row.cost_value_cents === null)
+    ? null
+    : general.reduce((sum, row) => sum + (row.cost_value_cents ?? 0), 0);
   const generalMarket = general.some(
     (row) => row.on_hand_units > 0 && row.estimated_market_value_cents === null
   )
     ? null
     : general.reduce((sum, row) => sum + (row.estimated_market_value_cents ?? 0), 0);
   const inTransitUnits = general.reduce((sum, row) => sum + row.in_transit_units, 0);
-  const inTransitCost = general.reduce((sum, row) => sum + row.in_transit_cost_cents, 0);
+  const inTransitCost = general.some(row => row.in_transit_units > 0 && row.in_transit_cost_cents === null)
+    ? null
+    : general.reduce((sum, row) => sum + (row.in_transit_cost_cents ?? 0), 0);
 
   return {
     asOf,

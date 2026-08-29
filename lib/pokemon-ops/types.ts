@@ -105,6 +105,8 @@ export interface PkPurchaseLot {
   pack_count: number;
   total_cost_cents: number;
   landed_cost_per_pack_cents: number;
+  /** 0 means the integer cost fields contain storage sentinels, not $0 costs. */
+  cost_confirmed: 0 | 1;
   observation_id: number | null;
   benchmark_price_cents: number | null;
   benchmark_delta_cents: number | null;
@@ -257,7 +259,8 @@ export interface NewPurchaseLot {
   source: ObservationSource;
   product_id: number;
   pack_count: number;
-  total_cost_cents: number;
+  total_cost_cents?: number | null;
+  cost_confirmed?: 0 | 1;
   observation_id?: number | null;
   status?: LotStatus;
   notes?: string | null;
@@ -268,7 +271,8 @@ export interface PurchaseLotPatch {
   source?: ObservationSource;
   product_id?: number;
   pack_count?: number;
-  total_cost_cents?: number;
+  total_cost_cents?: number | null;
+  cost_confirmed?: 0 | 1;
   status?: LotStatus;
   notes?: string | null;
 }

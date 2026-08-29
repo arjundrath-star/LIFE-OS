@@ -33,7 +33,8 @@ function PurchaseLotCard({
   const [source, setSource] = useState(lot.source);
   const [productId, setProductId] = useState(String(lot.product_id));
   const [packCount, setPackCount] = useState(String(lot.pack_count));
-  const [totalCost, setTotalCost] = useState((lot.total_cost_cents / 100).toFixed(2));
+  const [totalCost, setTotalCost] = useState(lot.cost_confirmed ? (lot.total_cost_cents / 100).toFixed(2) : "");
+  const [costConfirmed, setCostConfirmed] = useState(lot.cost_confirmed === 1);
   const [status, setStatus] = useState(lot.status);
   const [notes, setNotes] = useState(lot.notes ?? "");
 
@@ -42,7 +43,8 @@ function PurchaseLotCard({
     setSource(lot.source);
     setProductId(String(lot.product_id));
     setPackCount(String(lot.pack_count));
-    setTotalCost((lot.total_cost_cents / 100).toFixed(2));
+    setTotalCost(lot.cost_confirmed ? (lot.total_cost_cents / 100).toFixed(2) : "");
+    setCostConfirmed(lot.cost_confirmed === 1);
     setStatus(lot.status);
     setNotes(lot.notes ?? "");
     setError(null);
@@ -51,8 +53,8 @@ function PurchaseLotCard({
   const save = async () => {
     const packs = Number(packCount);
     const cents = Math.round(Number(totalCost) * 100);
-    if (!Number.isInteger(packs) || packs <= 0 || !Number.isFinite(cents) || cents < 0) {
-      setError("Enter a positive whole pack count and a valid total cost.");
+    if (!Number.isInteger(packs) || packs <= 0 || (costConfirmed && (!Number.isFinite(cents) || cents < 0))) {
+      setError("Enter a positive whole pack count and a valid total cost, or mark the cost pending.");
       return;
     }
     setBusy(true);
@@ -67,7 +69,8 @@ function PurchaseLotCard({
           source,
           product_id: Number(productId),
           pack_count: packs,
-          total_cost_cents: cents,
+          total_cost_cents: costConfirmed ? cents : null,
+          cost_confirmed: costConfirmed,
           status,
           notes: notes.trim() || null,
         }),
@@ -102,8 +105,8 @@ function PurchaseLotCard({
 
       <div className="purchase-lot-economics">
         <div><span>Packs</span><strong>{lot.pack_count}</strong></div>
-        <div><span>Total paid</span><strong>{formatCents(lot.total_cost_cents)}</strong></div>
-        <div><span>Landed / pack</span><strong>{formatCents(lot.landed_cost_per_pack_cents)}</strong></div>
+        <div><span>Total paid</span><strong>{lot.cost_confirmed ? formatCents(lot.total_cost_cents) : "Cost pending"}</strong></div>
+        <div><span>Landed / pack</span><strong>{lot.cost_confirmed ? formatCents(lot.landed_cost_per_pack_cents) : "Pending"}</strong></div>
         <div>
           <span>Vs benchmark</span>
           <strong>{lot.benchmark_delta_cents == null ? "No benchmark" : `${lot.benchmark_delta_cents > 0 ? "+" : ""}${formatCents(lot.benchmark_delta_cents)}`}</strong>
@@ -118,7 +121,8 @@ function PurchaseLotCard({
             <label>Purchase date<input className={controlClass} type="date" value={purchaseDate} onChange={event => setPurchaseDate(event.target.value)} /></label>
             <label>Source<select className={controlClass} value={source} onChange={event => setSource(event.target.value as typeof source)}>{OBSERVATION_SOURCES.map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</select></label>
             <label>Pack count<input className={controlClass} type="number" min="1" step="1" value={packCount} onChange={event => setPackCount(event.target.value)} /></label>
-            <label>Total cost ($)<input className={controlClass} type="number" min="0" step="0.01" value={totalCost} onChange={event => setTotalCost(event.target.value)} /></label>
+            <label>Total cost ($)<input className={controlClass} type="number" min="0" step="0.01" value={totalCost} disabled={!costConfirmed} onChange={event => setTotalCost(event.target.value)} /></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={!costConfirmed} onChange={event=>setCostConfirmed(!event.target.checked)}/>Cost pending</label>
             <label>Status<select className={controlClass} value={status} onChange={event => setStatus(event.target.value as typeof status)}>{LOT_STATUSES.map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</select></label>
             <label className="lot-notes-field">Notes<textarea className={controlClass} rows={3} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allocation, shipping, condition, or correction context" /></label>
           </div>

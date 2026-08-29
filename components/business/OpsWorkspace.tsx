@@ -10,14 +10,16 @@ import { RecommendationsList } from "@/components/pokemon-ops/RecommendationsLis
 import { RecentSales } from "@/components/pokemon-ops/RecentSales";
 import { RecentLots } from "@/components/pokemon-ops/RecentLots";
 import { EntryForms, PurchaseLotForm } from "@/components/pokemon-ops/EntryForms";
+import { InventoryRoundsPanel } from "./InventoryRoundsPanel";
 import { formatCents, formatDate } from "@/lib/pokemon-ops/format";
 import { formatObservationAge, latestSourceObservationAt, sourcePriceComparisonForSet } from "@/lib/pokemon-ops/source-price-comparison";
+import type { InventoryRoundsSnapshot } from "@/lib/pokemon-ops/inventory-rounds";
 import type { PokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
 import type { PkProduct, PkPurchaseLot, PkSourceProductBenchmark, PkSourceProductCoverage, PkSourceProductCurrent } from "@/lib/pokemon-ops/types";
 
 type SourcingOps = { offers:any[]; benchmarks:any[]; vendors:any[]; sourceProducts:PkSourceProductCurrent[]; sourceProductBenchmarks:PkSourceProductBenchmark[]; sourceProductCoverage:PkSourceProductCoverage[]; local:{provenance:any;spots:any[]}; discord:any[]; connector:any; monitors:any[] };
 type PurchaseLotRow = PkPurchaseLot & { set_name:string };
-const INVENTORY_VIEWS = ["General Inventory","Machine Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
+const INVENTORY_VIEWS = ["General Inventory","Inventory Rounds","Machine Inventory","Service History","Purchase Lots","Sales","Record Activity"] as const;
 const SOURCING_VIEWS = ["Box Targets","Deals","Market Prices","Vendors","Local Spots","Sources / Monitors","Discord Deals"] as const;
 
 function ViewTabs({ values, active, onChange, id }:{values:readonly string[];active:string;onChange:(v:string)=>void;id:string}) { const refs=useRef<Array<HTMLButtonElement|null>>([]);const move=(index:number)=>{onChange(values[index]);refs.current[index]?.focus()};return <div className="business-view-tabs" role="tablist" aria-label={`${id} views`}>{values.map((v,index)=><button ref={el=>{refs.current[index]=el}} id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`} tabIndex={active===v?0:-1} onKeyDown={e=>{let n:number|null=null;if(e.key==="ArrowRight")n=(index+1)%values.length;if(e.key==="ArrowLeft")n=(index-1+values.length)%values.length;if(e.key==="Home")n=0;if(e.key==="End")n=values.length-1;if(n!==null){e.preventDefault();move(n)}}} key={v} role="tab" aria-selected={active===v} className={active===v?"active":""} onClick={()=>onChange(v)}>{v}</button>)}</div>; }
@@ -80,12 +82,12 @@ function GeneralInventoryPanel({snapshot,onAddLot}:{snapshot:PokemonOpsSnapshot;
   return <>
     <div className="business-facts" data-testid="general-inventory-summary">
       <Fact label="Unassigned packs" value={kpis.general_inventory_units} detail="received stock not loaded into a machine"/>
-      <Fact label="Cost basis" value={formatCents(kpis.general_inventory_cost_cents)} detail="what the unassigned stock cost"/>
+      <Fact label="Cost basis" value={formatCents(kpis.general_inventory_cost_cents)} detail={kpis.general_inventory_cost_cents===null?"cost pending for at least one lot":"what the unassigned stock cost"}/>
       <Fact label="Est. market value" value={formatCents(kpis.general_inventory_market_cents)} detail={kpis.general_inventory_market_cents==null?"missing a market benchmark":"latest TCGplayer / eBay sold prices"}/>
-      <Fact label="In transit" value={`${kpis.in_transit_units} packs`} detail={`${formatCents(kpis.in_transit_cost_cents)} cost basis`}/>
+      <Fact label="In transit" value={`${kpis.in_transit_units} packs`} detail={kpis.in_transit_cost_cents===null?"cost pending for at least one lot":`${formatCents(kpis.in_transit_cost_cents)} cost basis`}/>
     </div>
     <BusinessSection title="General inventory" note={<SourceStamp>not assigned to a machine</SourceStamp>}>
-      {snapshot.general_inventory.length===0?<div className="business-empty !my-0"><h2>No general stock yet</h2><p>Add a purchase lot to record incoming or received packs.</p><button className="business-primary-action" onClick={()=>onAddLot()}>Add purchase lot</button></div>:<div className="inventory-stock-grid">{snapshot.general_inventory.map(row=><article className="inventory-stock-card" key={row.product_id} data-testid={`general-inventory-row-${row.product_id}`}><div className="inventory-stock-card-head"><div><span>General stock</span><h3>{row.set_name}</h3></div><button onClick={()=>onAddLot(row.product_id)}>Add stock</button></div><div className="inventory-stock-counts"><div><span>Available</span><strong>{row.on_hand_units}</strong><small>packs unassigned</small></div><div><span>In transit</span><strong>{row.in_transit_units}</strong><small>{formatCents(row.in_transit_cost_cents)} cost</small></div></div><dl><div><dt>Cost basis</dt><dd>{formatCents(row.cost_value_cents)}</dd></div><div><dt>Est. market value</dt><dd>{formatCents(row.estimated_market_value_cents)}</dd></div><div><dt>Market / pack</dt><dd>{row.market_price_per_pack_cents==null?"No benchmark":formatCents(row.market_price_per_pack_cents)}</dd></div></dl><p>{row.market_price_per_pack_cents==null?"Add a market observation to value this stock.":`${row.market_source} · ${formatDate(row.market_observed_date)}`}</p></article>)}</div>}
+      {snapshot.general_inventory.length===0?<div className="business-empty !my-0"><h2>No general stock yet</h2><p>Add a purchase lot to record incoming or received packs.</p><button className="business-primary-action" onClick={()=>onAddLot()}>Add purchase lot</button></div>:<div className="inventory-stock-grid">{snapshot.general_inventory.map(row=><article className="inventory-stock-card" key={row.product_id} data-testid={`general-inventory-row-${row.product_id}`}><div className="inventory-stock-card-head"><div><span>General stock</span><h3>{row.set_name}</h3></div><button onClick={()=>onAddLot(row.product_id)}>Add stock</button></div><div className="inventory-stock-counts"><div><span>Available</span><strong>{row.on_hand_units}</strong><small>packs unassigned</small></div><div><span>In transit</span><strong>{row.in_transit_units}</strong><small>{row.in_transit_cost_cents===null?"cost pending":`${formatCents(row.in_transit_cost_cents)} cost`}</small></div></div><dl><div><dt>Cost basis</dt><dd>{row.cost_value_cents===null?"Cost pending":formatCents(row.cost_value_cents)}</dd></div><div><dt>Est. market value</dt><dd>{formatCents(row.estimated_market_value_cents)}</dd></div><div><dt>Market / pack</dt><dd>{row.market_price_per_pack_cents==null?"No benchmark":formatCents(row.market_price_per_pack_cents)}</dd></div></dl><p>{row.market_price_per_pack_cents==null?"Add a market observation to value this stock.":`${row.market_source} · ${formatDate(row.market_observed_date)}`}</p></article>)}</div>}
     </BusinessSection>
   </>;
 }
@@ -95,13 +97,13 @@ function PurchaseLotsPanel({lots,products,editorOpen,onToggleEditor,onChanged,pr
   const [statusFilter,setStatusFilter]=useState("all");
   const visibleLots=lots.filter(lot=>(statusFilter==="all"||lot.status===statusFilter)&&(!query||`${lot.set_name} ${lot.source} ${lot.notes??""}`.toLowerCase().includes(query.toLowerCase())));
   const packs=visibleLots.reduce((sum,lot)=>sum+lot.pack_count,0);
-  const cost=visibleLots.reduce((sum,lot)=>sum+lot.total_cost_cents,0);
+  const knownLots=visibleLots.filter(lot=>lot.cost_confirmed===1); const cost=knownLots.reduce((sum,lot)=>sum+lot.total_cost_cents,0); const pendingLots=visibleLots.length-knownLots.length;
   return <>
     <div className="business-facts purchase-lot-summary">
       <Fact label="Lots shown" value={visibleLots.length} detail={`${lots.length} purchase records total`}/>
       <Fact label="Packs shown" value={packs} detail="matching current filters"/>
-      <Fact label="Recorded cost" value={formatCents(cost)} detail="total paid across shown lots"/>
-      <Fact label="Average landed" value={packs?formatCents(Math.round(cost/packs)):"—"} detail="per pack across shown lots"/>
+      <Fact label="Recorded cost" value={pendingLots?`${formatCents(cost)} confirmed`:formatCents(cost)} detail={pendingLots?`${pendingLots} shown lot${pendingLots===1?"":"s"} still pending cost`:"total paid across shown lots"}/>
+      <Fact label="Average landed" value={!pendingLots&&packs?formatCents(Math.round(cost/packs)):"Pending"} detail={pendingLots?"complete average waits for all costs":"per pack across shown lots"}/>
     </div>
     <BusinessSection title="Purchase lots" note={<button className="business-primary-action" onClick={onToggleEditor}>{editorOpen?"Close add form":"Add purchase lot"}</button>}>
       {editorOpen&&<div className="inventory-editor"><div className="inventory-editor-heading"><div><span>New inventory</span><h3>Add a purchase lot</h3><p>Record the exact set, pack count, and all-in cost. Landed cost is calculated automatically.</p></div></div><PurchaseLotForm key={prefillProductId??"blank"} products={products} onSubmitted={onChanged} prefill={{productId:prefillProductId}}/></div>}
@@ -114,9 +116,10 @@ function PurchaseLotsPanel({lots,products,editorOpen,onToggleEditor,onChanged,pr
 export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
   const live=useLiveData<PokemonOpsSnapshot>("pokemon_ops"); const {data,refetch,error}=useApi<PokemonOpsSnapshot>("/api/pokemon-ops");
   const {data:productData,refetch:refetchProducts}=useApi<{products:PkProduct[]}>("/api/pokemon-ops/products"); const {data:lotData,refetch:refetchLots}=useApi<{lots:PurchaseLotRow[]}>("/api/pokemon-ops/lots"); const {data:sourcing,error:sourcingError,refetch:refetchSourcing}=useApi<SourcingOps>("/api/business/sourcing");
+  const {data:roundData,error:roundError,refetch:refetchRounds}=useApi<InventoryRoundsSnapshot>("/api/pokemon-ops/inventory-rounds");
   const {data:serviceData}=useApi<any>("/api/business/service");
   const snapshot=useMemo(()=>!live?data:!data||Date.parse(live.asOf)>=Date.parse(data.asOf)?live:data,[live,data]);
-  const refresh=()=>{refetch();refetchProducts();refetchLots();}; const products=productData?.products??[]; const inventory=mode==="inventory";
+  const refresh=()=>{refetch();refetchProducts();refetchLots();refetchRounds();}; const products=productData?.products??[]; const inventory=mode==="inventory";
   const [inventoryView,setInventoryView]=useState<string>(INVENTORY_VIEWS[0]); const [sourcingView,setSourcingView]=useState<string>(SOURCING_VIEWS[0]);
   const [lotEditorOpen,setLotEditorOpen]=useState(false); const [lotPrefillProductId,setLotPrefillProductId]=useState<number|undefined>();
   const [clock,setClock]=useState(()=>new Date());
@@ -129,6 +132,7 @@ export function OpsWorkspace({ mode }: { mode: "inventory" | "sourcing" }) {
       <div className="inventory-command-bar"><div><span>Inventory desk</span><strong>See stock, fix lot details, or record movement.</strong></div><div><button className="business-primary-action" onClick={()=>openLotEditor()}>Add purchase lot</button><button onClick={()=>setInventoryView("Record Activity")}>Record stock or sale</button></div></div>
       <ViewTabs id="inventory" values={INVENTORY_VIEWS} active={inventoryView} onChange={setInventoryView}/><div role="tabpanel" id={`inventory-panel-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`} aria-labelledby={`inventory-tab-${INVENTORY_VIEWS.indexOf(inventoryView as any)}`}>
       {inventoryView==="General Inventory"&&<GeneralInventoryPanel snapshot={snapshot} onAddLot={openLotEditor}/>}
+      {inventoryView==="Inventory Rounds"&&<InventoryRoundsPanel data={roundData} lots={lotData?.lots??snapshot.recent_lots} onChanged={refresh} error={roundError}/>}
       {inventoryView==="Machine Inventory"&&<><KpiBand snapshot={snapshot}/><BusinessSection title="Machine inventory" note={<SourceStamp>{snapshot.machine?.name??"No machine configured"}</SourceStamp>}><SlotTable slots={snapshot.slots}/></BusinessSection></>}
       {inventoryView==="Service History"&&<BusinessSection title="Service history" note={<SourceStamp>Physical count evidence · estimates separate</SourceStamp>}>{!serviceData?.history?.length?<p className="text-sm text-txt-muted">No completed physical-count visits yet.</p>:<div className="business-table-wrap"><table className="business-ops-table"><thead><tr><th>Machine</th><th>Verified at</th><th>Actor</th><th>Physical count</th><th>Estimated dispensed / revenue</th><th>Exact cash</th><th>Condition</th></tr></thead><tbody>{serviceData.history.map((v:any)=><tr key={v.id}><td><strong>{v.machine_name}</strong>Visit {v.id}</td><td>{new Date(v.completed_at).toLocaleString()}</td><td>{v.actor_email}</td><td>{v.slot_count} slots · {v.verified_units} verified units</td><td>{v.estimated_dispensed} units · {formatCents(v.estimated_revenue_cents)} estimated</td><td>{v.cash_collected_cents==null?"Unknown":`${formatCents(v.cash_collected_cents)} exact`}</td><td>{v.condition_before.replaceAll("_"," ")} → {v.condition_after.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>}</BusinessSection>}
       {inventoryView==="Purchase Lots"&&<PurchaseLotsPanel lots={lotData?.lots??snapshot.recent_lots} products={products} editorOpen={lotEditorOpen} onToggleEditor={()=>setLotEditorOpen(open=>!open)} onChanged={refresh} prefillProductId={lotPrefillProductId}/>}

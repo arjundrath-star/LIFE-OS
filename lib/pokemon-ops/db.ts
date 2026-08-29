@@ -393,32 +393,37 @@ export function listObservationsFiltered(
 export function insertPurchaseLot(input: NewPurchaseLot): number {
   assertEnum(input.source, OBSERVATION_SOURCES, "lot source");
   assertDate(input.purchase_date, "purchase_date");
-  assertInt(input.total_cost_cents, "total_cost_cents");
+  const costConfirmed = input.cost_confirmed ?? (input.total_cost_cents == null ? 0 : 1);
+  if (costConfirmed !== 0 && costConfirmed !== 1) throw new Error("cost_confirmed must be 0 or 1");
+  if (costConfirmed) assertInt(input.total_cost_cents, "total_cost_cents");
+  const totalCost = costConfirmed ? input.total_cost_cents! : 0;
+  if (totalCost < 0) throw new Error(`total_cost_cents must be >= 0, got ${totalCost}`);
   const packCount = assertInt(input.pack_count, "pack_count");
   if (packCount <= 0) throw new Error(`pack_count must be > 0, got ${packCount}`);
   if (input.status) assertEnum(input.status, LOT_STATUSES, "lot status");
   return immediate(() => {
-    const landed = Math.round(input.total_cost_cents / packCount);
+    const landed = costConfirmed ? Math.round(totalCost / packCount) : 0;
     const benchmark = benchmarkForProductAtDate(input.product_id, input.purchase_date);
     const benchmarkPrice = benchmark ? benchmark.price_per_pack_cents : null;
     const res = getDb()
       .prepare(
         `INSERT INTO pk_purchase_lots
            (purchase_date, source, product_id, pack_count, total_cost_cents,
-            landed_cost_per_pack_cents, observation_id, benchmark_price_cents,
+            landed_cost_per_pack_cents, cost_confirmed, observation_id, benchmark_price_cents,
             benchmark_delta_cents, status, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.purchase_date,
         input.source,
         input.product_id,
         packCount,
-        input.total_cost_cents,
+        totalCost,
         landed,
+        costConfirmed,
         input.observation_id ?? null,
         benchmarkPrice,
-        benchmarkPrice === null ? null : landed - benchmarkPrice,
+        !costConfirmed || benchmarkPrice === null ? null : landed - benchmarkPrice,
         input.status ?? "in_transit",
         input.notes ?? null
       );
@@ -446,7 +451,14 @@ export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): Pk
     const source = patch.source ?? current.source;
     const productId = patch.product_id ?? current.product_id;
     const packCount = patch.pack_count ?? current.pack_count;
-    const totalCost = patch.total_cost_cents ?? current.total_cost_cents;
+    const costConfirmed = patch.cost_confirmed
+      ?? (patch.total_cost_cents === undefined ? current.cost_confirmed : patch.total_cost_cents === null ? 0 : 1);
+    if (costConfirmed !== 0 && costConfirmed !== 1) throw new Error("cost_confirmed must be 0 or 1");
+    if (costConfirmed && current.cost_confirmed === 0 && patch.total_cost_cents == null) {
+      throw new Error("total_cost_cents is required when confirming a pending cost");
+    }
+    const requestedTotal = patch.total_cost_cents === undefined ? current.total_cost_cents : patch.total_cost_cents;
+    const totalCost = costConfirmed ? requestedTotal : 0;
     const status = patch.status ?? current.status;
     const notes = patch.notes === undefined ? current.notes : patch.notes;
 
@@ -454,10 +466,10 @@ export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): Pk
     assertEnum(source, OBSERVATION_SOURCES, "lot source");
     assertInt(productId, "product_id");
     assertInt(packCount, "pack_count");
-    assertInt(totalCost, "total_cost_cents");
+    if (costConfirmed) assertInt(totalCost, "total_cost_cents");
     assertEnum(status, LOT_STATUSES, "lot status");
     if (packCount <= 0) throw new Error(`pack_count must be > 0, got ${packCount}`);
-    if (totalCost < 0) throw new Error(`total_cost_cents must be >= 0, got ${totalCost}`);
+    if (totalCost! < 0) throw new Error(`total_cost_cents must be >= 0, got ${totalCost}`);
     if (!getProduct(productId)) throw new Error(`product ${productId} not found`);
 
     const allocated = get<{ qty: number }>(
@@ -481,7 +493,7 @@ export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): Pk
       throw new Error("cannot change product, purchase date, pack count, or transit state after refill allocation or sales history exists");
     }
 
-    const landed = Math.round(totalCost / packCount);
+    const landed = costConfirmed ? Math.round(totalCost! / packCount) : 0;
     const benchmarkIdentityChanged =
       productId !== current.product_id || purchaseDate !== current.purchase_date;
     const benchmarkPrice = benchmarkIdentityChanged
@@ -494,7 +506,7 @@ export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): Pk
     getDb().prepare(
       `UPDATE pk_purchase_lots
        SET purchase_date = ?, source = ?, product_id = ?, pack_count = ?,
-           total_cost_cents = ?, landed_cost_per_pack_cents = ?,
+           total_cost_cents = ?, landed_cost_per_pack_cents = ?, cost_confirmed = ?,
            observation_id = ?, benchmark_price_cents = ?, benchmark_delta_cents = ?, status = ?, notes = ?
        WHERE id = ?`
     ).run(
@@ -504,9 +516,10 @@ export function updatePurchaseLotFields(id: number, patch: PurchaseLotPatch): Pk
       packCount,
       totalCost,
       landed,
+      costConfirmed,
       observationId,
       benchmarkPrice,
-      benchmarkPrice === null ? null : landed - benchmarkPrice,
+      !costConfirmed || benchmarkPrice === null ? null : landed - benchmarkPrice,
       status,
       notes,
       id

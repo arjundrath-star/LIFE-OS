@@ -16,6 +16,12 @@ function asId(v: unknown): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function asCostConfirmed(value: unknown): 0 | 1 | null {
+  if (value === true || value === 1) return 1;
+  if (value === false || value === 0) return 0;
+  return null;
+}
+
 export async function GET(req: Request) {
   if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
@@ -47,12 +53,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "purchase_date must be YYYY-MM-DD" }, { status: 400 });
   }
   const packCount = Number(body.pack_count);
-  const totalCostCents = Number(body.total_cost_cents);
+  const costConfirmed = body.cost_confirmed === undefined
+    ? (body.total_cost_cents == null ? 0 : 1)
+    : asCostConfirmed(body.cost_confirmed);
+  if (costConfirmed === null) {
+    return NextResponse.json({ error: "cost_confirmed must be boolean" }, { status: 400 });
+  }
+  const totalCostCents = costConfirmed ? Number(body.total_cost_cents) : 0;
   if (!Number.isInteger(packCount) || packCount <= 0) {
     return NextResponse.json({ error: "pack_count must be a positive integer" }, { status: 400 });
   }
-  if (!Number.isInteger(totalCostCents)) {
-    return NextResponse.json({ error: "total_cost_cents must be an integer" }, { status: 400 });
+  if (costConfirmed && (!Number.isInteger(totalCostCents) || totalCostCents < 0)) {
+    return NextResponse.json({ error: "total_cost_cents must be a non-negative integer when cost is confirmed" }, { status: 400 });
   }
   const observationId = body.observation_id != null ? asId(body.observation_id) : null;
   if (body.observation_id != null && !observationId) {
@@ -69,6 +81,7 @@ export async function POST(req: Request) {
       product_id: productId,
       pack_count: packCount,
       total_cost_cents: totalCostCents,
+      cost_confirmed: costConfirmed,
       observation_id: observationId,
       status: body.status,
       notes: typeof body.notes === "string" ? body.notes : null,
@@ -98,7 +111,14 @@ export async function PATCH(req: Request) {
     patch.product_id = productId;
   }
   if (body.pack_count !== undefined) patch.pack_count = Number(body.pack_count);
-  if (body.total_cost_cents !== undefined) patch.total_cost_cents = Number(body.total_cost_cents);
+  if (body.total_cost_cents !== undefined) {
+    patch.total_cost_cents = body.total_cost_cents === null ? null : Number(body.total_cost_cents);
+  }
+  if (body.cost_confirmed !== undefined) {
+    const costConfirmed = asCostConfirmed(body.cost_confirmed);
+    if (costConfirmed === null) return NextResponse.json({ error: "cost_confirmed must be boolean" }, { status: 400 });
+    patch.cost_confirmed = costConfirmed;
+  }
   if (body.status !== undefined) patch.status = body.status;
   if (body.notes !== undefined) {
     if (body.notes !== null && typeof body.notes !== "string") {
