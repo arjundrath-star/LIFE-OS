@@ -16,6 +16,8 @@
           }
         ],
         "margin_cents": 4200,
+        "known_margin_cents": 4200,
+        "pending_cost_qty": 0,
         "unallocated_qty": 0
       },
       {
@@ -38,6 +40,8 @@
           }
         ],
         "margin_cents": 3800,
+        "known_margin_cents": 3800,
+        "pending_cost_qty": 0,
         "unallocated_qty": 0
       },
       {
@@ -55,6 +59,8 @@
           }
         ],
         "margin_cents": 1500,
+        "known_margin_cents": 1500,
+        "pending_cost_qty": 0,
         "unallocated_qty": 0
       }
     ],

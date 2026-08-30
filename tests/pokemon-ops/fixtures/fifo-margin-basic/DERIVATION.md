@@ -13,11 +13,11 @@ FIFO lot order (purchase_date ASC, id ASC, in_transit dropped): lotA (10 packs),
 Sale price is 1500 c on every sale.
 
 1. s1 (qty 6): draws 6 from lotA (lotA remaining 10 → 4).
-   margin = 6 × (1500 − 800) = 6 × 700 = 4200. unallocated 0.
+   margin = known margin = 6 × (1500 − 800) = 6 × 700 = 4200. pending cost qty 0; unallocated 0.
 2. s2 (qty 6): draws 4 from lotA (lotA → 0), then 2 from lotB (lotB 10 → 8).
-   margin = 4 × (1500 − 800) + 2 × (1500 − 1000) = 2800 + 1000 = 3800. unallocated 0.
+   margin = known margin = 4 × (1500 − 800) + 2 × (1500 − 1000) = 2800 + 1000 = 3800. pending cost qty 0; unallocated 0.
 3. s3 (qty 3): draws 3 from lotB (lotB → 5).
-   margin = 3 × (1500 − 1000) = 1500. unallocated 0.
+   margin = known margin = 3 × (1500 − 1000) = 1500. pending cost qty 0; unallocated 0.
 
 ## totalInvested
 
