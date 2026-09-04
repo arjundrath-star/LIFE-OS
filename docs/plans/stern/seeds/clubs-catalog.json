@@ -1,0 +1,278 @@
+{
+  "program_windows": [
+    {
+      "track": "exploratory",
+      "applications_open": "2026-09-14",
+      "applications_close": "2026-09-19",
+      "interviews_start": "2026-09-19",
+      "interviews_end": "2026-09-26",
+      "decisions": "2026-09-27"
+    },
+    {
+      "track": "teams",
+      "applications_open": "2026-09-20",
+      "applications_close": "2026-09-26",
+      "interviews_start": "2026-09-26",
+      "interviews_end": "2026-09-26",
+      "decisions": "2026-10-04"
+    }
+  ],
+  "clubs": [
+    {
+      "name": "Actuarial Society",
+      "short_name": "",
+      "category": "industry",
+      "website": "https://www.nyuactsoc.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Technical Team (teams); Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Beta Alpha Psi",
+      "short_name": "BAP",
+      "category": "accounting",
+      "website": "https://www.bapnyu.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): (program information pending)."
+    },
+    {
+      "name": "Black Gen Capital",
+      "short_name": "BGC",
+      "category": "identity",
+      "website": "https://www.blackgencapital.com/nyu",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Analyst Program (teams). Listed on nyusternicc.org as \"BlackGen Capital\"."
+    },
+    {
+      "name": "Blockchain & Fintech Club",
+      "short_name": "BnF",
+      "category": "tech",
+      "website": "https://www.nyubnf.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Business Analytics Club",
+      "short_name": "BAC",
+      "category": "tech",
+      "website": "https://nyusternbac.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Machine Learning Team (teams); Freshman Liaison Program (exploratory)."
+    },
+    {
+      "name": "Capital Markets Club",
+      "short_name": "CMC",
+      "category": "finance",
+      "website": "https://nyusterncmc.weebly.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Workshop Program (teams)."
+    },
+    {
+      "name": "Economic Development Group",
+      "short_name": "EDG",
+      "category": "social_impact",
+      "website": "https://www.nyusternedg.org/about",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory); Research Team (teams); Journalism Program (teams); Astra Consulting (teams)."
+    },
+    {
+      "name": "Entrepreneurial Exchange Group",
+      "short_name": "EEG",
+      "category": "entrepreneurship",
+      "website": "https://www.nyueeg.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Startup Team (teams); Investing Team (teams)."
+    },
+    {
+      "name": "Finance Society",
+      "short_name": "FinSoc",
+      "category": "finance",
+      "website": "http://www.nyufinancesociety.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Discovery Program (exploratory)."
+    },
+    {
+      "name": "International Business Association",
+      "short_name": "IBA",
+      "category": "industry",
+      "website": "https://www.nyuiba.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Executive Development Accelerator Program (EDAP) (teams)."
+    },
+    {
+      "name": "Investment Analysis Group",
+      "short_name": "IAG",
+      "category": "finance",
+      "website": "http://www.sterniag.org",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Portfolio Team (teams)."
+    },
+    {
+      "name": "Luxury and Retail Association",
+      "short_name": "LARA",
+      "category": "industry",
+      "website": "http://www.nyulara.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory). Listed on nyusternicc.org as \"Luxury & Retail Association\"."
+    },
+    {
+      "name": "Management Consulting Group",
+      "short_name": "MCG",
+      "category": "consulting",
+      "website": "https://www.sternmcg.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Core Consulting Committee (teams); Freshman Liaison Program (exploratory)."
+    },
+    {
+      "name": "Marketing Society",
+      "short_name": "MktSoc",
+      "category": "marketing",
+      "website": "https://www.mktsoc.club/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Agora Multimedia Committee (teams); Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Middle Eastern Business Association",
+      "short_name": "MEBA",
+      "category": "identity",
+      "website": "http://mebanyu.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Investment Team (teams). Listed on nyusternicc.org as \"Middle East Business Association\"."
+    },
+    {
+      "name": "Net Impact",
+      "short_name": "",
+      "category": "social_impact",
+      "website": "https://nyunetimpact.org",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory); Net Impact Consulting Experience (NICE) (teams); Finance Impact Team (FIT) (teams)."
+    },
+    {
+      "name": "Phi Chi Theta",
+      "short_name": "PCT",
+      "category": "industry",
+      "website": "https://www.nyupct.com/home",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Fall Rush (exploratory)."
+    },
+    {
+      "name": "Pride Corp",
+      "short_name": "",
+      "category": "identity",
+      "website": "http://www.sternpridecorp.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Underclassmen Mentorship Program (exploratory); Corporate Mentorship Program (exploratory)."
+    },
+    {
+      "name": "The Private Equity Group",
+      "short_name": "PEG",
+      "category": "finance",
+      "website": "https://www.nyusternpeg.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Workshop (teams). Listed on nyusternicc.org as \"Private Equity Group\"."
+    },
+    {
+      "name": "Quantitative Finance Society",
+      "short_name": "QFS",
+      "category": "finance",
+      "website": "https://www.qfsnyu.com",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Portfolio Team (teams)."
+    },
+    {
+      "name": "Scholars of Finance",
+      "short_name": "SOF",
+      "category": "finance",
+      "website": "https://www.nyusof.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Leadership Development Program (teams)."
+    },
+    {
+      "name": "Special Situations Investing Group",
+      "short_name": "SSIG",
+      "category": "finance",
+      "website": "https://nyussig.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Special Situations Team (SST) (teams)."
+    },
+    {
+      "name": "Stern Accounting Society",
+      "short_name": "SAS",
+      "category": "accounting",
+      "website": "https://nyusas.weebly.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory); Accounting Strategy Group (teams)."
+    },
+    {
+      "name": "Stern Business and Law Association",
+      "short_name": "SBLA",
+      "category": "law",
+      "website": "https://wp.nyu.edu/sbla/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory); Corporate Law Program (teams)."
+    },
+    {
+      "name": "Stern Jewish Business Association",
+      "short_name": "SJBA",
+      "category": "identity",
+      "website": "https://nyu-sjba.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Sophomore Workshop (teams)."
+    },
+    {
+      "name": "Stern Political Economy Exchange",
+      "short_name": "SPEX",
+      "category": "social_impact",
+      "website": "https://www.nyuspex.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Analyst Program (teams)."
+    },
+    {
+      "name": "Stern Real Estate Group",
+      "short_name": "SREG",
+      "category": "industry",
+      "website": "https://nyusreg.squarespace.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Strategy Board (teams); Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Stern Tisch Entertainment Business Association",
+      "short_name": "STEBA",
+      "category": "industry",
+      "website": "http://www.nyusteba.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): (program information pending)."
+    },
+    {
+      "name": "Strategic Venture Society",
+      "short_name": "SVS",
+      "category": "entrepreneurship",
+      "website": "https://www.nyusvs.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Venture Team (teams)."
+    },
+    {
+      "name": "Supporting Excellence and Advocating Diversity",
+      "short_name": "SEAD",
+      "category": "identity",
+      "website": "https://nyusead.wordpress.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Undergraduate Latin American Business Association",
+      "short_name": "ULABA",
+      "category": "identity",
+      "website": "https://www.ulaba.org/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory)."
+    },
+    {
+      "name": "Undergraduate Stern Women in Business",
+      "short_name": "USWIB",
+      "category": "identity",
+      "website": "https://www.uswib.com/",
+      "instagram": "",
+      "notes": "Fall 2026 programs (ICC): Mentorship Program (exploratory)."
+    }
+  ]
+}
