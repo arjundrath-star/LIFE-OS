@@ -4,9 +4,9 @@ Single source of truth for resumption. The orchestrator updates this file after 
 
 | WP | Scope | Builder | Status | Branch | Gate | Merged | Email sent |
 |---|---|---|---|---|---|---|---|
-| 0 | Foundation: schema, shell, routes, CLI writer, docs | Fable | gate passed (review running) | feature/stern-tab | PASS 19:39 EDT | 17378ee | build-started sent |
-| 1 | Club Recruiting | Codex | not started | stern/wp1 | | | |
-| 2 | Network | Codex | not started | stern/wp2 | | | |
+| 0 | Foundation: schema, shell, routes, CLI writer, docs | Fable | gate passed (review running) | feature/stern-tab | PASS 19:39 EDT | 17378ee | WP0 email 19:51 EDT |
+| 1 | Club Recruiting | Codex | in progress (Codex launched 19:50 EDT) | stern/wp1 | | | |
+| 2 | Network | Codex | in progress (Codex launched 19:51 EDT) | stern/wp2 | | | |
 | 3 | Email and Calendar automation | Codex | not started | stern/wp3 | | | |
 | 4 | Tasks, Classes, Career | Codex | not started | stern/wp4 | | | |
 | 5 | Reminders, Hermes profile, memo, capture | Fable + Codex | not started | stern/wp5 | | | |
@@ -25,3 +25,4 @@ Status values: not started, in progress, gate failed (n), gate passed, merged, b
 - Inbox scan 19:32 EDT: no "Stern:"-prefixed emails. Three inputs from Arjun (Sept 4) are available for WP8 data load: "Stern 101 granola notes" (17:07), "Contex.md file (from claude.ai stern project)" (17:12), "Stern tab: Claude Design prompt + instructions (v1)" (15:24).
 - 2026-09-04 19:39 EDT: WP0 gate PASS on the integration worktree (typecheck clean, 195 tests, migrate x2, production build; log /home/Arjun/stern-build/logs/gate-wp0-20260904T233936Z.log). Foundation committed as 17378ee. Note: the lib/school.ts and app/api/school/route.ts deletions were staged by the UI build step and landed in the earlier docs commit 060b3d9; same branch, no effect.
 - 2026-09-04 19:47 EDT: isolated-server smoke on 3180 with integration.db: /stern and all six sub-routes 200 with the shell and page testids; /school -> /stern and /career -> /stern/career (307); /api/stern 401 without a session and returns the snapshot with one; POST unknown action 400; scheduler started with tickStern; server stopped, port free. Fixed scripts/stern-build/isolated-server.sh: the server now runs under setsid with detached stdio (the old script kept the caller's stdout open, so a piped `start` hung, and `stop` killed only the launcher subshell, orphaning node). Adversarial review workflow (4 lenses + 2-vote verify) running on the foundation before WP1/WP2 launch.
+- 2026-09-04 19:51 EDT: WP0 email sent ("WP0 foundation merged, gate PASS, WP1 and WP2 launched"). Codex launched on WP1 and WP2 (worktrees /home/Arjun/stern-build/wt/wp1 and wp2, branches stern/wp1 and stern/wp2 from feature/stern-tab at c3d6fb7, DBs wp1.db and wp2.db, notes files with the design bundle path). Decision: launched before the WP0 review workflow finished to protect the Sat 08:00 target; review findings are fixed on feature/stern-tab and reach the packages at merge. Resume rule if this session dies: check /home/Arjun/stern-build/logs/wp<n>-codex.log and reports/wp<n>-last-message.md; if a run is not alive (pgrep -f "codex exec"), relaunch with codex-wp.sh <n> --resume.
