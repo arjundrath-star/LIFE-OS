@@ -1,0 +1,243 @@
+// Stern audit log: every automated or manual change writes one row per field so the
+// Automation page can show before -> after with evidence, and undoBatch() can revert a
+// whole message's worth of changes at once. Server-only (imports @/db).
+//
+// Rules: entity tables are enumerated explicitly (never trust a caller's table name);
+// field names are validated against PRAGMA table_info before they reach SQL; undo runs
+// in one IMMEDIATE transaction so a second process (stern-cli) cannot interleave.
+import crypto from "node:crypto";
+import { getDb, nowIso } from "@/db";
+import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
+import { SternError } from "@/lib/stern/errors";
+
+export const ENTITY_TABLES: Record<AuditEntityType, string> = {
+  person: "people",
+  affiliation: "people_affiliations",
+  touchpoint: "people_touchpoints",
+  coffee_chat: "coffee_chats",
+  program: "stern_programs",
+  club: "stern_clubs",
+  checklist_item: "stern_checklist_items",
+  assignment: "assignments",
+  task: "stern_tasks",
+  calendar_event: "stern_calendar_events",
+  draft: "stern_drafts",
+  course: "courses",
+  suggestion: "stern_suggestions",
+};
+
+const ENTITY_SET = new Set<string>(AUDIT_ENTITY_TYPES);
+const ACTION_SET = new Set<string>(AUDIT_ACTIONS);
+const SOURCE_SET = new Set<string>(AUDIT_SOURCES);
+
+export type AuditRow = {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  field: string;
+  before_value: string;
+  after_value: string;
+  source: string;
+  confidence: number;
+  evidence_type: string;
+  gmail_account: string;
+  gmail_message_id: string;
+  evidence_excerpt: string;
+  batch_id: string;
+  undone_at: string;
+  undo_of: number;
+  created_at: string;
+};
+
+export type LogChangeInput = {
+  entityType: AuditEntityType | string;
+  entityId: number;
+  action: AuditAction | string;
+  field?: string;
+  before?: unknown;
+  after?: unknown;
+  source?: AuditSource | string;
+  confidence?: number;
+  evidenceType?: string;
+  gmailAccount?: string;
+  gmailMessageId?: string;
+  evidenceExcerpt?: string;
+  batchId: string;
+};
+
+export type AuditMeta = Omit<LogChangeInput, "entityType" | "entityId" | "action" | "field" | "before" | "after">;
+
+/** Server-generated batch id. Clients never choose these; they can only reference them. */
+export function newBatchId(prefix = "batch"): string {
+  const safe = String(prefix).replace(/[^a-z0-9_-]/gi, "").slice(0, 32) || "batch";
+  return `${safe}:${crypto.randomUUID()}`;
+}
+
+function serialize(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+// Column lists per table, read once from SQLite so field names can never be injected.
+const columnCache = new Map<string, Set<string>>();
+export function tableColumns(table: string): Set<string> {
+  const cached = columnCache.get(table);
+  if (cached) return cached;
+  const rows = getDb().prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  const set = new Set(rows.map((r) => r.name));
+  columnCache.set(table, set);
+  return set;
+}
+
+export function entityTable(entityType: string): string {
+  if (!ENTITY_SET.has(entityType)) throw new SternError(400, `unknown audit entity type: ${entityType}`);
+  return ENTITY_TABLES[entityType as AuditEntityType];
+}
+
+function assertField(entityType: string, field: string) {
+  if (!field) return;
+  const table = entityTable(entityType);
+  if (!/^[a-z_][a-z0-9_]*$/.test(field) || !tableColumns(table).has(field)) {
+    throw new SternError(400, `unknown field ${field} for ${entityType}`);
+  }
+}
+
+/** Insert one audit row. Throws SternError 400 on any invalid enum or field. */
+export function logChange(input: LogChangeInput): number {
+  const entityType = String(input.entityType || "");
+  const action = String(input.action || "");
+  const source = String(input.source || "manual");
+  if (!ENTITY_SET.has(entityType)) throw new SternError(400, `unknown audit entity type: ${entityType}`);
+  if (!ACTION_SET.has(action)) throw new SternError(400, `unknown audit action: ${action}`);
+  if (!SOURCE_SET.has(source)) throw new SternError(400, `unknown audit source: ${source}`);
+  if (!Number.isInteger(input.entityId) || input.entityId < 0) throw new SternError(400, "audit entity id must be a non-negative integer");
+  if (!input.batchId || typeof input.batchId !== "string") throw new SternError(400, "audit batchId is required");
+  const field = input.field ? String(input.field) : "";
+  if (action === "update") assertField(entityType, field);
+  const confidence = Number.isFinite(input.confidence) ? Number(input.confidence) : 0;
+  const result = getDb()
+    .prepare(
+      `INSERT INTO stern_audit_log
+         (entity_type, entity_id, action, field, before_value, after_value, source, confidence,
+          evidence_type, gmail_account, gmail_message_id, evidence_excerpt, batch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      entityType,
+      input.entityId,
+      action,
+      field,
+      serialize(input.before),
+      serialize(input.after),
+      source,
+      confidence,
+      String(input.evidenceType || ""),
+      String(input.gmailAccount || ""),
+      String(input.gmailMessageId || ""),
+      String(input.evidenceExcerpt || "").slice(0, 300),
+      input.batchId
+    );
+  return Number(result.lastInsertRowid);
+}
+
+/** One 'create' row whose after_value is the JSON snapshot of the new entity. */
+export function logCreate(entityType: AuditEntityType | string, entityId: number, rowSnapshot: unknown, meta: AuditMeta): number {
+  return logChange({ ...meta, entityType, entityId, action: "create", field: "", before: "", after: rowSnapshot ?? {} });
+}
+
+/** One 'delete' row whose before_value is the JSON snapshot of the removed entity (so undo can re-insert). */
+export function logDelete(entityType: AuditEntityType | string, entityId: number, rowSnapshot: unknown, meta: AuditMeta): number {
+  return logChange({ ...meta, entityType, entityId, action: "delete", field: "", before: rowSnapshot ?? {}, after: "" });
+}
+
+export type UndoResult = { batchId: string; reverted: number; skipped: number };
+
+/**
+ * Revert every not-yet-undone row in a batch, newest first, inside one IMMEDIATE transaction.
+ * update -> restore before_value; create -> delete the entity; delete -> re-insert from before_value.
+ * Each reverted row is stamped undone_at and mirrored by an 'undo' row (undo_of = original id).
+ */
+export function undoBatch(batchId: string, options: { source?: AuditSource | string } = {}): UndoResult {
+  if (!batchId || typeof batchId !== "string") throw new SternError(400, "batchId is required");
+  const source = String(options.source || "undo");
+  if (!SOURCE_SET.has(source)) throw new SternError(400, `unknown audit source: ${source}`);
+  const db = getDb();
+  const tx = db.transaction((): UndoResult => {
+    const rows = db
+      .prepare("SELECT * FROM stern_audit_log WHERE batch_id = ? AND undone_at = '' AND action <> 'undo' ORDER BY id DESC")
+      .all(batchId) as AuditRow[];
+    if (!rows.length) throw new SternError(404, "nothing to undo for this batch");
+    let reverted = 0;
+    let skipped = 0;
+    const ts = nowIso();
+    for (const row of rows) {
+      const table = entityTable(row.entity_type);
+      let changes = 0;
+      if (row.action === "update") {
+        assertField(row.entity_type, row.field);
+        if (row.field) {
+          changes = db.prepare(`UPDATE ${table} SET ${row.field} = ? WHERE id = ?`).run(row.before_value, row.entity_id).changes;
+        }
+      } else if (row.action === "create") {
+        changes = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(row.entity_id).changes;
+      } else if (row.action === "delete") {
+        let snapshot: Record<string, unknown> | null = null;
+        try {
+          const parsed = JSON.parse(row.before_value || "null");
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) snapshot = parsed;
+        } catch {
+          snapshot = null;
+        }
+        if (snapshot) {
+          const columns = tableColumns(table);
+          const keys = Object.keys(snapshot).filter((k) => columns.has(k) && /^[a-z_][a-z0-9_]*$/.test(k));
+          if (keys.length) {
+            const values = keys.map((k) => {
+              const v = snapshot![k];
+              return v === null || v === undefined ? null : typeof v === "object" ? JSON.stringify(v) : (v as string | number);
+            });
+            changes = db
+              .prepare(`INSERT OR IGNORE INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`)
+              .run(...values).changes;
+          }
+        }
+      }
+      if (changes > 0) reverted += 1;
+      else skipped += 1;
+      db.prepare("UPDATE stern_audit_log SET undone_at = ? WHERE id = ?").run(ts, row.id);
+      db.prepare(
+        `INSERT INTO stern_audit_log
+           (entity_type, entity_id, action, field, before_value, after_value, source, confidence, evidence_type, batch_id, undo_of)
+         VALUES (?, ?, 'undo', ?, ?, ?, ?, 0, 'manual', ?, ?)`
+      ).run(row.entity_type, row.entity_id, row.field, row.after_value, row.before_value, source, batchId, row.id);
+    }
+    return { batchId, reverted, skipped };
+  });
+  return tx.immediate();
+}
+
+/** Live tail of the audit log (newest N, returned oldest-first for rendering). */
+export function auditTail(limit = 50): AuditRow[] {
+  const n = Math.max(1, Math.min(500, Math.floor(limit)));
+  const rows = getDb().prepare("SELECT * FROM stern_audit_log ORDER BY id DESC LIMIT ?").all(n) as AuditRow[];
+  rows.reverse();
+  return rows;
+}
+
+export function auditForEntity(entityType: AuditEntityType | string, entityId: number, limit = 100): AuditRow[] {
+  entityTable(String(entityType));
+  const n = Math.max(1, Math.min(500, Math.floor(limit)));
+  const rows = getDb()
+    .prepare("SELECT * FROM stern_audit_log WHERE entity_type = ? AND entity_id = ? ORDER BY id DESC LIMIT ?")
+    .all(String(entityType), entityId, n) as AuditRow[];
+  rows.reverse();
+  return rows;
+}
+
+export function batchRows(batchId: string): AuditRow[] {
+  const rows = getDb().prepare("SELECT * FROM stern_audit_log WHERE batch_id = ? ORDER BY id DESC").all(batchId) as AuditRow[];
+  rows.reverse();
+  return rows;
+}

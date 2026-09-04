@@ -11,7 +11,6 @@ import { Button } from "@/components/ui";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
 import { useApi, apiPost } from "@/hooks/useApi";
 import { hhmm, timeAgo } from "@/lib/time";
-import { daysUntilTerm, TERM_LABEL } from "@/lib/school";
 import { cn } from "@/lib/cn";
 import { selectCurrentHealthSnapshot } from "@/lib/health/client-freshness";
 import {
@@ -307,8 +306,7 @@ function ProjectsGlance() {
   const { data: ad } = useApi<any>("/api/adagency");
   const projects = useLiveData<any[]>("projects");
   const career = useLiveData<any>("career");
-  const [days, setDays] = useState<number | null>(null);
-  useEffect(() => setDays(daysUntilTerm()), []);
+  const stern = useLiveData<any>("stern");
 
   const dealCount = vending ? Object.values(vending.stages || {}).reduce((a: number, b: any) => a + (b as number), 0) : 0;
   const vendChip = vending?.revenueConnected
@@ -323,8 +321,8 @@ function ProjectsGlance() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <GlanceCard href="/vending" icon={<Boxes size={15} />} name="Vending Ops" chip={vendChip} chipTone={vending?.revenueConnected ? "accent" : "muted"} sub={vending?.needsRefill ? `${vending.needsRefill} need refill` : "deal pipeline live"} dot={vending?.needsRefill ? "warn" : undefined} />
         <GlanceCard href="/ad-agency" icon={<Clapperboard size={15} />} name="Klade Ad Agency" chip={ad?.connected ? `${ad.account?.credits ?? "—"} credits` : "connect CLI"} chipTone={ad?.connected ? "accent" : "muted"} sub={ad?.connected ? `${ad.videos?.length ?? 0} recent generations` : "Higgsfield"} />
-        <GlanceCard href="/school" icon={<GraduationCap size={15} />} name="School" chip={days === null ? "—" : `${days}d`} chipTone="warn" sub={`until ${TERM_LABEL}`} />
-        <GlanceCard href="/career" icon={<Target size={15}/>} name="Career" chip={career?`${career.stats?.byStatus?.drafting??0} drafting · ${career.stats?.byStatus?.submitted??0} submitted`:"—"} chipTone={career?.stats?.pendingSuggestions?"warn":"accent"} sub={career?`${career.stats?.applications??0} applications · next ${career.stats?.nextDeadline?.deadline||"—"} · ${career.stats?.pendingSuggestions??0} suggestions`:"career snapshot loading"}/>
+        <GlanceCard href="/stern" icon={<GraduationCap size={15} />} name="Stern" chip={stern?.counts ? `${stern.counts.coffeeChatsOwed ?? 0} chats owed` : "—"} chipTone={stern?.counts?.coffeeChatsOwed ? "warn" : "muted"} sub="club recruiting · network · classes" dot={stern?.counts?.replyOwed ? "warn" : undefined} />
+        <GlanceCard href="/stern/career" icon={<Target size={15}/>} name="Career" chip={career?`${career.stats?.byStatus?.drafting??0} drafting · ${career.stats?.byStatus?.submitted??0} submitted`:"—"} chipTone={career?.stats?.pendingSuggestions?"warn":"accent"} sub={career?`${career.stats?.applications??0} applications · next ${career.stats?.nextDeadline?.deadline||"—"} · ${career.stats?.pendingSuggestions??0} suggestions`:"career snapshot loading"}/>
         <GlanceCard href="/projects" icon={<FolderGit2 size={15} />} name="Vault projects" chip={projects ? `${projects.length}` : "—"} chipTone="muted" sub="from command-center" />
       </div>
     </div>

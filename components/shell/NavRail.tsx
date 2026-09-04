@@ -1,11 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive, type NavItem } from "@/components/shell/nav";
 import { StatusDot, type DotState } from "@/components/StatusDot";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
-import { daysUntilTerm } from "@/lib/school";
 import { cn } from "@/lib/cn";
 import { ChevronsLeft, ChevronsRight, Command } from "lucide-react";
 
@@ -43,11 +41,11 @@ function indicatorFor(item: NavItem, live: Live): Indicator | null {
       const n = live.cal?.connected ? live.cal?.events?.length ?? 0 : 0;
       return n > 0 ? { badge: String(n), badgeTone: "accent" } : null;
     }
-    case "school":
-      return live.days === null ? null : { badge: `${live.days}d`, badgeTone: "warn" };
-    case "career": {
-      const pending = live.career?.stats?.pendingSuggestions ?? 0;
-      return pending > 0 ? { badge: pending > 99 ? "99+" : String(pending), badgeTone:"warn" } : null;
+    case "stern": {
+      // pending suggestions + replies waiting on Arjun, from the live Stern snapshot
+      const counts = live.stern?.counts;
+      const n = (counts?.suggestionsPending ?? 0) + (counts?.replyOwed ?? 0);
+      return n > 0 ? { badge: n > 99 ? "99+" : String(n), badgeTone: "warn" } : null;
     }
     case "connections": {
       const broken = (live.conns || []).filter((c) => c.state === "on_broken").length;
@@ -63,9 +61,8 @@ type Live = {
   kanban: any;
   email: any;
   cal: any;
-  career: any;
+  stern: any;
   conns: { state: string }[];
-  days: number | null;
   connStatus: "connecting" | "open" | "closed";
 };
 
@@ -88,18 +85,11 @@ export function NavRail({
   const kanban = useLiveData<any>("kanban");
   const email = useLiveData<any>("email");
   const cal = useLiveData<any>("calendar");
-  const career = useLiveData<any>("career");
+  const stern = useLiveData<any>("stern");
   const conns = useLiveData<{ state: string }[]>("connections");
   const connStatus = useConnStatus();
-  const [days, setDays] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setDays(daysUntilTerm());
-    tick();
-    const t = setInterval(tick, 60 * 60 * 1000);
-    return () => clearInterval(t);
-  }, []);
 
-  const live: Live = { pulse, kanban, email, cal, career, conns: conns || [], days, connStatus };
+  const live: Live = { pulse, kanban, email, cal, stern, conns: conns || [], connStatus };
 
   return (
     <nav

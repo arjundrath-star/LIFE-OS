@@ -270,6 +270,13 @@ async function tickCareerHunter() {
   await tickCareer();
 }
 
+async function tickStern() {
+  // Stern tab snapshot (counts + automation state) on the "stern" channel. Cheap SQL read
+  // + broadcast; mutations in /api/stern* also broadcast immediately via broadcastStern().
+  const { broadcastStern } = await import("@/lib/stern/snapshot");
+  broadcastStern();
+}
+
 export function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -303,6 +310,7 @@ export function startScheduler() {
   const career = guarded("career", tickCareer);
   const careerEmail = guarded("careerEmail", tickCareerEmail);
   const careerHunter = guarded("careerHunter", tickCareerHunter);
+  const stern = guarded("stern", tickStern);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -319,6 +327,7 @@ export function startScheduler() {
   pokemonOps();
   career();
   careerEmail();
+  stern();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -336,6 +345,7 @@ export function startScheduler() {
     setInterval(career, 15000), // canonical SQLite snapshot; writes also broadcast immediately
     setInterval(careerEmail, 30 * 60 * 1000), // approved Gmail metadata only; review-gated suggestions
     setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
+    setInterval(stern, 15000), // Stern tab snapshot: SQL counts + broadcast, cheap and bounded
   ];
 
   console.log("[scheduler] started");
