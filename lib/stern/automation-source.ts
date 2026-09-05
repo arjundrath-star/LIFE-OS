@@ -6,7 +6,7 @@ export const NYU_ACCOUNT = /@(?:[^@]+\.)?nyu\.edu$/i;
 export function accountsToScan(): string[] {
   const extra = kvGet<unknown>("stern.extra_accounts");
   const extras = Array.isArray(extra) ? extra.filter((v): v is string => typeof v === "string").map(v => v.toLowerCase()) : [];
-  return (getDb().prepare("SELECT email FROM google_accounts WHERE enabled=1 ORDER BY email").all() as { email: string }[]).map(a => a.email.toLowerCase()).filter(email => NYU_ACCOUNT.test(email) || extras.includes(email));
+  return (getDb().prepare("SELECT email FROM google_accounts WHERE enabled=1 ORDER BY (lower(email) LIKE '%@stern.nyu.edu') DESC,email").all() as { email: string }[]).map(a => a.email.toLowerCase()).filter(email => NYU_ACCOUNT.test(email) || extras.includes(email));
 }
 export function sternAccount(): string {
   return accountsToScan().find(email => /@stern\.nyu\.edu$/i.test(email)) || "";
@@ -35,4 +35,4 @@ export function automationJob<T>(fn: () => Promise<T>): Promise<T> {
   g.__sternAutomationQueue = next.catch(() => {});
   return next;
 }
-export function dryRunDefault(value?: boolean) { return value ?? process.env.STERN_LLM_MODE !== "live"; }
+export function dryRunDefault(value?: boolean) { return process.env.STERN_LLM_MODE === "fixture" || process.env.STERN_LLM_MODE === "off" || (value ?? false); }

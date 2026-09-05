@@ -12,12 +12,13 @@ const TARGETS: Record<string,{ loginHint?:string; hostedDomain?:string }> = {
 };
 
 export async function GET(req: Request) {
-  if (!(await requireUser())) return NextResponse.redirect(new URL("/signin", process.env.NEXTAUTH_URL || "http://localhost:3000"));
+  const user = await requireUser();
+  if (!user) return NextResponse.redirect(new URL("/signin", process.env.NEXTAUTH_URL || "http://localhost:3000"));
   const requested = new URL(req.url).searchParams.get("target") || "generic";
   const target = Object.hasOwn(TARGETS, requested) ? requested : "generic";
   const state = crypto.randomBytes(16).toString("hex");
   const set = new URL(req.url).searchParams.get("set");
-  const scopeSet = set === "stern" || target === "stern" || target === "nyu" ? "stern" : "readonly";
+  const scopeSet = set === "readonly" ? "readonly" : set === "stern" || target === "stern" || target === "nyu" || target === "generic" && /@(?:[^@]+\.)?nyu\.edu$/i.test(user.email) ? "stern" : "readonly";
   const url = connectUrl(state, { ...TARGETS[target], scopeSet });
   const res = NextResponse.redirect(url);
   res.cookies.set("rw_g_state", state, {

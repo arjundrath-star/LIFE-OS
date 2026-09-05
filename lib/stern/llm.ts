@@ -38,6 +38,11 @@ async function execute(prompt: string, schema: Schema, file?: string): Promise<u
   return queued(async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "stern-llm-"));
     try {
+      // Isolate user config, skills, and MCP servers. Only subscription auth is shared;
+      // the classifier has no inherited external-service tooling.
+      const codexHome = path.join(dir, "codex-home");
+      await fs.mkdir(codexHome, { mode: 0o700 });
+      await fs.symlink(path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "auth.json"), path.join(codexHome, "auth.json"));
       const out = path.join(dir, "out.json"), localSchema = file || path.join(dir, "schema.json");
       if (!file) await fs.writeFile(localSchema, JSON.stringify(schema));
       let last: unknown;
@@ -46,7 +51,7 @@ async function execute(prompt: string, schema: Schema, file?: string): Promise<u
           await fs.rm(out, { force: true });
           const model = kvGet<string>("stern.llm_model") || "gpt-6-astra";
           await new Promise<void>((resolve, reject) => {
-            execFile(process.env.STERN_CODEX_BIN || "codex", ["exec", "--output-schema", localSchema, "-m", model, "--skip-git-repo-check", "--sandbox", "read-only", "-C", dir, "-c", 'web_search="disabled"', "-c", "features.shell_tool=false", "-o", out, prompt], { timeout: 120000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 }, error => error ? reject(new Error(error.killed ? "Classifier timed out" : "Classifier command failed")) : resolve());
+            execFile(process.env.STERN_CODEX_BIN || "codex", ["exec", "--output-schema", localSchema, "-m", model, "--skip-git-repo-check", "--sandbox", "read-only", "-C", dir, "-c", 'web_search="disabled"', "-c", "features.shell_tool=false", "-o", out, prompt], { env: { ...process.env, CODEX_HOME: codexHome }, timeout: 120000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 }, error => error ? reject(new Error(error.killed ? "Classifier timed out" : "Classifier command failed")) : resolve());
           });
           const parsed: unknown = JSON.parse(await fs.readFile(out, "utf8"));
           if (!validateSchema(parsed, schema)) throw new Error("Classifier output does not match schema");

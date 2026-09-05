@@ -35,6 +35,8 @@ export const sternConnections: ConnectionDef[] = [true, false].map((stern): Conn
 sternConnections.push({ id: "stern-llm-codex", label: "Stern classifier · Codex", surfaces: ["dashboard"], reconnect: "device_code", defaultEnabled: true, configured: () => codexProbe().ok, check: async () => codexProbe(), note: "Cached CLI/version and subscription login probe; no LLM request" });
 export async function sternConnectionSummary() {
   return Promise.all(sternConnections.map(async def => {
+    const setting = getDb().prepare("SELECT enabled FROM connections WHERE service=? AND surface='dashboard'").get(def.id) as { enabled: number } | undefined;
+    if (setting?.enabled === 0) return { id: def.id, state: "off", detail: "Disabled by user" };
     if (!def.configured()) return { id: def.id, state: "off", detail: def.id === "stern-llm-codex" ? codexProbe().detail : "Google account not connected" };
     const health = await def.check();
     return { id: def.id, state: health.ok ? "on_healthy" : "on_broken", detail: health.detail };
