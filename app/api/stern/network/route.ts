@@ -7,7 +7,7 @@ import { SternError, toErrorResponse } from "@/lib/stern/errors";
 import type { PeopleFilters } from "@/lib/stern-types";
 export const dynamic = "force-dynamic";
 function failure(error: unknown) {
-  const known = toErrorResponse(error);
+  const known = error instanceof SternError ? toErrorResponse(error) : { status: 500, message: "Network request failed" };
   return NextResponse.json({ error: known.message }, { status: known.status });
 }
 function filtersFrom(params: URLSearchParams): PeopleFilters {
@@ -38,6 +38,9 @@ export async function POST(req: Request) {
       switch (body.action) {
         case "person.create": {
           const created = people.createPerson({ ...(body.person || body), source: "manual" }, m);
+          if (!created.created && (body.person || body).status === "need_to_reach_out" && created.person.status !== "need_to_reach_out") {
+            created.person = people.setStatus(created.person.id, "need_to_reach_out", m);
+          }
           if (body.affiliation) people.addAffiliation(created.person.id, body.affiliation, m);
           return created;
         }

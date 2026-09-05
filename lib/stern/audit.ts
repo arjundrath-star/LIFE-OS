@@ -176,6 +176,7 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
   const source = String(options.source || "undo");
   if (!SOURCE_SET.has(source)) throw new SternError(400, `unknown audit source: ${source}`);
   const db = getDb();
+  const personIds = new Set<number>();
   const tx = db.transaction((): UndoResult => {
     const rows = db
       .prepare("SELECT * FROM stern_audit_log WHERE batch_id = ? AND undone_at = '' AND action <> 'undo' ORDER BY id DESC")
@@ -193,6 +194,15 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     const totalChanges = () => Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
     for (const row of rows) {
       const table = entityTable(row.entity_type);
+      if (row.entity_type === "person") personIds.add(row.entity_id);
+      if (row.entity_type === "touchpoint") {
+        const current = db.prepare("SELECT person_id FROM people_touchpoints WHERE id=?").get(row.entity_id) as { person_id: number } | undefined;
+        if (current) personIds.add(current.person_id);
+        if (row.field === "person_id") { personIds.add(Number(row.before_value)); personIds.add(Number(row.after_value)); }
+        for (const value of [row.before_value, row.after_value]) {
+          try { const prior = JSON.parse(value); if (prior?.person_id) personIds.add(Number(prior.person_id)); } catch { /* scalar field, not a snapshot */ }
+        }
+      }
       let changes = 0;
       if (row.action === "update") {
         assertField(row.entity_type, row.field);
@@ -257,21 +267,34 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
          VALUES (?, ?, 'undo', ?, ?, ?, ?, 0, 'manual', ?, ?)`
       ).run(row.entity_type, row.entity_id, row.field, row.after_value, row.before_value, source, batchId, row.id);
     }
+    // Contact dates are derived, including when an older batch is undone out of order.
+    // Keep this inside the same lock so another writer cannot race the recomputation.
+    for (const id of personIds) {
+      const p = db.prepare("SELECT last_contact_at FROM people WHERE id=?").get(id) as { last_contact_at: string } | undefined;
+      if (!p) continue;
+      const latest = db.prepare("SELECT occurred_at FROM people_touchpoints WHERE person_id=? ORDER BY julianday(occurred_at) DESC,id DESC LIMIT 1").get(id) as { occurred_at: string } | undefined;
+      const contact = latest?.occurred_at || "";
+      if (contact !== p.last_contact_at) {
+        db.prepare("UPDATE people SET last_contact_at=? WHERE id=?").run(contact, id);
+        logChange({ entityType: "person", entityId: id, action: "undo", field: "last_contact_at", before: p.last_contact_at, after: contact, source, batchId });
+      }
+    }
     return { batchId, reverted, skipped };
   });
   const result = tx.immediate();
   // The database transaction is committed before reflecting restored people in the vault.
-  const personIds = db.prepare("SELECT DISTINCT entity_id FROM stern_audit_log WHERE batch_id=? AND entity_type='person'").all(batchId) as { entity_id: number }[];
-  for (const { entity_id: id } of personIds) {
-    const person = db.prepare("SELECT * FROM people WHERE id=?").get(id) as Person | undefined;
-    if (person) writePersonNote(person, false, true);
-    else {
-      const capture = db.prepare("SELECT after_value FROM stern_audit_log WHERE batch_id=? AND entity_type='person' AND entity_id=? AND action='create' ORDER BY id DESC LIMIT 1").get(batchId, id) as { after_value: string } | undefined;
-      if (capture) {
-        const prior = JSON.parse(capture.after_value) as Person;
-        if (prior.display_name !== undefined) writePersonNote({ ...prior, id }, true);
+  for (const id of personIds) {
+    try {
+      const person = db.prepare("SELECT * FROM people WHERE id=?").get(id) as Person | undefined;
+      if (person) writePersonNote(person, false, true);
+      else {
+        const capture = db.prepare("SELECT after_value FROM stern_audit_log WHERE batch_id=? AND entity_type='person' AND entity_id=? AND action='create' ORDER BY id DESC LIMIT 1").get(batchId, id) as { after_value: string } | undefined;
+        if (capture) {
+          const prior = JSON.parse(capture.after_value) as Person;
+          if (prior.display_name !== undefined) writePersonNote({ ...prior, id }, true);
+        }
       }
-    }
+    } catch { console.error("[stern] vault sync failed"); }
   }
   return result;
 }

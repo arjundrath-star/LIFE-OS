@@ -19,7 +19,9 @@ export function peopleWrite<T>(fn: () => T): T {
   finally { writeDepth--; }
   if (outer) {
     const ids = [...pendingNotes]; pendingNotes.clear();
-    for (const id of ids) syncPersonNote(personRow(id));
+    for (const id of ids) {
+      try { syncPersonNote(personRow(id)); } catch { console.error("[stern] vault sync failed"); }
+    }
   }
   return result;
 }
@@ -28,6 +30,11 @@ type Input = Record<string, unknown>;
 export type WriteOptions = Partial<AuditMeta> & { overwrite?: boolean };
 export const EDITABLE = ["first_name", "last_name", "display_name", "year", "major", "org", "title", "sphere", "relationship_type", "strength", "status", "how_met", "met_at", "met_event", "email", "email_alt", "phone", "instagram", "linkedin", "hometown", "dorm", "next_action", "next_action_at", "notes"] as const;
 const text = (v: unknown): string => typeof v === "string" ? v.trim() : "";
+function bounded(v: unknown, max: number, field: string): string {
+  const value = text(v);
+  if (value.length > max) throw new SternError(400, `${field} is too long`);
+  return value;
+}
 const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9\s]+/g, " ").replace(/\s+/g, " ").trim();
 export const normalizeEmail = (v: unknown): string => text(v).toLowerCase();
 export function dedupeKeyFor(input: Input): string {
@@ -86,7 +93,7 @@ function remove(entity: AuditEntityType, id: number, m: AuditMeta) {
 // Stable id-based slugs survive name edits and distinguish people with identical names.
 export function syncPersonNote(p: Person) {
   if (writeDepth > 0) { pendingNotes.add(p.id); return; }
-  return writePersonNote(p);
+  try { return writePersonNote(p); } catch { console.error("[stern] vault sync failed"); }
 }
 function normalized(input: Input): Input {
   object(input);
@@ -120,7 +127,7 @@ function updateInside(id: number, patch: Input, m: AuditMeta): Person {
   if (patch.status && !canSetPersonStatus(before.status, String(patch.status))) throw new SternError(409, `Cannot change ${before.status} to ${patch.status}`);
   const after = { ...before, ...patch };
   if (!text(after.display_name)) throw new SternError(400, "Name is required");
-  const key = dedupeKeyFor(after);
+  const key = before.archived === 1 && before.dedupe_key.startsWith("merged:") ? before.dedupe_key : dedupeKeyFor(after);
   const duplicate = getDb().prepare("SELECT id FROM people WHERE dedupe_key = ? AND id <> ?").get(key, id);
   if (duplicate) throw new SternError(409, "A person with this identity exists; merge the records first");
   if (Object.entries(patch).some(([k, v]) => (before as unknown as Input)[k] !== v) || key !== before.dedupe_key) {
@@ -132,7 +139,7 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
   object(input);
   const m = meta(options);
   const result = peopleWrite(() => {
-    const fields = normalized(input);
+    const fields = normalized({ ...input, display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
     fields.display_name = text(fields.display_name) || text(input.name) || `${text(fields.first_name)} ${text(fields.last_name)}`.trim();
     if (!fields.display_name) throw new SternError(400, "Name is required");
     if (!fields.first_name && !fields.last_name) {
@@ -140,8 +147,19 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
     }
     const key = dedupeKeyFor(fields);
     // Enrich a prior name-only capture when its email becomes known, without joining two email identities.
-    const existing = (getDb().prepare("SELECT * FROM people WHERE dedupe_key = ?").get(key) || (fields.email && getDb().prepare("SELECT * FROM people WHERE dedupe_key = ? AND email = ''").get(dedupeKeyFor({ ...fields, email: "" })))) as Person | undefined;
+    let existing = (getDb().prepare("SELECT * FROM people WHERE dedupe_key = ?").get(key)
+      || (fields.email && getDb().prepare("SELECT * FROM people WHERE email_alt = ? AND archived = 0 ORDER BY id LIMIT 1").get(key))
+      || (fields.email && getDb().prepare("SELECT * FROM people WHERE archived=1 AND dedupe_key LIKE 'merged:%' AND (email=? OR email_alt=?) ORDER BY id LIMIT 1").get(key, key))
+      || (fields.email && getDb().prepare("SELECT * FROM people WHERE dedupe_key = ? AND email = ''").get(dedupeKeyFor({ ...fields, email: "" })))) as Person | undefined;
+    // Tombstones also resolve older aliases when the survivor's alternate email is occupied.
+    const seen = new Set<number>();
+    while (existing && existing.dedupe_key.startsWith("merged:")) {
+      if (seen.has(existing.id)) throw new SternError(409, "Invalid merge chain");
+      seen.add(existing.id);
+      existing = personRow(Number(existing.dedupe_key.split(":")[2]));
+    }
     if (existing) {
+      if (existing.archived) patchRow("person", existing.id, { archived: 0, updated_at: nowIso() }, m);
       const patch = Object.fromEntries(Object.entries(fields).filter(([k, v]) => options.overwrite || ((existing as unknown as Input)[k] === "" && v !== "")));
       return { person: updateInside(existing.id, patch, m), created: false };
     }
@@ -176,8 +194,8 @@ function affiliationFields(input: Input): Input {
       fields.org = found.name;
     }
   }
-  if (!fields.club_id && "org" in input) fields.org = text(input.org);
-  if ("role" in input) fields.role = text(input.role);
+  if (!fields.club_id && "org" in input) fields.org = bounded(input.org, 240, "org");
+  if ("role" in input) fields.role = bounded(input.role, 120, "role");
   for (const [camel, snake] of [["isEboard", "is_eboard"], ["relevantForRecruiting", "relevant_for_recruiting"]]) {
     if (camel in input || snake in input) {
       const v = input[camel] ?? input[snake];
@@ -200,7 +218,7 @@ export function addAffiliation(personId: number, input: Input, options: WriteOpt
 export function updateAffiliation(id: number, input: Input, options: WriteOptions = {}): Affiliation {
   return peopleWrite(() => {
     const before = row<Affiliation>("affiliation", id);
-    const fields = affiliationFields(input);
+    const fields = affiliationFields({ ...input, clubId: input.clubId ?? input.club_id ?? before.club_id });
     const after = { ...before, ...fields };
     if (!after.club_id && !after.org) throw new SternError(400, "Club or organization is required");
     if (getDb().prepare("SELECT id FROM people_affiliations WHERE person_id=? AND club_id=? AND org=? AND id<>?").get(before.person_id, after.club_id, after.org, id)) throw new SternError(409, "Affiliation already exists");
@@ -216,14 +234,17 @@ export function addTouchpoint(personId: number, kind: unknown, input: Input = {}
   return peopleWrite(() => {
     object(input); personRow(personId);
     const source = enumValue(input.source ?? "manual", TOUCHPOINT_SOURCES, "touchpoint source");
-    const m = meta({ ...options, source: options.source || (source === "gmail" ? "auto_email" : source === "calendar" ? "auto_calendar" : source), gmailAccount: text(input.gmailAccount ?? input.gmail_account), gmailMessageId: text(input.gmailMessageId ?? input.gmail_message_id) });
+    const external = source === "gmail";
+    const gmailAccount = external ? text(input.gmailAccount ?? input.gmail_account) : "";
+    const gmailMessageId = external ? text(input.gmailMessageId ?? input.gmail_message_id) : "";
+    const m = meta({ ...options, source: options.source || (source === "gmail" ? "auto_email" : source === "calendar" ? "auto_calendar" : source), gmailAccount, gmailMessageId });
     const fields = {
       person_id: personId, kind: enumValue(kind, TOUCHPOINT_KINDS, "touchpoint kind"), source,
       occurred_at: date(input.occurredAt ?? input.occurred_at) || nowIso(),
-      gmail_account: text(input.gmailAccount ?? input.gmail_account),
+      gmail_account: gmailAccount,
       // The shipped UNIQUE includes blank gmail refs. Local captures need a unique reference.
-      gmail_message_id: text(input.gmailMessageId ?? input.gmail_message_id) || `local:${crypto.randomUUID()}`,
-      summary: text(input.summary), detail: text(input.detail),
+      gmail_message_id: gmailMessageId || `local:${crypto.randomUUID()}`,
+      summary: bounded(input.summary, 500, "summary"), detail: bounded(input.detail, 5000, "detail"),
     };
     const prior = getDb().prepare("SELECT * FROM people_touchpoints WHERE person_id = ? AND gmail_account = ? AND gmail_message_id = ? AND kind = ?").get(personId, fields.gmail_account, fields.gmail_message_id, fields.kind) as Touchpoint | undefined;
     if (prior) return prior;
@@ -240,8 +261,8 @@ export function mergePeople(keepId: number, dropId: number, options: WriteOption
     const blanks = Object.fromEntries(EDITABLE.filter(k => keep[k] === "" && drop[k] !== "").map(k => [k, drop[k]]));
     // Transfer a missing email/identity to the survivor, releasing the archived row's
     // unique key first. Both changes are audited so undo restores the two identities.
-    const nextKey = dedupeKeyFor({ ...keep, ...blanks });
-    if (nextKey === drop.dedupe_key && nextKey !== keep.dedupe_key) patchRow("person", dropId, { dedupe_key: "" }, m);
+    if (keep.archived || drop.archived) throw new SternError(409, "Restore archived people before merging");
+    patchRow("person", dropId, { dedupe_key: `merged:${dropId}:${keepId}` }, m);
     if (keep.email && !keep.email_alt && drop.email && drop.email !== keep.email) blanks.email_alt = drop.email;
     if (drop.notes && keep.notes && !keep.notes.includes(drop.notes)) blanks.notes = `${keep.notes}\n\n${drop.notes}`;
     updateInside(keepId, blanks, m);
@@ -269,8 +290,13 @@ export function mergePeople(keepId: number, dropId: number, options: WriteOption
 export function getPerson(id: number): PersonDetail {
   const person = personRow(id), db = getDb();
   return { ...person,
+    // Read-only links preserve access to WP1 records without moving their rows or changing schema.
+    mergedRecords: db.prepare(`WITH RECURSIVE merged(id) AS (
+      SELECT id FROM people WHERE dedupe_key = 'merged:' || id || ':' || CAST(? AS INTEGER)
+      UNION SELECT p.id FROM people p JOIN merged m ON p.dedupe_key = 'merged:' || p.id || ':' || m.id
+    ) SELECT id, display_name FROM people WHERE id IN (SELECT id FROM merged) ORDER BY id`).all(id) as PersonDetail["mergedRecords"],
     affiliations: db.prepare("SELECT a.*, c.name club_name FROM people_affiliations a LEFT JOIN stern_clubs c ON c.id=a.club_id WHERE person_id=? ORDER BY is_eboard DESC, a.id").all(id) as Affiliation[],
-    touchpoints: (db.prepare("SELECT * FROM people_touchpoints WHERE person_id=? ORDER BY id DESC LIMIT 50").all(id) as Touchpoint[]).reverse(),
+    touchpoints: (db.prepare("SELECT * FROM people_touchpoints WHERE person_id=? ORDER BY id DESC LIMIT 50").all(id) as Touchpoint[]).reverse().map(t => ({ ...t, gmail_message_id: t.gmail_message_id.startsWith("local:") ? "" : t.gmail_message_id })),
     coffeeChats: db.prepare("SELECT * FROM coffee_chats WHERE person_id=? ORDER BY id DESC").all(id) as PersonDetail["coffeeChats"],
     drafts: db.prepare("SELECT * FROM stern_drafts WHERE person_id=? ORDER BY id DESC").all(id) as PersonDetail["drafts"],
   };
@@ -293,7 +319,7 @@ const SORTS = { name: "p.display_name COLLATE NOCASE, p.id", recent: "p.id DESC"
 export function listPeople(filters: PeopleFilters = {}) {
   const { sql, values } = where(filters), db = getDb();
   const page = integer(filters.page ?? 1, 1, 1000000, "page"), pageSize = 25;
-  if (filters.sort && !(filters.sort in SORTS)) throw new SternError(400, "Invalid sort");
+  if (filters.sort && !Object.prototype.hasOwnProperty.call(SORTS, filters.sort)) throw new SternError(400, "Invalid sort");
   const total = (db.prepare(`SELECT COUNT(*) n FROM people p WHERE ${sql}`).get(...values) as { n: number }).n;
   const people = db.prepare(`SELECT p.* FROM people p WHERE ${sql} ORDER BY ${SORTS[filters.sort || "name"]} LIMIT ? OFFSET ?`).all(...values, pageSize, (page - 1) * pageSize) as Person[];
   const affiliations = people.length ? db.prepare(`SELECT a.*, c.name club_name FROM people_affiliations a LEFT JOIN stern_clubs c ON c.id=a.club_id WHERE person_id IN (${people.map(() => "?").join(",")}) ORDER BY is_eboard DESC,a.id`).all(...people.map(p => p.id)) as Affiliation[] : [];
@@ -305,7 +331,7 @@ export function exportPeople(format: "json" | "csv", filters: PeopleFilters = {}
   if (format === "json") return JSON.stringify(people, null, 2);
   if (format !== "csv") throw new SternError(400, "Invalid export format");
   const keys = ["id", ...EDITABLE, "last_contact_at", "archived"] as const;
-  const cell = (v: unknown) => `"${String(v ?? "").replace(/^[=+@-]/, "'$&").replace(/"/g, '""')}"`;
+  const cell = (v: unknown) => `"${String(v ?? "").replace(/^(?:\s*[=+@-]|[\t\r\n])/, "'$&").replace(/"/g, '""')}"`;
   return [keys.join(","), ...people.map(p => keys.map(k => cell(p[k])).join(","))].join("\r\n");
 }
 export function importPeople(input: unknown, options: WriteOptions = {}) {
@@ -320,5 +346,16 @@ export function networkSnapshot(): NetworkSnapshot {
   const counts = db.prepare("SELECT COUNT(*) total, COALESCE(SUM(status='follow_up_owed'),0) followUpsOwed, COALESCE(SUM(status='need_to_reach_out'),0) needToReachOut FROM people WHERE archived=0").get() as NetworkSnapshot["counts"];
   counts.byRelationshipType = Object.fromEntries(RELATIONSHIP_TYPES.map(k => [k, 0])) as NetworkSnapshot["counts"]["byRelationshipType"];
   for (const r of db.prepare("SELECT relationship_type type,COUNT(*) n FROM people WHERE archived=0 GROUP BY relationship_type").all() as { type: Person["relationship_type"]; n: number }[]) counts.byRelationshipType[r.type] = r.n;
-  return { counts, recent: db.prepare("SELECT * FROM people WHERE archived=0 ORDER BY id DESC LIMIT 10").all() as Person[] };
+  // Audited changes cover same-millisecond edits, child deletion and undo. SQL row markers
+  // also cover trusted direct writers and read-only drawer data; unrelated tasks/programs do not.
+  const marker = db.prepare(`SELECT
+    (SELECT COALESCE(MAX(id),0) FROM stern_audit_log WHERE entity_type IN ('person','affiliation','touchpoint','coffee_chat','draft')) audit,
+    (SELECT json_group_array(json_array(id,updated_at,archived)) FROM (SELECT * FROM people ORDER BY id)) people,
+    (SELECT json_group_array(json_array(id,person_id,club_id,org,role,is_eboard,relevant_for_recruiting)) FROM (SELECT * FROM people_affiliations ORDER BY id)) affiliations,
+    (SELECT json_group_array(json_array(id,person_id,occurred_at,summary,detail)) FROM (SELECT * FROM people_touchpoints ORDER BY id)) touchpoints,
+    (SELECT json_group_array(json_array(id,person_id,updated_at)) FROM (SELECT * FROM coffee_chats ORDER BY id)) chats,
+    (SELECT json_group_array(json_array(id,person_id,updated_at)) FROM (SELECT * FROM stern_drafts ORDER BY id)) drafts,
+    (SELECT json_group_array(json_array(id,name,short_name)) FROM (SELECT * FROM stern_clubs ORDER BY id)) clubs`).get();
+  const version = crypto.createHash("sha256").update(JSON.stringify(marker)).digest("hex");
+  return { version, counts, recent: db.prepare("SELECT * FROM people WHERE archived=0 ORDER BY id DESC LIMIT 10").all() as Person[] };
 }

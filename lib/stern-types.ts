@@ -257,14 +257,16 @@ export type Person = {
   created_at: string; updated_at: string;
 };
 export type Affiliation = { id: number; person_id: number; club_id: number; org: string; role: string; is_eboard: number; relevant_for_recruiting: number; created_at: string; club_name?: string };
+// source marks Gmail origin; local uniqueness references are hidden at the detail read boundary.
 export type Touchpoint = { id: number; person_id: number; kind: TouchpointKind; occurred_at: string; source: TouchpointSource; gmail_account: string; gmail_message_id: string; summary: string; detail: string };
 export type PersonDetail = Person & {
   affiliations: Affiliation[]; touchpoints: Touchpoint[];
+  mergedRecords: { id: number; display_name: string }[];
   coffeeChats: { id: number; state: CoffeeChatState; requested_at: string; scheduled_at: string; occurred_at: string; thank_you_sent_at: string; location: string; takeaways: string }[];
   drafts: { id: number; kind: DraftKind; subject: string; body: string; state: DraftState; gmail_account: string; gmail_draft_id: string }[];
 };
 export type PeopleFilters = { q?: string; relationshipType?: string[]; strengthMin?: number; status?: string[]; clubId?: number; sphere?: string; followUpOwed?: boolean; archived?: boolean; sort?: "name" | "recent" | "strength" | "last_contact"; page?: number };
-export type NetworkSnapshot = { counts: { total: number; byRelationshipType: Record<RelationshipType, number>; followUpsOwed: number; needToReachOut: number }; recent: Person[] };
+export type NetworkSnapshot = { version: string; counts: { total: number; byRelationshipType: Record<RelationshipType, number>; followUpsOwed: number; needToReachOut: number }; recent: Person[] };
 export type NetworkResponse = NetworkSnapshot & { people: (Person & { affiliations: Affiliation[] })[]; total: number; page: number; pageSize: number; clubs: { id: number; name: string; short_name: string }[] };
 
 // WP1 recruiting data shared by first paint and the Stern live channel.

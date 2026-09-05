@@ -98,13 +98,15 @@ test("merge moves and dedupes children, retains read-only chats/drafts, and reve
   assert.equal(merged.affiliations.length, 2); assert.equal(merged.affiliations[0].is_eboard, 1); assert.equal(merged.touchpoints.length, 2); assert.equal(merged.email_alt, drop.email);
   assert.match(merged.notes, /Keep note\n\nDrop note/); assert.equal(p.getPerson(drop.id).archived, 1);
   assert.deepEqual(db.prepare("SELECT * FROM coffee_chats").all(), chats); assert.deepEqual(db.prepare("SELECT * FROM stern_drafts").all(), drafts);
+  assert.deepEqual(merged.mergedRecords, [{ id: drop.id, display_name: drop.display_name }]);
+  assert.equal(p.createPerson({ name: drop.display_name, email: drop.email }).person.id, keep.id);
   assert.equal(p.getPerson(drop.id).coffeeChats.length, 1); assert.equal(p.getPerson(drop.id).drafts.length, 1);
   assert.ok(audit.batchRows(batchId).some(r => r.action === "delete")); audit.undoBatch(batchId);
   assert.deepEqual(p.getPerson(keep.id), before.keep); assert.deepEqual(p.getPerson(drop.id), before.drop);
 });
 
 test("merge can transfer an email or name+org identity into a blank survivor", async () => {
-  const { people: p, audit } = await setup();
+  const { people: p, audit, db } = await setup();
   for (const email of ["", "transfer@example.test"]) {
     const name = email ? "Email Transfer Student" : "Org Transfer Student";
     const keep = p.createPerson({ name }).person;
@@ -112,6 +114,10 @@ test("merge can transfer an email or name+org identity into a blank survivor", a
     const batchId = audit.newBatchId();
     const merged = p.mergePeople(keep.id, drop.id, { batchId });
     assert.equal(merged.org, drop.org); assert.equal(merged.email, email);
+    assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE dedupe_key=''").get() as { n: number }).n, 0);
+    const noteBatch = audit.newBatchId();
+    assert.equal(p.updatePerson(drop.id, { notes: "Editable after merge" }, { batchId: noteBatch }).notes, "Editable after merge");
+    audit.undoBatch(noteBatch);
     assert.equal(p.createPerson({ name, org: drop.org, email }).person.id, keep.id);
     audit.undoBatch(batchId);
     assert.equal(p.getPerson(keep.id).dedupe_key, keep.dedupe_key);
@@ -176,15 +182,30 @@ test("API dispatches every action, exports and filters; unauthorized requests ne
   const success = async (body: unknown) => { const before = broadcasts; const res = await post(body); assert.equal(res.status, 200, await res.clone().text()); const data = await res.json(); assert.equal(broadcasts, before + 1); assert.ok(audit.batchRows(data.batchId).length > 0); return data; };
   await success({ action: "person.update", id, patch: { notes: "API edited note" } });
   await success({ action: "person.set_status", id, status: "need_to_reach_out" });
+  for (const identity of [{ name: "Duplicate API Named" }, { name: "Duplicate API Email", email: "duplicate-api@example.test" }]) {
+    const original = await success({ action: "person.create", person: identity });
+    const duplicate = await success({ action: "person.create", person: { ...identity, status: "need_to_reach_out", relationship_type: "mentor" } });
+    assert.equal(duplicate.result.created, false);
+    assert.equal(duplicate.result.person.id, original.result.person.id);
+    assert.equal(duplicate.result.person.status, "need_to_reach_out");
+    assert.equal(duplicate.result.person.relationship_type, "general_connect", "capture preserves existing values; UI discloses matched relationship");
+    assert.ok(audit.batchRows(duplicate.batchId).some(r => r.field === "status"));
+  }
+  for (const sort of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    const response = await get(`?sort=${sort}`); assert.equal(response.status, 400); assert.deepEqual(await response.json(), { error: "Invalid sort" });
+  }
   await success({ action: "person.set_relationship", id, type: "mentor", strength: 3 });
   await success({ action: "person.upgrade_friend", id });
   const aff = await success({ action: "affiliation.add", personId: id, affiliation: { org: "Another API Org", role: "Member" } });
   await success({ action: "affiliation.update", id: aff.result.id, patch: { isEboard: true } });
   await success({ action: "affiliation.remove", id: aff.result.id });
   await success({ action: "touchpoint.add", personId: id, kind: "note", summary: "API touchpoint" });
+  const spoof = await success({ action: "touchpoint.add", personId: id, kind: "email_received", touchpoint: { source: "gmail", gmail_account: "fixture@stern.nyu.edu", gmail_message_id: "spoof", summary: "Manual evidence" } });
+  assert.ok(audit.batchRows(spoof.batchId).every(r => r.source === "manual" && r.gmail_account === "" && r.gmail_message_id === ""));
+  assert.equal(people.getPerson(id).touchpoints.at(-1)?.gmail_message_id, "");
   const imported = await success({ action: "people.import", people: [{ name: "API Imported", email: "api.import@example.test" }] });
   await success({ action: "person.merge", keepId: id, dropId: imported.result[0].person.id });
-  assert.equal((await (await get(`?person=${id}`)).json()).touchpoints.length, 1);
+  assert.equal((await (await get(`?person=${id}`)).json()).touchpoints.length, 2);
   assert.equal((await (await get("?q=API%20Student&relationshipType=friend&strengthMin=3")).json()).people.length, 1);
   for (const format of ["csv", "json"]) { const res = await get(`?export=${format}&q=API%20Student`); assert.equal(res.status, 200); assert.match(res.headers.get("content-disposition") || "", /attachment/); assert.match(await res.text(), /API Student/); }
   const archive = await success({ action: "person.archive", id }); audit.undoBatch(archive.batchId); assert.equal(people.getPerson(id).archived, 0);
@@ -194,4 +215,121 @@ test("API dispatches every action, exports and filters; unauthorized requests ne
   assert.equal((await post({ action: "person.create", person: { name: "Bad affiliation rollback" }, affiliation: { clubId: 999999 } })).status, 404);
   assert.equal(people.networkSnapshot().counts.total, count); assert.deepEqual(fs.readdirSync(path.join(tmp, "vault", "Stern", "People")), files);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE display_name='Unauthorized'").get() as { n: number }).n, 0);
+});
+
+
+test("fix round: archived recapture restores visibility and merge identities remain editable", async () => {
+  const { people: p, audit, db } = await setup();
+  const a = p.createPerson({ name: "Recaptured Example", email: "recapture@example.test" }).person;
+  p.archivePerson(a.id);
+  const batchId = audit.newBatchId();
+  const captured = p.createPerson({ name: a.display_name, email: a.email }, { batchId });
+  assert.equal(captured.person.archived, 0);
+  assert.equal(p.listPeople({ q: a.email }).total, 1);
+  assert.ok(audit.batchRows(batchId).some(r => r.field === "archived"));
+  audit.undoBatch(batchId); assert.equal(p.getPerson(a.id).archived, 1);
+  const keep = p.createPerson({ name: "Merge Fix Keep", email: "merge-fix-keep@example.test", email_alt: "occupied@example.test" }).person;
+  const drop = p.createPerson({ name: "Merge Fix Drop", email: "merge-fix-drop@example.test" }).person;
+  const mergeBatch = audit.newBatchId(); p.mergePeople(keep.id, drop.id, { batchId: mergeBatch });
+  assert.equal(p.createPerson({ name: drop.display_name, email: drop.email }).person.id, keep.id);
+  assert.match(p.getPerson(drop.id).dedupe_key, /^merged:/);
+  assert.equal(p.updatePerson(drop.id, { notes: "Archived notes remain editable" }).notes, "Archived notes remain editable");
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE dedupe_key='' OR dedupe_key IS NULL").get() as { n: number }).n, 0);
+});
+
+test("fix round: undo older touchpoints recomputes contact from remaining rows", async () => {
+  const { people: p, audit } = await setup();
+  const a = p.createPerson({ name: "Undo Contact Example" }).person;
+  const b1 = audit.newBatchId(), b2 = audit.newBatchId();
+  p.addTouchpoint(a.id, "note", { occurredAt: "2026-09-01" }, { batchId: b1 });
+  p.addTouchpoint(a.id, "note", { occurredAt: "2026-09-02" }, { batchId: b2 });
+  audit.undoBatch(b1);
+  assert.equal(p.getPerson(a.id).last_contact_at, "2026-09-02T00:00:00.000Z");
+  audit.undoBatch(b2);
+  assert.equal(p.getPerson(a.id).last_contact_at, "");
+});
+
+test("fix round: inherited sort keys fail validation and CSV handles whitespace formulas", async () => {
+  const { people: p } = await setup();
+  for (const sort of ["constructor", "__proto__", "toString", "hasOwnProperty", "bogus"]) {
+    assert.throws(() => p.listPeople({ sort: sort as "name" }), (e: any) => e.status === 400 && e.message === "Invalid sort");
+  }
+  p.createPerson({ name: "=Formula Example", org: "+Formula Org", phone: "-555", notes: "\t @FORMULA()" });
+  const csv = p.exportPeople("csv", { q: "=Formula Example" });
+  for (const value of ["'=Formula Example", "'+Formula Org", "'-555", "'\t @FORMULA()"]) assert.ok(csv.includes(`"${value}"`), value);
+});
+
+
+test("fix round: network version changes for network writes and undo, never unrelated Stern work", async () => {
+  const { people: p, audit, db } = await setup();
+  const initial = p.networkSnapshot().version;
+  assert.equal(typeof initial, "string"); assert.equal(p.networkSnapshot().version, initial);
+  db.prepare("INSERT INTO stern_tasks(title) VALUES('Unrelated task')").run();
+  assert.equal(p.networkSnapshot().version, initial);
+  const person = p.createPerson({ name: "Version Example" }).person;
+  let version = p.networkSnapshot().version; assert.notEqual(version, initial);
+  const changed = () => { const next = p.networkSnapshot().version; assert.notEqual(next, version); version = next; };
+  p.updatePerson(person.id, { notes: "Same clock edits use audit IDs" }); changed();
+  const a = p.addAffiliation(person.id, { org: "Version Org" }); changed();
+  p.updateAffiliation(a.id, { role: "New role" }); changed();
+  const batchId = audit.newBatchId(); p.removeAffiliation(a.id, { batchId }); changed();
+  audit.undoBatch(batchId); changed();
+  p.addTouchpoint(person.id, "note", { summary: "New touchpoint" }); changed();
+  const chatId = db.prepare("INSERT INTO coffee_chats(person_id) VALUES(?)").run(person.id).lastInsertRowid; changed();
+  db.prepare("UPDATE coffee_chats SET updated_at='2026-10-01' WHERE id=?").run(chatId); changed();
+  db.prepare("INSERT INTO stern_drafts(person_id) VALUES(?)").run(person.id); changed();
+  assert.equal(p.networkSnapshot().version, version);
+});
+
+test("fix round: live invalidation ignores repeated snapshots and unrelated renders", async () => {
+  const source = fs.readFileSync("components/stern/network/shared.tsx", "utf8");
+  const ref = { current: undefined as string | undefined };
+  const modules: Record<string, unknown> = { react: { useRef: () => ref, useEffect: (fn: () => void) => fn() }, "@/hooks/useApi": {}, "@/lib/stern-types": {} };
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const exported = {} as { useNetworkVersion: (v: string | undefined, cb: () => void) => void };
+  new Function("require", "exports", compiled)((id: string) => modules[id] || {}, exported);
+  let requests = 0;
+  const refetch = () => { requests++; };
+  exported.useNetworkVersion(undefined, refetch);
+  exported.useNetworkVersion("network-a", refetch);
+  for (let i = 0; i < 100; i++) exported.useNetworkVersion("network-a", refetch);
+  assert.equal(requests, 1);
+  exported.useNetworkVersion("network-b", refetch); assert.equal(requests, 2);
+  exported.useNetworkVersion(undefined, refetch);
+  exported.useNetworkVersion("network-b", refetch); assert.equal(requests, 2);
+  for (const file of ["NetworkTable", "PersonDrawer", "QuickAddSheet"]) {
+    assert.match(fs.readFileSync(`components/stern/network/${file}.tsx`, "utf8"), /useNetworkVersion\(live\?\.network.version, refetch\)/);
+  }
+});
+
+test("fix round: input caps, linked organization and manual Gmail evidence", async () => {
+  const { people: p, db } = await setup();
+  const person = p.createPerson({ name: "Validation Example" }).person;
+  assert.throws(() => p.createPerson({ name: "x".repeat(2001) }), /display_name is too long/);
+  for (const [key, length] of [["org", 241], ["role", 121]] as const) assert.throws(() => p.addAffiliation(person.id, { org: "Example", [key]: "x".repeat(length) }), /too long/);
+  for (const [key, length] of [["summary", 501], ["detail", 5001]] as const) assert.throws(() => p.addTouchpoint(person.id, "note", { [key]: "x".repeat(length) }), /too long/);
+  const club = db.prepare("SELECT id,name FROM stern_clubs LIMIT 1").get() as { id: number; name: string };
+  const a = p.addAffiliation(person.id, { clubId: club.id });
+  assert.equal(p.updateAffiliation(a.id, { org: "Mismatched" }).org, club.name);
+  p.addTouchpoint(person.id, "note", { source: "manual", gmailAccount: "fixture@stern.nyu.edu", gmailMessageId: "reserved-slot" });
+  assert.equal(p.getPerson(person.id).touchpoints[0].gmail_message_id, "");
+  assert.equal(p.getPerson(person.id).touchpoints[0].gmail_account, "");
+});
+
+test("fix round: committed writes and undo survive vault IO failures with redacted logs", async t => {
+  const { people: p, audit } = await setup();
+  const person = p.createPerson({ name: "Vault Failure Example", notes: "Original" }).person;
+  const messages: unknown[][] = [];
+  const logger = t.mock.method(console, "error", (...args: unknown[]) => messages.push(args));
+  const rename = t.mock.method(fs, "renameSync", () => { throw new Error("private/filesystem/path"); });
+  try {
+    const batchId = audit.newBatchId();
+    assert.doesNotThrow(() => p.peopleWrite(() => p.updatePerson(person.id, { notes: "Committed" }, { batchId })));
+    assert.equal(p.getPerson(person.id).notes, "Committed");
+    assert.doesNotThrow(() => audit.undoBatch(batchId));
+    assert.equal(p.getPerson(person.id).notes, "Original");
+    assert.doesNotThrow(() => p.createPerson({ name: "Failed Vault New Example" }));
+    assert.ok(messages.length >= 3);
+    assert.ok(messages.every(args => args.length === 1 && args[0] === "[stern] vault sync failed"));
+  } finally { rename.mock.restore(); logger.mock.restore(); }
 });
