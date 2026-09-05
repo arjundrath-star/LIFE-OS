@@ -1,10 +1,2 @@
-"use client";
-import { SternPage, EmptyState } from "@/components/stern/Page";
-
-export default function SternTasksPage() {
-  return (
-    <SternPage title="Tasks" testId="stern-tasks">
-      <EmptyState title="No tasks yet" hint="Academic, professional, and campus tasks land here from email, calendar, iMessage, and Quick add." testId="stern-tasks-empty" />
-    </SternPage>
-  );
-}
+import { TasksView } from '@/components/stern/tasks/TasksView';
+export default function TasksPage(){return <TasksView/>;}

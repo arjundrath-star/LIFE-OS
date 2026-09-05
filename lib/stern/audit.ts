@@ -27,6 +27,8 @@ export const ENTITY_TABLES: Record<AuditEntityType, string> = {
   calendar_event: "stern_calendar_events",
   draft: "stern_drafts",
   course: "courses",
+  course_meeting: "course_meetings",
+  grade_category: "grade_categories",
   suggestion: "stern_suggestions",
 };
 
@@ -195,9 +197,10 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
           // by another batch wins and this row is reported as skipped (not stamped undone).
           const info = tableColumnInfo(table).get(row.field);
           const restore = row.before_value === "" && info && !info.notnull ? null : row.before_value;
+          const expected = row.after_value === "" && info && !info.notnull ? null : row.after_value;
           changes = db
             .prepare(`UPDATE ${table} SET ${row.field} = ? WHERE id = ? AND ${row.field} IS ?`)
-            .run(restore, row.entity_id, row.after_value).changes;
+            .run(restore, row.entity_id, expected).changes;
         }
       } else if (row.action === "create") {
         // Foreign keys cascade on delete. Refuse when the delete would take dependent rows

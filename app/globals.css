@@ -289,7 +289,7 @@ textarea:focus-visible,
    numbers and dates. Tokens mirror docs/plans/stern/design/stern-design-tokens.css 1:1.
    Built like .business-mode: a fixed takeover scope with shared-class remaps so the
    existing Connections / Accounts / Career components render readably in light mode. */
-.stern-mode {
+.stern-mode, body.stern-theme {
   /* surfaces */
   --stern-bg: #F7F7FA;
   --stern-surface: #FFFFFF;
@@ -339,42 +339,41 @@ textarea:focus-visible,
   --txt-faint: 140 140 160;
   --accent: 87 6 140;
   color-scheme: light;
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: flex;
   background: var(--stern-bg);
   color: var(--stern-text);
   font-family: var(--stern-font);
   font-size: var(--stern-text-base);
   line-height: 1.45;
 }
-.stern-mode *:focus-visible { outline: 2px solid var(--stern-accent); outline-offset: 2px; }
-.stern-mode .stern-rail a:focus-visible, .stern-mode .stern-rail button:focus-visible { outline-color: #fff; outline-offset: -3px; }
-.stern-mode [class*="bg-base"] { background-color: #F7F7FA !important; }
-.stern-mode [class~="bg-panel"], .stern-mode [class*="bg-panel/"] { background-color: #fff !important; }
-.stern-mode [class~="bg-panel-2"], .stern-mode [class*="bg-panel-2/"] { background-color: #F1F1F6 !important; }
-.stern-mode [class*="text-txt-primary"] { color: #14141F !important; }
-.stern-mode [class*="text-txt-muted"] { color: #5B5B70 !important; }
-.stern-mode [class*="text-txt-faint"] { color: #6E6E85 !important; }
-.stern-mode [class*="border-border"] { border-color: #E4E4EC !important; }
-.stern-mode .text-accent { color: #57068C !important; }
-.stern-mode .bg-accent { background-color: #57068C !important; }
-.stern-mode [class*="bg-accent/"] { background-color: #F1E6F8 !important; }
-.stern-mode [class*="border-accent"] { border-color: #B08AC8 !important; }
-.stern-mode [class~="text-accent-glow"], .stern-mode [class*="text-accent-glow/"] { color: #57068C !important; }
-.stern-mode [class~="border-accent-glow"], .stern-mode [class*="border-accent-glow/"] { border-color: #B08AC8 !important; }
-.stern-mode [class*="focus:border-accent"]:focus { border-color: #57068C !important; }
-.stern-mode [class*="shadow-glow"], .stern-mode [class*="text-glow"] { box-shadow: none !important; text-shadow: none !important; }
-.stern-mode [class*="hover:bg-white/"]:hover { background-color: #F1F1F6 !important; }
-.stern-mode [class*="bg-white/"] { background-color: #F1F1F6 !important; }
-.stern-mode [class*="bg-black/"] { background-color: rgba(20,20,31,.45) !important; }
-.stern-mode .text-healthy { color: #16A34A !important; }
-.stern-mode .text-warn { color: #B45309 !important; }
-.stern-mode .text-error { color: #DC2626 !important; }
-.stern-mode .text-off { color: #6B7280 !important; }
-.stern-mode .font-mono, .stern-mode .stern-mono { font-family: var(--stern-font-mono); }
+:is(.stern-mode, body.stern-theme) *:focus-visible { outline: 2px solid var(--stern-accent); outline-offset: 2px; }
+:is(.stern-mode, body.stern-theme) .stern-rail a:focus-visible, :is(.stern-mode, body.stern-theme) .stern-rail button:focus-visible { outline-color: #fff; outline-offset: -3px; }
+:is(.stern-mode, body.stern-theme) [class*="bg-base"] { background-color: #F7F7FA !important; }
+:is(.stern-mode, body.stern-theme) [class~="bg-panel"], :is(.stern-mode, body.stern-theme) [class*="bg-panel/"] { background-color: #fff !important; }
+:is(.stern-mode, body.stern-theme) [class~="bg-panel-2"], :is(.stern-mode, body.stern-theme) [class*="bg-panel-2/"] { background-color: #F1F1F6 !important; }
+:is(.stern-mode, body.stern-theme) [class*="text-txt-primary"] { color: #14141F !important; }
+:is(.stern-mode, body.stern-theme) [class*="text-txt-muted"] { color: #5B5B70 !important; }
+:is(.stern-mode, body.stern-theme) [class*="text-txt-faint"] { color: #6E6E85 !important; }
+:is(.stern-mode, body.stern-theme) [class*="border-border"] { border-color: #E4E4EC !important; }
+:is(.stern-mode, body.stern-theme) .text-accent { color: #57068C !important; }
+:is(.stern-mode, body.stern-theme) .bg-accent { background-color: #57068C !important; }
+:is(.stern-mode, body.stern-theme) [class*="bg-accent/"] { background-color: #F1E6F8 !important; }
+:is(.stern-mode, body.stern-theme) [class*="border-accent"] { border-color: #B08AC8 !important; }
+:is(.stern-mode, body.stern-theme) [class~="text-accent-glow"], :is(.stern-mode, body.stern-theme) [class*="text-accent-glow/"] { color: #57068C !important; }
+:is(.stern-mode, body.stern-theme) [class~="border-accent-glow"], :is(.stern-mode, body.stern-theme) [class*="border-accent-glow/"] { border-color: #B08AC8 !important; }
+:is(.stern-mode, body.stern-theme) [class*="focus:border-accent"]:focus { border-color: #57068C !important; }
+:is(.stern-mode, body.stern-theme) [class*="shadow-glow"], :is(.stern-mode, body.stern-theme) [class*="text-glow"] { box-shadow: none !important; text-shadow: none !important; }
+:is(.stern-mode, body.stern-theme) [class*="hover:bg-white/"]:hover { background-color: #F1F1F6 !important; }
+:is(.stern-mode, body.stern-theme) [class*="bg-white/"] { background-color: #F1F1F6 !important; }
+:is(.stern-mode, body.stern-theme) [class*="bg-black/"] { background-color: rgba(20,20,31,.45) !important; }
+:is(.stern-mode, body.stern-theme) .text-healthy { color: #16A34A !important; }
+:is(.stern-mode, body.stern-theme) .text-warn { color: #B45309 !important; }
+:is(.stern-mode, body.stern-theme) .text-error { color: #DC2626 !important; }
+:is(.stern-mode, body.stern-theme) .text-off { color: #6B7280 !important; }
+:is(.stern-mode, body.stern-theme) .font-mono, :is(.stern-mode, body.stern-theme) .stern-mono { font-family: var(--stern-font-mono); }
 
+
+/* Keep takeover layout off body; portals inherit colors and typography only. */
+.stern-mode { position: fixed; inset: 0; z-index: 10; display: flex; }
 /* shell */
 .stern-desktop-rail { display: none; flex: none; }
 .stern-rail { display: flex; width: var(--stern-rail-w); height: 100%; flex-direction: column; background: var(--stern-rail); color: var(--stern-rail-text); outline: none; transition: width .18s ease; overflow: hidden; }
@@ -743,3 +742,89 @@ textarea:focus-visible,
 .stern-mode .stern-btn.primary:hover { background: var(--stern-accent-hover) !important; }
 .stern-mode .stern-detail-tabs > [role="tablist"], .stern-mode .stern-detail-tabs [role="tab"] { background: transparent !important; }
 .stern-mode .stern-detail-tabs [role="tab"][data-state="active"] { color: var(--stern-accent) !important; }
+
+/* WP4: task rows and the classroom, aligned to design screens 06–08. */
+.stern-mode .stern-row-surface { background:var(--stern-surface);border:1px solid var(--stern-border);border-radius:12px;box-shadow:var(--stern-shadow);overflow:hidden; }
+.stern-mode .stern-domain-chips { display:flex;gap:8px;flex-wrap:wrap; }
+.stern-mode .stern-domain-chips button { font-size:12px;padding:4px 10px;border:1px solid var(--stern-border);border-radius:999px;background:var(--stern-surface); }
+.stern-mode .stern-domain-chips button[aria-pressed="true"] { color:var(--stern-accent);background:var(--stern-accent-soft);border-color:var(--stern-accent-soft); }
+.stern-mode .stern-group-switch { display:flex;gap:8px;align-items:center;font-size:13px;color:var(--stern-text-muted); }
+.stern-mode input[type="checkbox"] { accent-color:var(--stern-accent); }
+.stern-mode .stern-tasks-columns { display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start; }
+.stern-mode .stern-task-groups { display:flex;flex-direction:column;gap:16px;min-width:0; }
+.stern-mode .stern-task-groups h2 { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 4px 6px; }
+.stern-mode .stern-task-groups h2 > .stern-mono { font-size:12px;font-weight:400;color:var(--stern-text-muted); }
+.stern-mode .stern-task-groups summary { font-size:13px;font-weight:600;color:var(--stern-text-muted);cursor:pointer;margin-bottom:8px; }
+.stern-mode .stern-task-row { display:grid;grid-template-columns:16px minmax(100px,1fr) auto 110px 8px 90px;gap:12px;align-items:center;min-height:40px;padding:4px 16px;border-bottom:1px solid var(--stern-border);font-size:14px; }
+.stern-mode .stern-task-row:last-child,.stern-mode .stern-assignment-row:last-child { border-bottom:0; }
+.stern-mode .stern-task-title { text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }
+.stern-mode .stern-task-title:hover { color:var(--stern-accent); }
+.stern-mode .stern-task-title.done { text-decoration:line-through;color:var(--stern-text-muted); }
+.stern-mode .stern-task-row time,.stern-mode .stern-assignment-row time { font-size:12px;color:var(--stern-text-muted); }
+.stern-mode .stern-task-links { display:flex;gap:4px;flex-wrap:wrap;max-width:155px; }
+.stern-mode .stern-task-links a { padding:2px 8px;border-radius:999px;font-size:11px;background:var(--stern-accent-soft);color:var(--stern-accent);overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
+.stern-mode .stern-priority { width:8px;height:8px;border-radius:50%;background:var(--stern-off); }
+.stern-mode .stern-priority[data-priority="1"] { background:var(--stern-error); }
+.stern-mode .stern-priority[data-priority="2"] { background:var(--stern-warn); }
+.stern-mode .stern-task-composer { padding:16px;position:sticky;top:0; }
+.stern-mode .stern-task-composer h2 { font-weight:600;font-size:13px; }
+.stern-mode .stern-field input,.stern-mode .stern-field select,.stern-mode .stern-field textarea { border:1px solid var(--stern-border);border-radius:8px;min-height:32px;padding:6px 10px;background:var(--stern-surface-2);color:var(--stern-text);font-size:13px;width:100%; }
+.stern-mode .stern-field textarea { resize:vertical; }
+.stern-mode .stern-text-button { color:var(--stern-accent);font-size:13px;text-align:left; }
+.stern-mode .stern-muted { display:flex;align-items:center;gap:6px;color:var(--stern-text-muted);font-size:12px; }
+.stern-mode .stern-violet { color:var(--stern-accent); }
+.stern-mode .stern-week-scroll { overflow-x:auto; }
+.stern-mode .stern-week { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));min-width:600px;padding:16px;gap:8px;border:1px solid var(--stern-border);border-radius:12px;background:var(--stern-surface);box-shadow:var(--stern-shadow); }
+.stern-mode .stern-week h2 { text-align:center;font-size:12px;font-weight:600;color:var(--stern-text-muted);padding-bottom:8px; }
+.stern-mode .stern-week section > div { border-left:1px solid var(--stern-border);border-top:1px solid var(--stern-border);min-height:252px;padding:8px 4px;display:flex;flex-direction:column;gap:8px; }
+.stern-mode .stern-meeting-block { display:flex;flex-direction:column;gap:2px;border-left:3px solid var(--stern-accent);background:var(--stern-accent-soft);border-radius:8px;padding:8px;font-size:10px;color:var(--stern-text-muted); }
+.stern-mode .stern-meeting-block strong { color:var(--stern-accent);font-size:11px; }
+.stern-mode .stern-weekend { padding:16px; }
+.stern-mode .stern-course-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px; }
+.stern-mode .stern-course-card { display:flex;flex-direction:column;gap:12px;padding:16px; }
+.stern-mode .stern-course-card header { display:flex;flex-direction:column;gap:4px; }
+.stern-mode .stern-course-card header > span { font-size:12px;font-weight:600; }
+.stern-mode .stern-course-card h2 { font-size:15px;line-height:1.3;font-weight:600; }
+.stern-mode .stern-course-card p { font-size:13px;color:var(--stern-text-muted); }
+.stern-mode .stern-course-card dl { display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;font-size:12px; }
+.stern-mode .stern-course-card dt { color:var(--stern-text-muted); }
+.stern-mode .stern-course-card dd { overflow-wrap:anywhere; }
+.stern-mode .stern-course-card > a { margin-top:auto;text-align:center;justify-content:center; }
+.stern-mode .stern-course-header { display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--stern-text-muted); }
+.stern-mode .stern-course-header a { display:inline-flex;align-items:center;gap:4px;color:var(--stern-accent); }
+.stern-mode .stern-course-columns { display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;align-items:start; }
+.stern-mode .stern-assignment-row { display:grid;grid-template-columns:minmax(120px,1fr) 70px 100px 60px 82px;gap:10px;align-items:center;min-height:40px;padding:4px 16px;border-bottom:1px solid var(--stern-border);font-size:14px; }
+.stern-mode .stern-assignment-row > .stern-mono { font-size:12px;text-align:right; }
+.stern-mode .stern-type-chip { font-size:11px;padding:2px 8px;border-radius:999px;background:var(--stern-surface-2);color:var(--stern-text-muted);justify-self:start; }
+.stern-mode .stern-gradebook header,.stern-mode .stern-gradebook footer { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;font-size:13px; }
+.stern-mode .stern-gradebook header h2 { font-weight:600; }
+.stern-mode .stern-gradebook small { color:var(--stern-text-muted);font-size:11px; }
+.stern-mode .stern-gradebook header small { font-family:var(--stern-font-mono); }
+.stern-mode .stern-gradebook table { width:100%;font-size:13px;border-collapse:collapse; }
+.stern-mode .stern-gradebook th,.stern-mode .stern-gradebook td { padding:8px 16px;border-top:1px solid var(--stern-border);text-align:right; }
+.stern-mode .stern-gradebook th { font-size:12px;font-weight:500;background:var(--stern-surface-2);color:var(--stern-text-muted); }
+.stern-mode .stern-gradebook th:first-child,.stern-mode .stern-gradebook td:first-child { text-align:left; }
+.stern-mode .stern-gradebook footer { background:var(--stern-surface-2);border-top:1px solid var(--stern-border); }
+.stern-mode .stern-gradebook footer > span { font-weight:600;font-size:16px;text-align:right; }
+.stern-mode .stern-gradebook footer small { display:block;font-weight:400; }
+.stern-mode .stern-curve-note { padding:10px 16px;border-top:1px solid var(--stern-border);font-size:12px;color:var(--stern-text-muted);white-space:pre-wrap; }
+.stern-mode .stern-gradebook-actions { padding:12px 16px;border-top:1px solid var(--stern-border); }
+.stern-mode .stern-gradebook-scroll { overflow-x:auto; }
+.stern-mode .stern-meeting-edit-row { display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-size:12px;border-bottom:1px solid var(--stern-border); }
+.stern-course-overlay { position:fixed;inset:0;z-index:60;background:rgba(20,20,31,.45); }
+@media(max-width:1250px){.stern-mode .stern-course-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.stern-mode .stern-course-columns{grid-template-columns:minmax(0,1fr);}.stern-mode .stern-task-row{grid-template-columns:16px minmax(100px,1fr) 100px 8px;}.stern-mode .stern-task-row .stern-task-links{grid-column:2;grid-row:2;max-width:none;}.stern-mode .stern-task-row .stern-source-badge{grid-column:3;grid-row:2;}}
+@media(max-width:900px){.stern-mode .stern-tasks-columns{grid-template-columns:minmax(0,1fr);}.stern-mode .stern-task-composer{position:static;grid-row:1;}}
+@media(max-width:600px){.stern-mode .stern-course-grid{grid-template-columns:minmax(0,1fr);}.stern-mode .stern-assignment-row{grid-template-columns:minmax(100px,1fr) 70px 60px;}.stern-mode .stern-assignment-row time{grid-row:2;grid-column:1;}.stern-mode .stern-assignment-row .stern-source-badge{grid-row:2;grid-column:2 / 4;justify-self:end;}.stern-mode .stern-task-row{gap:8px;padding:8px 12px;}.stern-mode .stern-course-header{gap:8px 16px;}}
+.stern-mode .stern-week { grid-template-columns:40px repeat(5,minmax(0,1fr)); }
+.stern-mode .stern-week section > div { height:316px;position:relative; }
+.stern-mode .stern-week .stern-meeting-block { position:absolute;left:4px;right:4px; }
+.stern-mode .stern-week-axis > div { border:0; }
+.stern-mode .stern-week-axis span { position:absolute;left:0;font-size:10px;color:var(--stern-text-muted); }
+/* Empty due groups retain the compact row rhythm of the Tasks handoff. */
+.stern-mode .stern-task-groups .stern-row-surface > .stern-empty { min-height:48px; padding:12px 16px; border:0; border-radius:0; align-items:flex-start; text-align:left; }
+.stern-mode .stern-task-groups .stern-row-surface > .stern-empty strong { font-size:13px; font-weight:400; color:var(--stern-text-muted); }
+.stern-mode .stern-group-switch input { appearance:none; width:32px; height:18px; border-radius:999px; background:var(--stern-off); position:relative; cursor:pointer; flex:none; }
+.stern-mode .stern-group-switch input:checked { background:var(--stern-accent); }
+.stern-mode .stern-group-switch input::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; }
+.stern-mode .stern-group-switch input:checked::after { left:16px; }
+.stern-mode [data-testid="stern-course-detail"] .stern-page-subtitle { font-size:12px; }
