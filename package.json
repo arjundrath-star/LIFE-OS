@@ -55,7 +55,9 @@
     "e2e:stern-wp4": "tsx scripts/stern-wp4-e2e.ts",
     "test:stern-automation": "STERN_LLM_MODE=fixture STERN_VAULT_WRITE=0 tsx --test tests/stern-automation.test.ts",
     "stern:email-scan": "tsx scripts/stern-automation.ts email",
-    "stern:calendar-sync": "tsx scripts/stern-automation.ts calendar"
+    "stern:calendar-sync": "tsx scripts/stern-automation.ts calendar",
+    "test:stern-reminders": "tsx --test tests/stern-reminders.test.ts",
+    "stern:memo": "tsx scripts/stern-memo.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

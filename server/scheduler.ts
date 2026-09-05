@@ -289,6 +289,22 @@ async function tickSternCalendar() {
   await tickStern();
 }
 
+export async function tickSternReminders() {
+  const { evaluateRules, dispatchDue } = await import("@/lib/stern/reminders");
+  const { automationJob } = await import("@/lib/stern/automation-source");
+  const { reminderMeta } = await import("@/lib/stern/reminder-store");
+  await automationJob(async () => { const now = new Date(), audit = reminderMeta(); evaluateRules(now, { audit }); await dispatchDue(now, { audit }); });
+  const { broadcastStern } = await import("@/lib/stern/snapshot");
+  broadcastStern();
+}
+export async function tickSternMemo() {
+  const { tickMemo } = await import("@/lib/stern/memo");
+  const { automationJob } = await import("@/lib/stern/automation-source");
+  await automationJob(async () => { await tickMemo(); });
+  const { broadcastStern } = await import("@/lib/stern/snapshot");
+  broadcastStern();
+}
+
 export function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -325,6 +341,8 @@ export function startScheduler() {
   const stern = guarded("stern", tickStern);
   const sternEmail = guarded("sternEmail", tickSternEmail);
   const sternCalendar = guarded("sternCalendar", tickSternCalendar);
+  const sternReminders = guarded("sternReminders", tickSternReminders);
+  const sternMemo = guarded("sternMemo", tickSternMemo);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -344,6 +362,8 @@ export function startScheduler() {
   stern();
   sternEmail();
   sternCalendar();
+  sternReminders();
+  sternMemo();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -361,6 +381,8 @@ export function startScheduler() {
     setInterval(career, 15000), // canonical SQLite snapshot; writes also broadcast immediately
     setInterval(careerEmail, 30 * 60 * 1000), // approved Gmail metadata only; review-gated suggestions
     setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
+    setInterval(sternReminders, 60_000),
+    setInterval(sternMemo, 60_000),
     setInterval(sternEmail, 10 * 60 * 1000),
     setInterval(sternCalendar, 5 * 60 * 1000),
     setInterval(stern, 15000), // Stern tab snapshot: SQL counts + broadcast, cheap and bounded

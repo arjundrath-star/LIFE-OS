@@ -9,11 +9,13 @@ import crypto from "node:crypto";
 import { writePersonNote } from "./people-note";
 import type { Person } from "@/lib/stern-types";
 import { getDb, nowIso } from "@/db";
-import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
+import { STERN_NOTIFICATION_KEYS, AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
 import { SternError } from "@/lib/stern/errors";
 
 export const ENTITY_TABLES: Record<AuditEntityType, string> = {
   email_message: "stern_email_messages",
+  reminder: "stern_reminders",
+  notification_setting: "kv",
   process: "stern_processes",
   interview_prep: "stern_interview_prep",
   person: "people",
@@ -110,6 +112,10 @@ export function entityTable(entityType: string): string {
 }
 
 function assertField(entityType: string, field: string) {
+  if (entityType === "notification_setting") {
+    if (!(STERN_NOTIFICATION_KEYS as readonly string[]).includes(field)) throw new SternError(400, "Unknown notification setting");
+    return;
+  }
   if (!field) return;
   const table = entityTable(entityType);
   if (field === "id" || !/^[a-z_][a-z0-9_]*$/.test(field) || !tableColumns(table).has(field)) {
@@ -128,6 +134,7 @@ export function logChange(input: LogChangeInput): number {
   if (!Number.isInteger(input.entityId) || input.entityId < 0) throw new SternError(400, "audit entity id must be a non-negative integer");
   if (!input.batchId || typeof input.batchId !== "string") throw new SternError(400, "audit batchId is required");
   const field = input.field ? String(input.field) : "";
+  if (entityType === "notification_setting" && action !== "update") throw new SternError(400, "Notification settings require field updates");
   if (action === "update") assertField(entityType, field);
   const confidence = Number.isFinite(input.confidence) ? Number(input.confidence) : 0;
   const result = getDb()
@@ -193,6 +200,7 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     let skipped = 0;
     const ts = nowIso();
     const totalChanges = () => Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+    const checkedReminderIds = new Set<number>();
     for (const row of rows) {
       const table = entityTable(row.entity_type);
       if (row.entity_type === "person") personIds.add(row.entity_id);
@@ -204,8 +212,27 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
           try { const prior = JSON.parse(value); if (prior?.person_id) personIds.add(Number(prior.person_id)); } catch { /* scalar field, not a snapshot */ }
         }
       }
+      if (row.entity_type === "reminder") {
+        const current = db.prepare("SELECT * FROM stern_reminders WHERE id=?").get(row.entity_id) as Record<string, unknown> | undefined;
+        if (!checkedReminderIds.has(row.entity_id) && current?.error === "delivery-in-progress") {
+          const claim = db.prepare("SELECT created_at FROM stern_audit_log WHERE entity_type='reminder' AND entity_id=? AND field='error' AND after_value='delivery-in-progress' ORDER BY id DESC LIMIT 1").get(row.entity_id) as { created_at: string } | undefined;
+          // All transport calls together are bounded below two minutes. A stale claim can be
+          // undone explicitly after reviewing provider delivery; it is never retried automatically.
+          if (!claim || Date.now() - Date.parse(claim.created_at) < 120_000) throw new SternError(409, "Delivery is in progress; wait two minutes and review its outcome before undo");
+        }
+        checkedReminderIds.add(row.entity_id);
+        if (row.action === "create" && current) {
+          const created = JSON.parse(row.after_value || "{}") as Record<string, unknown>;
+          if (Object.entries(created).some(([key, value]) => current[key] !== value)) throw new SternError(409, "Reminder has later changes; undo the newer batches first");
+        }
+      }
       let changes = 0;
-      if (row.action === "update") {
+      if (row.entity_type === "notification_setting") {
+        assertField(row.entity_type, row.field);
+        if (row.action !== "update") throw new SternError(400, "Settings support update undo only");
+        if (row.before_value === "") changes = db.prepare("DELETE FROM kv WHERE k=? AND v=?").run(row.field, row.after_value).changes;
+        else changes = db.prepare("UPDATE kv SET v=?, updated_at=? WHERE k=? AND v=?").run(row.before_value, ts, row.field, row.after_value).changes;
+      } else if (row.action === "update") {
         assertField(row.entity_type, row.field);
         if (row.field) {
           // Restore only when the row still holds the value this batch wrote; a later change
