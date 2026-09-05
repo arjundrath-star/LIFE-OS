@@ -290,22 +290,21 @@ async function tickSternCalendar() {
 }
 
 export async function tickSternReminders() {
+  // Own lane (not the email/calendar automationJob): a long first scan must never delay urgent
+  // reminders or the 08:00 memo. The SQL-only rules (need_to_reach_out -> coffee chats, reply
+  // clearing, no_reply ageing) run here too, so they work before any NYU account is connected.
   const { evaluateRules, dispatchDue } = await import("@/lib/stern/reminders");
-  const { automationJob } = await import("@/lib/stern/automation-source");
   const { reminderMeta } = await import("@/lib/stern/reminder-store");
-  let changed = false;
-  await automationJob(async () => {
-    const now = new Date(), audit = reminderMeta();
-    const evaluation = evaluateRules(now, { audit }), delivery = await dispatchDue(now, { audit });
-    changed = evaluation.inserted > 0 || Object.values(delivery).some(count => count > 0);
-  });
+  const { runRulesPass } = await import("@/lib/stern/rules-pass");
+  try { await runRulesPass(); } catch (e) { console.error("[scheduler] stern rules pass failed:", (e as Error).message); }
+  const now = new Date(), audit = reminderMeta();
+  const evaluation = evaluateRules(now, { audit }), delivery = await dispatchDue(now, { audit });
+  const changed = evaluation.inserted > 0 || Object.values(delivery).some(count => count > 0);
   if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
 }
 export async function tickSternMemo() {
   const { tickMemo } = await import("@/lib/stern/memo");
-  const { automationJob } = await import("@/lib/stern/automation-source");
-  let changed = false;
-  await automationJob(async () => { changed = !(await tickMemo()).skipped; });
+  const changed = !(await tickMemo()).skipped;
   if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
 }
 

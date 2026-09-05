@@ -8,7 +8,7 @@ import { undoBatch } from "@/lib/stern/audit";
 import { regenerateDraft, createGmailDraft, markDraftCopied } from "@/lib/stern/drafts";
 import { broadcastStern } from "@/lib/stern/snapshot";
 import { automationJob } from "@/lib/stern/automation-source";
-import { SternError } from "@/lib/stern/errors";
+import { SternError , toErrorResponse } from "@/lib/stern/errors";
 import { ScopeMissing } from "@/lib/sources/google";
 import { id } from "@/lib/stern/recruiting-write";
 import { snoozeReminder } from "@/lib/stern/reminders";
@@ -56,6 +56,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ result, snapshot, ...(await automationSnapshot(user.email)) });
   } catch (error) {
     const status = error instanceof SternError || error instanceof ScopeMissing ? error.status : error instanceof SyntaxError ? 400 : 500;
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Automation action failed" }, { status });
+    return NextResponse.json({ error: toErrorResponse(error, "Automation action failed").message }, { status });
   }
 }

@@ -37,6 +37,15 @@ export const ENTITY_TABLES: Record<AuditEntityType, string> = {
 };
 
 const ENTITY_SET = new Set<string>(AUDIT_ENTITY_TYPES);
+// Tables that reference an entity through a sentinel integer (0 = none) instead of a foreign key.
+const SENTINEL_CHILDREN: Record<string, [string, string][]> = {
+  person: [["stern_drafts", "person_id"], ["stern_tasks", "person_id"], ["stern_calendar_events", "person_id"]],
+  coffee_chat: [["stern_drafts", "coffee_chat_id"], ["stern_calendar_events", "coffee_chat_id"]],
+  club: [["stern_tasks", "club_id"]],
+  program: [["stern_tasks", "program_id"], ["stern_calendar_events", "program_id"]],
+  course: [["stern_tasks", "course_id"]],
+  assignment: [["stern_tasks", "assignment_id"]],
+};
 const ACTION_SET = new Set<string>(AUDIT_ACTIONS);
 const SOURCE_SET = new Set<string>(AUDIT_SOURCES);
 
@@ -276,6 +285,11 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
           if (db.prepare(`SELECT 1 FROM coffee_chats WHERE ${key} = ? LIMIT 1`).get(row.entity_id)) {
             throw new SternError(409, `${row.entity_type} ${row.entity_id} has linked coffee chats; undo the newer batches first`);
           }
+        }
+        // Sentinel-id links (no FK) would silently dangle after the delete: refuse like a cascade.
+        for (const [childTable, column] of SENTINEL_CHILDREN[row.entity_type] || []) {
+          const n = (db.prepare(`SELECT COUNT(*) n FROM ${childTable} WHERE ${column} = ?`).get(row.entity_id) as { n: number }).n;
+          if (n > 0) throw new SternError(409, `${row.entity_type} ${row.entity_id} is referenced by ${n} ${childTable} row(s) created outside this batch; undo the newer batches first`);
         }
         const before = totalChanges();
         changes = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(row.entity_id).changes;

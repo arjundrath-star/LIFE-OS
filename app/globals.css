@@ -612,7 +612,7 @@ textarea:focus-visible,
 .stern-mode .stern-filter-chips button.active { color: var(--stern-accent); border-color: var(--stern-accent-soft); background: var(--stern-accent-soft); }
 .stern-mode .stern-filter-chips button span { margin-left: 4px; }
 .stern-mode .stern-timeline-toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-.stern-mode input[type="checkbox"] { accent-color: var(--stern-accent); width: 16px; height: 16px; flex: none; }
+.stern-mode input[type="checkbox"]:not([role="switch"]) { accent-color: var(--stern-accent); width: 16px; height: 16px; flex: none; }
 .stern-mode button:focus-visible, .stern-mode a:focus-visible, .stern-mode input:focus-visible, .stern-mode select:focus-visible, .stern-mode textarea:focus-visible { outline: 2px solid var(--stern-accent); outline-offset: 3px; }
 .stern-mode .stern-btn { box-shadow: none; font-family: var(--stern-font); transition: background-color .15s; }
 .stern-mode .stern-btn:hover { box-shadow: none; }
@@ -750,7 +750,7 @@ textarea:focus-visible,
 .stern-mode .stern-domain-chips button { font-size:12px;padding:4px 10px;border:1px solid var(--stern-border);border-radius:999px;background:var(--stern-surface); }
 .stern-mode .stern-domain-chips button[aria-pressed="true"] { color:var(--stern-accent);background:var(--stern-accent-soft);border-color:var(--stern-accent-soft); }
 .stern-mode .stern-group-switch { display:flex;gap:8px;align-items:center;font-size:13px;color:var(--stern-text-muted); }
-.stern-mode input[type="checkbox"] { accent-color:var(--stern-accent); }
+.stern-mode input[type="checkbox"]:not([role="switch"]) { accent-color:var(--stern-accent); }
 .stern-mode .stern-tasks-columns { display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start; }
 .stern-mode .stern-task-groups { display:flex;flex-direction:column;gap:16px;min-width:0; }
 .stern-mode .stern-task-groups h2 { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 4px 6px; }

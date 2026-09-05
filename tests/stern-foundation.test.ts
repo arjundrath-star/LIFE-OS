@@ -377,3 +377,77 @@ test("undoBatch refuses seed batches", async () => {
   assert.equal(audit.undoBatch(rowSeed).reverted, 1);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM stern_tasks WHERE id = ?").get(tid) as any).n, 0);
 });
+
+test("calendar touchpoints dedupe on the event id; manual notes without a reference stay distinct", async () => {
+  const { getDb } = await setup();
+  const people = await import("@/lib/stern/people");
+  const { person } = people.createPerson({ name: "Calendar Dedupe Person", org: "Placeholder Club", email: "calendar.dedupe@example.com" }, { source: "manual" });
+  for (let i = 0; i < 3; i++) people.addTouchpoint(person.id, "calendar", { source: "calendar", gmail_account: "netid@stern.nyu.edu", gmail_message_id: "calendar:evt-1:scheduled", summary: "Coffee chat scheduled" });
+  assert.equal((getDb().prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id = ? AND kind = 'calendar'").get(person.id) as any).n, 1, "repeated syncs keep one row");
+  people.addTouchpoint(person.id, "note", { source: "manual", summary: "note one" });
+  people.addTouchpoint(person.id, "note", { source: "manual", summary: "note two" });
+  assert.equal((getDb().prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id = ? AND kind = 'note'").get(person.id) as any).n, 2);
+});
+
+test("undoing a person create refuses while a draft still references the person", async () => {
+  const { getDb, audit, errors } = await setup();
+  const db = getDb();
+  const A = audit.newBatchId("a");
+  const pid = Number(db.prepare("INSERT INTO people (dedupe_key, display_name) VALUES ('name:draft link person:placeholder', 'Draft Link Person')").run().lastInsertRowid);
+  audit.logCreate("person", pid, { id: pid }, { batchId: A, source: "auto_email" });
+  const did = Number(db.prepare("INSERT INTO stern_drafts (person_id, kind, to_email, subject, body) VALUES (?, 'request', 'draft.link@example.com', 'Coffee chat', 'placeholder')").run(pid).lastInsertRowid);
+  assert.throws(() => audit.undoBatch(A), (e: any) => e instanceof errors.SternError && e.status === 409 && /stern_drafts/.test(e.message));
+  assert.ok(db.prepare("SELECT id FROM people WHERE id = ?").get(pid), "person survives the refused undo");
+  db.prepare("DELETE FROM stern_drafts WHERE id = ?").run(did);
+  assert.equal(audit.undoBatch(A).reverted, 1);
+});
+
+test("unexpected errors never reach the client verbatim", async () => {
+  const { errors } = await setup();
+  const out = errors.toErrorResponse(new Error("SQLITE_ERROR at /tmp/secret/path.db"));
+  assert.deepEqual(out, { status: 500, message: "Stern request failed" });
+  assert.deepEqual(errors.toErrorResponse(new errors.SternError(409, "kept")), { status: 409, message: "kept" });
+});
+
+test("vault writer refuses a symlinked directory that escapes Stern/", async () => {
+  const { vault, errors } = await setup();
+  const sternDir = path.join(VAULT, "Stern");
+  fs.mkdirSync(sternDir, { recursive: true });
+  const outside = fs.mkdtempSync(path.join(tmp, "outside-"));
+  const link = path.join(sternDir, "Escape");
+  try { fs.unlinkSync(link); } catch {}
+  fs.symlinkSync(outside, link, "dir");
+  assert.throws(() => vault.upsertNote("Escape/x.md", { name: "x" }, "body"), (e: any) => e instanceof errors.SternError && e.status === 400 && /symlink/.test(e.message));
+  assert.equal(fs.existsSync(path.join(outside, "x.md")), false, "nothing written outside");
+  fs.unlinkSync(link);
+});
+
+test("stern-cli rejects zone-less due dates and accepts date-only and offset forms", async () => {
+  await setup();
+  const bad = cli(["add-task", "--source", "imessage", "--json", JSON.stringify({ title: "Zone-less due", due_at: "2026-09-05T17:00" })]);
+  assert.equal(bad.code, 1); assert.equal(bad.json?.ok, false);
+  const day = cli(["add-task", "--source", "imessage", "--json", JSON.stringify({ title: "Date-only due", due_at: "2026-09-05", dedupe_key: "test:date-only-cli" })]);
+  assert.equal(day.code, 0, JSON.stringify(day.json));
+  const offset = cli(["add-task", "--source", "imessage", "--json", JSON.stringify({ title: "Offset due", due_at: "2026-09-05T17:00:00-04:00", dedupe_key: "test:offset-cli" })]);
+  assert.equal(offset.code, 0, JSON.stringify(offset.json));
+});
+
+test("rules pass creates to_request coffee chats with no Google account connected and the LLM off", async () => {
+  const { getDb } = await setup();
+  const prev = process.env.STERN_LLM_MODE; process.env.STERN_LLM_MODE = "off";
+  try {
+    const recruiting = await import("@/lib/stern/recruiting");
+    const people = await import("@/lib/stern/people");
+    const { runRulesPass } = await import("@/lib/stern/rules-pass");
+    recruiting.seedClubCatalog();
+    const club = getDb().prepare("SELECT id FROM stern_clubs WHERE name LIKE 'Strategic Venture%' LIMIT 1").get() as { id: number };
+    recruiting.setInterested(club.id, true);
+    const { person } = people.createPerson({ name: "Rules Pass Person", org: "Strategic Venture Society", email: "rules.pass@example.com" });
+    people.addAffiliation(person.id, { clubId: club.id, club_id: club.id, role: "VP", isEboard: true, is_eboard: 1, relevantForRecruiting: true, relevant_for_recruiting: 1 });
+    people.setStatus(person.id, "need_to_reach_out");
+    assert.equal((getDb().prepare("SELECT COUNT(*) n FROM google_accounts").get() as any).n, 0, "no Google account connected");
+    const result = await runRulesPass();
+    assert.equal(result.drafts, 0, "no drafts without an LLM");
+    assert.equal((getDb().prepare("SELECT COUNT(*) n FROM coffee_chats WHERE person_id = ? AND state = 'to_request'").get(person.id) as any).n, 1);
+  } finally { if (prev === undefined) delete process.env.STERN_LLM_MODE; else process.env.STERN_LLM_MODE = prev; }
+});

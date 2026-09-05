@@ -22,6 +22,7 @@
 // Output: exactly one JSON object on stdout ({ ok:true, ... } or { ok:false, error }).
 // Exit codes: 0 ok · 1 write/validation error · 2 usage error. Migration chatter goes to stderr.
 import fs from "node:fs";
+import { validDate } from "@/lib/stern/time";
 
 // Everything DB-backed is imported lazily inside main() so `console.log` can be routed to
 // stderr first: db/index.ts logs migrations with console.log and stdout must stay pure JSON.
@@ -88,7 +89,7 @@ const normalize = (s: string): string => s.toLowerCase().replace(/[^a-z0-9\s]+/g
 const isoOrEmpty = (v: unknown, label: string): string => {
   const s = str(v, 40);
   if (!s) return "";
-  if (Number.isNaN(Date.parse(s))) throw new Error(`${label} must be an ISO date`);
+  if (!validDate(s)) throw new Error(`${label} must be YYYY-MM-DD or an ISO datetime with a timezone offset, for example 2026-09-05T17:00:00-04:00`);
   return s;
 };
 

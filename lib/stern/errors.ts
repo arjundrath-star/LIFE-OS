@@ -17,5 +17,7 @@ export function notFound(message: string): SternError {
 /** Normalize any thrown value into { status, message } for a route response. */
 export function toErrorResponse(error: unknown, fallback = "Stern request failed"): { status: number; message: string } {
   if (error instanceof SternError) return { status: error.status, message: error.message };
-  return { status: 500, message: error instanceof Error ? error.message : fallback };
+  // Unknown errors can carry file paths or SQL text; log them server-side and answer generically.
+  console.error("[stern] unexpected error:", error instanceof Error ? error.stack || error.message : String(error));
+  return { status: 500, message: fallback };
 }

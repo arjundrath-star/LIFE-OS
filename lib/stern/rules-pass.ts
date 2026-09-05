@@ -6,7 +6,8 @@ import { isConnectionEnabled } from "@/lib/connections/enabled";
 import { llmMode } from "./llm";
 import type { CoffeeChat } from "@/lib/stern-types";
 export async function runRulesPass(options: { now?: Date; audit?: AuditMeta } = {}) {
-  if (llmMode() === "off" || llmMode() === "live" && !isConnectionEnabled("stern-llm-codex")) return { drafts: 0, errors: [] as string[] };
+  // The SQL-only rules always run (they need no LLM and no Gmail); only draft generation is gated.
+  const draftsEnabled = !(llmMode() === "off" || llmMode() === "live" && !isConnectionEnabled("stern-llm-codex"));
   const audit = options.audit || { batchId: newBatchId("rules"), source: "agent" }, db = getDb(), now = (options.now || new Date()).getTime();
   const result = { drafts: 0, errors: [] as string[] };
   // Headers can prove a reply was sent even when its short body has no classifiable intent.
@@ -22,7 +23,7 @@ export async function runRulesPass(options: { now?: Date; audit?: AuditMeta } = 
   for (const chat of chats) {
     const age = chat.requested_at ? (now - Date.parse(chat.requested_at)) / 86400000 : 0;
     const kind = chat.state === "to_request" ? "request" : chat.state === "done" ? "thank_you" : chat.reply_needs_me ? "reply_scheduling" : (chat.state === "requested" || chat.state === "no_reply") && !chat.reply_at && age > 3 ? "follow_up" : null;
-    if (kind) {
+    if (kind && draftsEnabled) {
       try { if (await ensureDraft(chat.id, kind, audit)) result.drafts++; }
       catch (error) { result.errors.push(error instanceof Error ? error.message : "Draft generation failed"); }
     }

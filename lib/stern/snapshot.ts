@@ -38,7 +38,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     people: count("SELECT COUNT(*) n FROM people WHERE archived = 0"),
     clubsInterested: count("SELECT COUNT(*) n FROM stern_clubs WHERE interested = 1 AND status <> 'archived'"),
     coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE state = 'to_request' OR (state = 'reply_received' AND reply_needs_me = 1)"),
-    replyOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE reply_needs_me = 1 AND state NOT IN ('done','thank_you_sent','declined','no_reply')"),
+    replyOwed: count("SELECT COUNT(*) n FROM coffee_chats ch JOIN people p ON p.id = ch.person_id AND p.archived = 0 WHERE ch.reply_needs_me = 1 AND ch.state NOT IN ('done','thank_you_sent','declined','no_reply')"),
     deadlines14d: count(
       `SELECT COUNT(*) n FROM stern_programs WHERE status IN ('open','drafting','not_open') AND ${between("app_deadline_at")}`,
       ...dayWindowParams(today, in14)

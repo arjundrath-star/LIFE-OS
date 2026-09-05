@@ -1,3 +1,4 @@
+import { refreshContact } from "./people";
 import { getDb, nowIso } from "@/db";
 import { CHAT_TRANSITIONS, COFFEE_CHAT_LABELS, type CoffeeChat, type CoffeeChatState, type RecruitingClub, type RecruitingProgram, type TouchpointKind } from "@/lib/stern-types";
 import { SternError } from "./errors";
@@ -60,9 +61,9 @@ export function transition(chatId: number, next: CoffeeChatState, options: ChatT
       WHERE person_id = ? AND gmail_account = ? AND gmail_message_id = ? AND kind = ?`)
       .get(chat.person_id, audit.gmailAccount || "", messageId, kind);
     // Reclassification of the same reply still changes chat state, but keeps the shared evidence.
-    if (!existingTouchpoint) insert("touchpoint", { person_id: chat.person_id, kind, occurred_at: at, source,
+    if (!existingTouchpoint) { insert("touchpoint", { person_id: chat.person_id, kind, occurred_at: at, source,
       gmail_account: audit.gmailAccount || "", gmail_message_id: messageId,
-      summary: `Coffee chat: ${COFFEE_CHAT_LABELS[next]}`, detail: JSON.stringify({ coffee_chat_id: chatId, club_id: chat.club_id, from: chat.state, to: next }) }, audit);
+      summary: `Coffee chat: ${COFFEE_CHAT_LABELS[next]}`, detail: JSON.stringify({ coffee_chat_id: chatId, club_id: chat.club_id, from: chat.state, to: next }) }, audit); refreshContact(chat.person_id, audit); }
     if (retry) {
       fields.last_follow_up_at = at;
       fields.follow_up_count = (db.prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id = ? AND kind = 'follow_up_sent' AND json_valid(detail) AND json_extract(detail, '$.coffee_chat_id') = ?").get(chat.person_id, chatId) as { n: number }).n;

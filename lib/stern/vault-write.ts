@@ -74,6 +74,11 @@ export function upsertNote(relPath: string, frontmatter: Record<string, Frontmat
   if (!vaultExists) return { written: false, reason: `vault root missing: ${vault}` };
   fs.mkdirSync(path.dirname(full), { recursive: true });
   if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });
+  // String checks cannot see symlinks: confirm the real directories stay inside <vault>/Stern/.
+  const inside = (dir: string, base: string) => dir === base || dir.startsWith(base + path.sep);
+  const realVault = fs.realpathSync(vault), realRoot = fs.realpathSync(root), realDir = fs.realpathSync(path.dirname(full));
+  if (!inside(realRoot, realVault) || !inside(realDir, realRoot)) throw new SternError(400, "vault path escapes Stern/ (symlink)");
+  try { if (fs.lstatSync(full).isSymbolicLink()) throw new SternError(400, "vault note path is a symlink"); } catch (e) { if (e instanceof SternError) throw e; }
   const content = renderNote(frontmatter, body);
   const tmp = `${full}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, content, "utf8");

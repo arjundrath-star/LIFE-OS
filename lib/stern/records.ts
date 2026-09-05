@@ -43,8 +43,9 @@ export function patch<T>(entity: AuditEntityType, id: number, values: Values, m:
   if (!changed.length) return before as T;
   if ('updated_at' in before) changed.push(['updated_at', nowIso()]);
   for (const [field, after] of changed) {
-    getDb().prepare(`UPDATE ${entityTable(entity)} SET ${field}=? WHERE id=?`).run(after, id);
+    // logChange validates the column name before it reaches the UPDATE.
     logChange({ ...m, entityType: entity, entityId: id, action: 'update', field, before: before[field], after });
+    getDb().prepare(`UPDATE ${entityTable(entity)} SET ${field}=? WHERE id=?`).run(after, id);
   }
   return row<T>(entity, id);
 }

@@ -134,7 +134,13 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
 }
 export function upsertCalendar(fields: Row & { account: string; event_id: string }, audit: AuditMeta) {
   const existing = getDb().prepare("SELECT id FROM stern_calendar_events WHERE account=? AND event_id=?").get(fields.account, fields.event_id) as { id: number } | undefined;
-  if (existing) { patch("calendar_event", existing.id, fields, audit); return existing.id; }
+  if (existing) {
+    // synced_at is bookkeeping: write it plainly so a 5-minute sync never adds audit rows.
+    const { synced_at, ...domain } = fields;
+    patch("calendar_event", existing.id, domain, audit);
+    if (synced_at !== undefined) getDb().prepare("UPDATE stern_calendar_events SET synced_at=? WHERE id=?").run(synced_at, existing.id);
+    return existing.id;
+  }
   return insert("calendar_event", fields, audit);
 }
 function executeEffects(effects: Effect[], message: SternEmailMessage, audit: AuditMeta): CalendarIntent[] {

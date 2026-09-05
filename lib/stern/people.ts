@@ -227,7 +227,7 @@ export function updateAffiliation(id: number, input: Input, options: WriteOption
   });
 }
 export function removeAffiliation(id: number, options: WriteOptions = {}) { return peopleWrite(() => remove("affiliation", id, meta(options))); }
-function refreshContact(id: number, m: AuditMeta) {
+export function refreshContact(id: number, m: AuditMeta) {
   const latest = getDb().prepare("SELECT occurred_at FROM people_touchpoints WHERE person_id = ? ORDER BY julianday(occurred_at) DESC, id DESC LIMIT 1").get(id) as { occurred_at: string } | undefined;
   patchRow("person", id, { last_contact_at: latest?.occurred_at || "", updated_at: nowIso() }, m);
 }
@@ -235,7 +235,10 @@ export function addTouchpoint(personId: number, kind: unknown, input: Input = {}
   return peopleWrite(() => {
     object(input); personRow(personId);
     const source = enumValue(input.source ?? "manual", TOUCHPOINT_SOURCES, "touchpoint source");
-    const external = source === "gmail";
+    // Server-side automation (Gmail scan, calendar sync) supplies the reference that the UNIQUE
+    // guard dedupes on, so repeated syncs never duplicate rows. Manual and iMessage captures never
+    // carry evidence refs (a browser cannot spoof Gmail evidence) and get a local id instead.
+    const external = source === "gmail" || source === "calendar";
     const gmailAccount = external ? text(input.gmailAccount ?? input.gmail_account) : "";
     const gmailMessageId = external ? text(input.gmailMessageId ?? input.gmail_message_id) : "";
     const m = meta({ ...options, source: options.source || (source === "gmail" ? "auto_email" : source === "calendar" ? "auto_calendar" : source), gmailAccount, gmailMessageId });

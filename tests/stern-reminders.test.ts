@@ -431,7 +431,7 @@ test("delivered and partially delivered memos protect their rows and daily marke
   assert.throws(() => audit.undoBatch(partial.batchId), { status: 409 });
   const replay = await memo.tickMemo(new Date("2026-09-08T12:01:00Z"), { runner: forbidden });
   assert.equal(replay.skipped, true); assert.equal(replay.reason, "already-attempted");
-  assert.deepEqual(replay.deliveries?.map(d => d.delivery_status), ["sent", "failed"]);
+  assert.deepEqual((replay as { deliveries?: { delivery_status: string }[] }).deliveries?.map((d) => d.delivery_status), ["sent", "failed"]);
 });
 
 test("snoozing beyond the original daily window still dispatches open items and skips completed ones", async () => {
