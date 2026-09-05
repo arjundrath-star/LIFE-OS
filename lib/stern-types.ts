@@ -197,6 +197,7 @@ export type SternSnapshot = {
     assignmentsDueSoon: number; // within 7 days
   };
   automation: {
+    connections: SternConnectionCard[];
     lastScanAt: string;        // '' until the first Gmail scan
     lastCalendarSyncAt: string;
     accountsScanned: number;
@@ -215,6 +216,7 @@ export type SternSnapshot = {
   tasks: TasksSnapshot;
   classes: ClassesSnapshot;
   needsYou: SternNeed[];
+  needsYouTotal: number;
   schedule: SternScheduleItem[];
   today: string;
   autoAppliedToday: SternAuditRow[];
@@ -382,8 +384,8 @@ export type SternMemo = { date: string; subject: string; imessage: string; email
 export type SternNeed = { key:string; kind:'reply'|'thank_you'|'draft'|'suggestion'; title:string; at:string; href:string; actionLabel:string };
 export type SternScheduleItem = {key:string;title:string;startAt:string;location:string;kind:string;href:string;prepHref:string};
 export type SternSearchResult = {id:number;kind:'person'|'club'|'task';label:string;detail:string;href:string};
-export type SternAuditRow = {id:number;entity_type:string;entity_id:number;action:string;field:string;before_value:string;after_value:string;source:string;confidence:number;evidence_type:string;gmail_account:string;gmail_message_id:string;evidence_excerpt:string;batch_id:string;undone_at:string;undo_of:number;created_at:string};
-export type SternSuggestion = {id:number;suggestion_type:string;evidence_subject:string;evidence_excerpt:string;confidence:number;state:string;proposed_data:string;gmail_account:string;gmail_message_id:string};
+export type SternAuditRow = {entity_label?:string;id:number;entity_type:string;entity_id:number;action:string;field:string;before_value:string;after_value:string;source:string;confidence:number;evidence_type:string;gmail_account:string;gmail_message_id:string;evidence_excerpt:string;batch_id:string;undone_at:string;undo_of:number;created_at:string};
+export type SternSuggestion = {summary:string;created_at:string;evidence_type:string;entity_type:string;entity_id:number;id:number;suggestion_type:string;evidence_subject:string;evidence_excerpt:string;confidence:number;state:string;proposed_data:string;gmail_account:string;gmail_message_id:string};
 export type SternDraft = {id:number;person_id:number;kind:DraftKind;subject:string;body:string;state:DraftState;to_email:string;updated_at:string};
 export type SternScanState = {account:string;last_checked:string;last_error:string;messages_seen:number};
 export type SternConnectionCard = {id:string;label:string;state:string;detail:string;account:string;scopes:string[];lastScan:string;reconnectHref:string};

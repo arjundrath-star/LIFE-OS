@@ -5,6 +5,7 @@
 // Rules: entity tables are enumerated explicitly (never trust a caller's table name);
 // field names are validated against PRAGMA table_info before they reach SQL; undo runs
 // in one IMMEDIATE transaction so a second process (stern-cli) cannot interleave.
+import { labelAuditRows } from "./display";
 import { thresholds } from "./notification-settings";
 import crypto from "node:crypto";
 import { writePersonNote } from "./people-note";
@@ -380,11 +381,11 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
 }
 
 /** Live tail of the audit log (newest N, returned oldest-first for rendering). */
-export function auditTail(limit = 50): AuditRow[] {
+export function auditTail(limit = 50): (AuditRow & {entity_label:string})[] {
   const n = Math.max(1, Math.min(500, Math.floor(limit)));
   const rows = getDb().prepare("SELECT * FROM stern_audit_log WHERE entity_type<>'email_message' ORDER BY id DESC LIMIT ?").all(n) as AuditRow[];
   rows.reverse();
-  return rows;
+  return labelAuditRows(rows);
 }
 
 export function auditForEntity(entityType: AuditEntityType | string, entityId: number, limit = 100): AuditRow[] {

@@ -53,3 +53,9 @@ test('Google reconnect forwards a valid login_hint without changing the Stern sc
  authorized=true;const ok=await request('student@stern.nyu.edu');assert.equal(ok.status,307);assert.equal(options.loginHint,'student@stern.nyu.edu');assert.equal(options.scopeSet,'stern');assert.ok(ok.headers.get('set-cookie')?.includes('rw_g_state'));
  await request('invalid\nheader');assert.equal(options.loginHint,undefined);
 });
+test('shared deadline label keeps date keys and late-night instants on the same New York date',async()=>{
+ const {dateLabel}=await import('@/components/stern/recruiting/Controls');
+ assert.equal(dateLabel('2026-09-13T03:59:00Z'),'Sep 12');
+ assert.equal(dateLabel('2026-09-12'),'Sep 12');
+ assert.equal(dateLabel('2026-12-13T04:59:00Z'),'Dec 12');
+});

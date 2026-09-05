@@ -28,7 +28,6 @@ import {
 import { STERN_ROUTES, activeSternRoute, sternPageTitle } from "@/lib/stern-workspace";
 import type { SternSnapshot } from "@/lib/stern-types";
 import { useConnStatus, useLiveData } from "@/hooks/useLiveData";
-import { useApi } from "@/hooks/useApi";
 import { timeAgo } from "@/lib/time";
 
 import { QuickAddSheet } from "@/components/stern/network/QuickAddSheet";
@@ -64,16 +63,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 function SyncStatus() {
-  const { data: initial } = useApi<SternSnapshot>("/api/stern");
-  const snapshot = useLiveData<SternSnapshot>("stern") || initial;
+  const snapshot = useLiveData<SternSnapshot>("stern");
   const conn = useConnStatus();
   const lastError = snapshot?.automation?.lastError || "";
   const state = conn === "open" ? (snapshot ? (lastError ? "warn" : "ok") : "warn") : conn === "connecting" ? "warn" : "error";
   const lastScan = snapshot?.automation?.lastScanAt || "";
   const text =
-    conn === "closed" ? "Live updates offline" : lastError ? "Scan error" : lastScan ? `Last scan ${timeAgo(lastScan)}` : "No scan yet";
+    conn === "closed" ? "Live updates offline" : !snapshot ? "Connecting live updates" : lastError ? "Scan error" : lastScan ? `Last scan ${timeAgo(lastScan)}` : "No scan yet";
   return (
-    <span className="stern-sync" data-testid="stern-sync" data-state={state} title={lastError ? `Last scan error: ${lastError}` : `WebSocket ${conn}`}>
+    <span className="stern-sync" data-testid="stern-sync" data-state={state} title={lastError ? `Last scan error: ${lastError}` : text}>
       <i aria-hidden="true" />
       <span className="stern-mono">{text}</span>
     </span>
@@ -86,9 +84,8 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
     return () => document.body.classList.remove("stern-theme");
   }, []);
   const pathname = usePathname();
-  const { data: initialSnapshot } = useApi<SternSnapshot>("/api/stern");
   const liveSnapshot = useLiveData<SternSnapshot>("stern");
-  const networkCount = (liveSnapshot || initialSnapshot)?.network.counts.needToReachOut || 0;
+  const networkCount = liveSnapshot?.network.counts.needToReachOut || 0;
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState(false);

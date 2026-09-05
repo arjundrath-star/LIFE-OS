@@ -1,7 +1,8 @@
 // Stern live snapshot: the payload behind GET /api/stern and the "stern" WebSocket channel.
 // Built with SQL only. WP0 fills the counts and automation block; later packages fill the
 // per-area pieces (they stay empty arrays until then, never fake data). Server-only.
-import { todaySchedule, needsYou } from './overview';
+import { labelAuditRows } from './display';
+import { todaySchedule, needsYou, needsYouTotal } from './overview';
 import type { SternAuditRow } from '@/lib/stern-types';
 import { tasksSnapshot } from "./tasks";
 import { classesSnapshot } from "./classes";
@@ -37,8 +38,8 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   const counts: SternSnapshot["counts"] = {
     people: count("SELECT COUNT(*) n FROM people WHERE archived = 0"),
     clubsInterested: count("SELECT COUNT(*) n FROM stern_clubs WHERE interested = 1 AND status <> 'archived'"),
-    coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE state = 'to_request' OR (state = 'reply_received' AND reply_needs_me = 1)"),
-    replyOwed: count("SELECT COUNT(*) n FROM coffee_chats ch JOIN people p ON p.id = ch.person_id AND p.archived = 0 WHERE ch.reply_needs_me = 1 AND ch.state NOT IN ('done','thank_you_sent','declined','no_reply')"),
+    coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND (state = 'to_request' OR (state = 'reply_received' AND reply_needs_me = 1))"),
+    replyOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND reply_needs_me = 1 AND state NOT IN ('done','thank_you_sent','declined','no_reply')"),
     deadlines14d: count(
       `SELECT COUNT(*) n FROM stern_programs WHERE status IN ('open','drafting','not_open') AND ${between("app_deadline_at")}`,
       ...dayWindowParams(today, in14)
@@ -84,9 +85,10 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     tasks: tasksSnapshot(now),
     classes: classesSnapshot(now),
     needsYou: needsYou(),
+    needsYouTotal: needsYouTotal(),
     schedule: todaySchedule(now),
     today: today.dateKey,
-    autoAppliedToday,
+    autoAppliedToday: labelAuditRows(autoAppliedToday),
     reminders: { lastMemoAt: scalar<string>(`SELECT MAX(sent_at) v FROM stern_reminders WHERE rule_key = 'memo' AND delivery_status = 'sent' AND sent_at <> '' AND ${between("sent_at")}`, ...dayWindowParams(today, today)) || "" },
   };
 }

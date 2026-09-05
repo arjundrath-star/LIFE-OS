@@ -17,12 +17,12 @@ function ProcessTimeline({ snapshot }: { snapshot: RecruitingSnapshot }) {
     <div className="stern-process-axis" data-testid="stern-timeline-windows">
       <div className="stern-today-marker" style={{ left: `${position(snapshot.today)}%` }}><span>Today · {dateLabel(snapshot.today)}</span></div>
       {snapshot.windows.map(w => <div key={w.track} className="stern-process-lane">
-        <div className={`stern-application-window ${w.track}`} style={{ left: `${position(w.applications_open)}%`, width: `${Math.max(1,position(w.applications_close)-position(w.applications_open))}%` }} title={`${statusLabel(w.track)} applications: ${dateLabel(w.applications_open)}–${dateLabel(w.applications_close)}`} />
+        <div className={`stern-application-window ${w.track}`} style={{ left: `${position(w.applications_open)}%`, width: `${Math.max(1,position(w.applications_close)-position(w.applications_open))}%` }} title={`${statusLabel(w.track)} applications: ${dateLabel(w.applications_open)} to ${dateLabel(w.applications_close)}`} />
         <div className="stern-interview-window" style={{ left: `${position(w.interviews_start)}%`, width: `${Math.max(.5,position(w.interviews_end)-position(w.interviews_start))}%` }}/>
         <div className="stern-decision-marker" style={{ left: `${position(w.decisions)}%` }} title={`Decision ${dateLabel(w.decisions)}`}/>
       </div>)}
     </div>
-    <div className="stern-window-legend" data-testid="stern-window-legend">{snapshot.windows.map(w => <div key={w.track}><strong>{statusLabel(w.track)}</strong><span>Applications <time className="stern-mono">{dateLabel(w.applications_open)}–{dateLabel(w.applications_close)}</time></span><span>Interviews <time className="stern-mono">{dateLabel(w.interviews_start)}–{dateLabel(w.interviews_end)}</time></span><span>Decision <time className="stern-mono">{dateLabel(w.decisions)}</time></span></div>)}</div>
+    <div className="stern-window-legend" data-testid="stern-window-legend">{snapshot.windows.map(w => <div key={w.track}><strong>{statusLabel(w.track)}</strong><span>Applications <time className="stern-mono">{dateLabel(w.applications_open)} to {dateLabel(w.applications_close)}</time></span><span>Interviews <time className="stern-mono">{dateLabel(w.interviews_start)} to {dateLabel(w.interviews_end)}</time></span><span>Decision <time className="stern-mono">{dateLabel(w.decisions)}</time></span></div>)}</div>
   </section>;
 }
 export function RecruitingBoard() {

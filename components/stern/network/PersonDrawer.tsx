@@ -48,7 +48,7 @@ export function PersonDrawer({ id, clubs, onClose, onChange }: Props) {
     {loading && !person ? <SkeletonRows rows={8} /> : person ? <>
       <div className="stern-person-summary">
         <p>{[person.year, person.major].filter(Boolean).join(" · ") || "Year and major not added"}</p>
-        <p>Met {person.met_event || (person.how_met ? HOW_MET_LABELS[person.how_met] : "—")} · <span className="stern-mono">{person.met_at ? new Date(person.met_at).toLocaleDateString() : "Date not added"}</span></p>
+        <p>Met {person.met_event || (person.how_met ? HOW_MET_LABELS[person.how_met] : "Not recorded")} · <span className="stern-mono">{person.met_at ? new Date(person.met_at).toLocaleDateString() : "Date not added"}</span></p>
         <div className="stern-network-inline"><StatusChip value={person.relationship_type} className="stern-network-relationship" />{person.relationship_type !== "friend" && <button className="stern-network-text-button" disabled={busy} data-testid="stern-person-upgrade-friend" onClick={() => void mutate({ action: "person.upgrade_friend", id })}>Upgrade to Friend</button>}<span data-testid="stern-person-strength" aria-disabled={busy} className={busy ? "stern-network-disabled" : ""}><StrengthDots value={person.strength} editable onChange={strength => void mutate({ action: "person.set_relationship", id, relationshipType: person.relationship_type, strength })} /></span></div>
       </div>
       <div className="stern-person-body">

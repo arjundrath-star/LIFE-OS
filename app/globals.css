@@ -856,7 +856,7 @@ textarea:focus-visible,
 .stern-schedule-row { display:grid; grid-template-columns:80px minmax(0,1fr) 100px auto; align-items:center; gap:12px; padding:12px 16px; min-height:44px; border-bottom:1px solid var(--stern-border); }
 .stern-schedule-row time { font-size:12px; }
 .stern-schedule-row small { font-size:12px; }
-.stern-need-row { display:flex; gap:12px; align-items:center; padding:12px 16px; min-height:48px; border-bottom:1px solid var(--stern-border); }
+.stern-need-row { display:grid; grid-template-columns:8px minmax(0,1fr) 64px auto; gap:12px; align-items:center; padding:12px 16px; min-height:48px; border-bottom:1px solid var(--stern-border); }
 .stern-need-row > span { flex:1; min-width:0; }
 .stern-need-row > i { width:8px; height:8px; flex:none; border-radius:50%; background:var(--stern-warn); }
 .stern-need-row > i[data-kind="thank_you"] { background:var(--stern-error); }
@@ -910,3 +910,19 @@ textarea:focus-visible,
 @media(max-width:700px) { .stern-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } }
 .stern-component-grid .stern-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .stern-mode :is(.stern-input,.stern-textarea)::placeholder { color:var(--stern-text-faint); opacity:1; }
+
+.stern-need-row > time { font-size:11px; }
+@media(max-width:700px) { .stern-need-row { grid-template-columns:8px minmax(0,1fr) auto; gap:6px 12px; } .stern-need-row > time { grid-column:2; grid-row:2; } .stern-need-row > a { grid-column:3; grid-row:1 / span 2; } }
+@media(max-width:639px) { .stern-sync { display:flex; } .stern-sync > span { display:none; } }
+
+.stern-mode :is(.stern-person-row,.stern-assignment-row)[data-selected="true"] { background:var(--stern-accent-soft); }
+.stern-mode :is(.stern-person-row,.stern-assignment-row):is(:hover,[data-hovered="true"]) { background:var(--stern-surface-2); }
+.stern-mode .stern-btn.small { height:28px; min-height:28px; }
+.stern-mode .stern-preview-focus { outline:2px solid var(--stern-accent); outline-offset:2px; }
+.stern-mode .stern-input[aria-invalid="true"] { border-color:var(--stern-error); }
+.stern-preview-control { display:inline-flex; gap:8px; align-items:center; }
+.stern-preview-dot { width:8px; height:8px; border-radius:50%; }
+.stern-preview-switch { width:36px; height:20px; border-radius:12px; background:var(--stern-off); padding:3px; }
+.stern-preview-switch[data-state="checked"] { background:var(--stern-accent); }
+.stern-preview-switch > span { display:block; width:14px; height:14px; border-radius:50%; background:var(--stern-surface); }
+.stern-preview-switch[data-state="checked"] > span { transform:translateX(16px); }
