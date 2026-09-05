@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implemented the Codex portion of WP5 on `stern/wp5`: audited, idempotent reminders; safe notification transports; a deterministic morning memo; minute scheduler ticks; and authenticated Automation API actions. Hermes profile/capture, Photon setup, operator messaging, and the one real phone test belong to the orchestrator under the run's explicit scope restriction.
+Implemented and completed the review fix round for the Codex portion of WP5 on `stern/wp5`: audited, idempotent reminders; safe notification transports; a deterministic morning memo; minute scheduler ticks; and authenticated Automation API actions. Hermes profile/capture, Photon setup, operator messaging, and the one real phone test belong to the orchestrator under the run's explicit scope restriction.
 
 No production checkout, deployment, real notification, or external write was used. Commands inherited the isolated WP5 DB; domain tests created disposable fixture databases. No schema migration was added.
 
@@ -117,8 +117,8 @@ Completion event output:
 5. Rule evaluation catches up within each applicable local day, avoiding a backlog of obsolete deadline alerts on startup. Reply reminders use the newest due four-hour slot. Thank-you reminders have a normal 20-hour phase and urgent 22-hour phase; an unsent normal phase becomes obsolete after escalation. Submission/completion, changed dates, replies, and sent follow-ups suppress stale reminders before sending. A booked interview remains eligible while its program is not-open/open/drafting/submitted/interview-invited; application submission does not suppress a scheduled interview.
 6. The daily memo uses two durable channel rows, so overlapping scheduler/API/CLI calls cannot duplicate email or iMessage. `stern.memo_last_date` is set only after both channels succeed. A dry-run does not consume the live memo. The automatic memo catches up during the 08:00 hour only; an explicit `memo.send_now` still respects daily idempotency. Explicit manual send/test actions send immediately; scheduled reminder delivery observes quiet hours.
 7. Used the deterministic memo template without optional LLM polish. It works with `STERN_LLM_MODE=off` and never spawns Codex. Course meetings and cached calendar data are combined; linked chats/interviews and matching class events avoid schedule duplicates. Auto-applied yesterday is SQL `COUNT(DISTINCT batch_id)` of non-undone source batches.
-8. Settings API uses an object keyed by full kv names. The user-editable keys are `stern.hermes_alias`, `stern.imessage_target`, `stern.memo_email`, `stern.quiet_hours_start`, and `stern.quiet_hours_end`. `stern.memo_last_date` is managed internally. Empty iMessage target means delivery is not configured; no real phone target was added to code or fixtures.
-9. Database undo restores state, not messages already delivered outside SQLite. Undo refuses a delivery claim during its two-minute bounded transport window; after that, an interrupted claim is explicitly undoable through the audit API after reviewing provider delivery. Undo refuses to delete a reminder with newer changes until those newer batches are undone first. One scheduler tick uses one audit batch across both evaluation and dispatch.
+8. Settings API uses an object keyed by full kv names. The user-editable keys are `stern.hermes_alias`, `stern.imessage_target`, `stern.memo_email`, `stern.quiet_hours_start`, `stern.quiet_hours_end`, `stern.threshold_auto`, and `stern.threshold_suggest`. Threshold values are decimal strings in [0,1], with suggest <= auto validated against the stored pair under an IMMEDIATE transaction; defaults remain 0.85/0.60. `stern.memo_last_date` is managed internally. Empty iMessage target means delivery is not configured; no real phone target was added to code or fixtures.
+9. Database undo restores state. It refuses any reminder with sent status or a nonempty sent_at, including partial delivery, and refuses removing a memo date marker with delivered channel rows. This preserves delivery dedupe. Undo refuses a delivery claim during its two-minute bounded transport window; after that, an interrupted claim is explicitly undoable through the audit API after reviewing provider delivery. Undo refuses to delete a reminder with newer changes until those newer batches are undone first. One scheduler tick uses one audit batch across both evaluation and dispatch.
 10. The provided gate necessarily writes its own shared build log/lock; all source edits remain inside this worktree. No server was booted and no service was restarted.
 
 ## Known gaps
@@ -141,3 +141,112 @@ Completion event output:
 {"action":"memo.send_now","dryRun":true}
 {"action":"settings.update","settings":{"stern.quiet_hours_start":"23:00","stern.quiet_hours_end":"07:00"}}
 ```
+
+
+## Fix round
+
+Merged `feature/stern-tab` first on `stern/wp5` (fast-forward from `ecd2070` to `dc0668b`). Implementation and regression tests are committed as `dfb6de2` (`fix(stern): harden reminder delivery and configurable thresholds`). All source edits stayed in this worktree; commands used the isolated WP5 DB or disposable fixture DBs. No schema change, network delivery, Hermes profile change, deployment, push, or production checkout access was performed.
+
+### Summary and acceptance evidence
+
+Duplicate review findings are grouped below. Every confirmed code finding (0 through 12) is addressed.
+
+| Finding | Files changed and behavior | Regression evidence |
+| --- | --- | --- |
+| 0: house punctuation | `lib/stern/memo.ts:17`, `lib/stern/reminders.ts:23`, `lib/stern/reminder-store.ts:7`, `lib/stern/notify.ts:24`: replace template separators and normalize source-supplied em/en dashes at queue and transport boundaries | `tests/stern-reminders.test.ts:44`: after every test, assert all reminder subject/body text has no banned dashes; memo fixture and source punctuation tests at lines 183 and 348 |
+| 1, 10, 12: thresholds | `lib/stern-types.ts:373`, `lib/stern/notification-settings.ts:28`, `lib/stern/notification-settings.ts:61`, `lib/stern/apply.ts:218`: expose both keys, validate finite decimal values and merged pair atomically, and read settings for classification | `tests/stern-reminders.test.ts:315`: bounds, invalid numbers, atomic rollback, defaults, snapshot fields, and live ignored/suggested/auto-applied transitions; API checks at line 255 |
+| 2, 9: date-only interviews | `lib/stern/time.ts:58`, `lib/stern/memo.ts:35`, `lib/stern/reminders.ts:40`: one local-date helper for dates and instants | `tests/stern-reminders.test.ts:348`: absent on previous day, present as All day on actual date in email/iMessage; reminder agreement |
+| 3, 6: de-listed clubs | `lib/stern/reminders.ts:16`: interested filter shared by evaluation, relevance checks, and memo interview selection | `tests/stern-reminders.test.ts:362`: setInterested(true), queue deadline/interview rows, setInterested(false), skip all queued rows without delivery or new inserts |
+| 4, 5, 11: Hermes grammar | `lib/stern-types.ts:370`, `lib/stern/notification-settings.ts:33`, `lib/stern/notify.ts:43`: shared strict alias/Photon grammars at settings and transport boundaries; empty target remains unconfigured | `tests/stern-reminders.test.ts:374`: flags, spaces, invalid shapes, malformed stored target/alias, and 400 API responses; valid target used in argv transport test |
+| 7: delivered undo | `lib/stern/audit.ts:200`: preflight entire batch before reversing fields; reject sent/partially sent rows and delivered memo date markers with 409 | `tests/stern-reminders.test.ts:395`, `:411`: no row loss or requeue; whole tick batch and partial memo remain deduped; standalone date marker also protected |
+| 8: manual snooze expiry | `lib/stern/reminders.ts:134`: clear only the envelope expiry under the same transaction; retain fingerprint and entity relevance checks | `tests/stern-reminders.test.ts:437`: next-day snooze delivers open deadline/task/suggestion items in dry-run and skips a completed task |
+
+### Additional low findings addressed
+
+- `lib/stern/reminders.ts:140`: snooze collisions return a descriptive 409 before a SQLite UNIQUE violation; regression at `tests/stern-reminders.test.ts:450`.
+- `lib/stern/memo.ts:72`: terminal memo channel rows return already-attempted before rebuilding; only actual claims make skipped false, and returned delivery rows are refreshed. Partial-failure regression at `tests/stern-reminders.test.ts:411`.
+- `lib/stern/notify.ts:45`: aliases execute only from `/home/Arjun/.local/bin`, including fallback, rather than arbitrary PATH commands. Transport tests assert absolute wrapper paths and literal argv.
+- `lib/stern/email-send.ts:10`: each call constructs a fresh environment with PATH, HOME, and LANG; only gws adds GOOGLE_WORKSPACE_CLI_CONFIG_DIR. The injected-runner test asserts the complete environment key set.
+- `.gitignore:59`: ignore the complete reminder scratch directory, including SQLite sidecars left by an interrupted test.
+- `lib/stern/notify.ts:35`: dashboard channel becomes skipped with dashboard-channel-not-implemented and empty sent_at, never sent; regression at `tests/stern-reminders.test.ts:450`.
+- `server/scheduler.ts:292`: reminder and memo ticks broadcast only after relevant changes or an attempted memo.
+- `lib/stern/audit.ts:328`: threshold undo also validates the resulting pair and rolls back with 409 if newer settings would leave suggest > auto; regression at `tests/stern-reminders.test.ts:462`.
+
+### How verified
+
+Focused verification after all behavioral changes:
+
+```text
+$ npm run typecheck
+> tsc --noEmit
+# exit 0
+
+$ npm run test:stern-reminders
+1..28
+# tests 28
+# pass 28
+# fail 0
+# skipped 0
+
+$ STERN_NOTIFY_DRY_RUN=1 STERN_LLM_MODE=off STERN_VAULT_WRITE=0 npm run stern:memo -- --dry-run
+# exit 0; full output retained only in ignored .stern-memo-fix-preview.log
+Memo dry-run: both versions printed; <=8 iMessage lines; required footer; no em/en dashes.
+
+$ git diff --check
+# exit 0
+```
+
+Final mechanical gate on the committed code:
+
+```text
+$ STERN_NOTIFY_DRY_RUN=1 STERN_LLM_MODE=off STERN_VAULT_WRITE=0 bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp5 /home/Arjun/stern-build/db/wp5.db wp5
+=== typecheck (20260905T035535Z) ===
+--- typecheck rc=0
+=== tests (20260905T035540Z) ===
+# tests 313
+# pass 313
+# fail 0
+# skipped 0
+--- tests rc=0
+=== migrate-1 (20260905T035624Z) ===
+[db] migrations up to date at /home/Arjun/stern-build/db/wp5.db
+--- migrate-1 rc=0
+=== migrate-2 (20260905T035624Z) ===
+[db] migrations up to date at /home/Arjun/stern-build/db/wp5.db
+--- migrate-2 rc=0
+=== build (20260905T035625Z) ===
+ ✓ Compiled successfully in 18.8s
+--- build rc=0
+GATE wp5 result=PASS log=/home/Arjun/stern-build/logs/gate-wp5-20260905T035535Z.log
+```
+
+The first standalone typecheck found Next's required NODE_ENV type augmentation incompatible with a deliberately minimal child environment. The runner now types its environment as a string map and adapts it at the Node boundary; no extra environment variable was added. Subsequent typecheck and the gate both passed.
+
+SQLite-only lifecycle events in the isolated WP5 DB:
+
+```json
+{"eventId":6022,"run":"stern-wp5-fix-20260905","agent":"rathworkspace-platform-developer","status":"running"}
+{"eventId":6023,"run":"stern-wp5-fix-20260905","agent":"rathworkspace-platform-developer","status":"completed"}
+```
+
+### Decisions made
+
+1. Use the documented Photon project/thread/phone grammar, with a synthetic reserved example number only in tests. Empty target means unconfigured; no real recipient or fallback target was written to kv. Alias validation permits lowercase letters, digits, and hyphens, capped at 64 characters, and resolution is confined to the local wrapper directory.
+2. De-listing suppresses both program deadline and interview reminders. This matches the explicit final review instruction and the canonical interested-club scope. Cached calendar events remain schedule sources.
+3. Refuse undo of externally delivered notifications with 409 instead of deleting them or pretending delivery can be reversed. Unsent/dry-run reminders remain undoable. Protect partial deliveries through nonempty sent_at.
+4. Manual snooze means explicit delivery at the chosen later time, even beyond the original daily expiry. Preserve status and fingerprint checks so completed, rescheduled, or de-listed items still cancel.
+5. Keep confidence thresholds in WP5 as explicitly directed. Validation occurs inside the writer lock; classification reads current values on each call. Undo cannot create an invalid pair.
+6. Leave full reminder envelopes in the existing API/live tail for WP6 compatibility. The optional body-truncation suggestion needs a coordinated per-reminder detail contract; adding that contract is deferred. Idle broadcasts are removed now.
+
+### Known gaps
+
+- Fable's Hermes profile/capture skill, private fallback configuration, Photon steps email, and real phone test remain outside Codex's authorized tree and no-network build scope. This run does not claim that acceptance checkbox is complete.
+- The optional 280-character live-tail body projection remains deferred; the 100-row tail still contains full memo envelopes on actual broadcasts.
+- Real provider acceptance is unverified. All tests exercising the enabled transport use injected runners; the CLI and gate use notification dry-run.
+
+### Follow-ups for the orchestrator
+
+1. Merge the fix commit and this report from `stern/wp5` after review. No push or deployment was performed.
+2. WP6 can read and edit `stern.threshold_auto` and `stern.threshold_suggest` through the existing Automation settings payload; submit decimal strings. Show 409 conflicts for delivered reminder/memo undo and conflicting snoozes.
+3. Complete the previously assigned Fable work and validate the production wrapper under its minimal environment before enabling notifications.
+4. Coordinate a truncated reminder summary plus an authenticated detail reader with WP6 if payload size warrants it.
