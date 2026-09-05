@@ -84,9 +84,19 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   };
 }
 
-/** Rebuild the snapshot and push it on the "stern" channel. Routes call this after every mutation. */
-export function broadcastStern(): SternSnapshot {
+/**
+ * Rebuild the snapshot and push it on the "stern" channel. Routes call this after every mutation
+ * and the scheduler every 15 s. Unchanged snapshots are not re-sent (updatedAt is ignored for the
+ * comparison), so clients keyed on the live payload only react to real changes, never to the tick.
+ * Pass { force: true } to send regardless (a reconnecting client gets hub.latest anyway).
+ */
+export function broadcastStern(options: { force?: boolean } = {}): SternSnapshot {
   const snapshot = sternSnapshot();
+  const g = globalThis as { __stern_last_broadcast_key?: string };
+  // Any nested updatedAt (recruiting and network sections stamp their own) is ignored too.
+  const key = JSON.stringify(snapshot, (k, v) => (k === "updatedAt" ? undefined : v));
+  if (!options.force && g.__stern_last_broadcast_key === key) return snapshot;
+  g.__stern_last_broadcast_key = key;
   getHub().broadcast("stern", snapshot);
   return snapshot;
 }

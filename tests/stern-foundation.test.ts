@@ -321,3 +321,35 @@ test("date-only due dates count as due today, not overdue, in the New York day",
   assert.equal(after.tasksOverdue - before.tasksOverdue, 1, "only yesterday's date-only task is overdue");
   db.prepare("DELETE FROM stern_tasks WHERE dedupe_key LIKE 'test:%'").run();
 });
+
+test("broadcastStern sends the stern channel only when the snapshot changed", async () => {
+  const { getDb } = await setup();
+  const { broadcastStern, sternSnapshot } = await import("@/lib/stern/snapshot");
+  const { getHub } = await import("@/server/live");
+  const strip = (v: unknown) => JSON.stringify(v, (k, x) => (k === "updatedAt" ? undefined : x));
+  const k1 = strip(sternSnapshot());
+  const k2 = strip(sternSnapshot());
+  if (k1 !== k2) {
+    let i = 0;
+    while (i < k1.length && k1[i] === k2[i]) i++;
+    assert.fail(`snapshot differs between consecutive calls near: ${k1.slice(Math.max(0, i - 150), i + 60)} || ${k2.slice(Math.max(0, i - 150), i + 60)}`);
+  }
+  const hub = getHub();
+  const sent: string[] = [];
+  const original = hub.broadcast;
+  hub.broadcast = (channel: string, payload: unknown) => { sent.push(channel); original.call(hub, channel, payload); };
+  try {
+    broadcastStern({ force: true });
+    broadcastStern();
+    broadcastStern();
+    assert.equal(sent.filter((c) => c === "stern").length, 1, "unchanged snapshots are not re-sent");
+    const probe = Number(getDb().prepare("INSERT INTO people (dedupe_key, display_name) VALUES ('name:broadcast probe person:placeholder', 'Broadcast Probe Person')").run().lastInsertRowid);
+    broadcastStern();
+    assert.equal(sent.filter((c) => c === "stern").length, 2, "a real change is sent");
+    getDb().prepare("DELETE FROM people WHERE id = ?").run(probe);
+    broadcastStern();
+    assert.equal(sent.filter((c) => c === "stern").length, 3);
+  } finally {
+    hub.broadcast = original;
+  }
+});
