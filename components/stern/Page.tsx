@@ -112,6 +112,7 @@ export function StrengthDots({
             role="radio"
             aria-checked={n === current}
             aria-label={`${n} of 5`}
+            data-testid={`stern-strength-${n}`}
             onClick={() => onChange(n)}
           >
             <i className={n <= current ? "on" : ""} />

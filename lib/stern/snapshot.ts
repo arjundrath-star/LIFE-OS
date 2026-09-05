@@ -1,6 +1,7 @@
 // Stern live snapshot: the payload behind GET /api/stern and the "stern" WebSocket channel.
 // Built with SQL only. WP0 fills the counts and automation block; later packages fill the
 // per-area pieces (they stay empty arrays until then, never fake data). Server-only.
+import { networkSnapshot } from "./people";
 import { getDb, nowIso } from "@/db";
 import { getHub } from "@/server/live";
 import { STERN_TIMEZONE, type SternSnapshot } from "@/lib/stern-types";
@@ -130,7 +131,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     counts,
     automation,
     recruiting: { process: null, clubs: [], deadlines },
-    network: { recent: [] },
+    network: networkSnapshot(),
     tasks: { dueToday: [], overdue: [] },
     classes: { nextMeeting: null, dueSoon: [] },
     needsYou: [],

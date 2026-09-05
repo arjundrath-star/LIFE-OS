@@ -3,7 +3,7 @@
 // search, Quick add, sync status, and account. Mirrors BusinessShell; theme is the
 // .stern-mode scope in app/globals.css.
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -28,6 +28,8 @@ import { STERN_ROUTES, activeSternRoute, sternPageTitle } from "@/lib/stern-work
 import type { SternSnapshot } from "@/lib/stern-types";
 import { useConnStatus, useLiveData } from "@/hooks/useLiveData";
 import { timeAgo } from "@/lib/time";
+
+import { QuickAddSheet } from "@/components/stern/network/QuickAddSheet";
 
 const ICONS: Record<(typeof STERN_ROUTES)[number]["key"], LucideIcon> = {
   overview: LayoutDashboard,
@@ -216,6 +218,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
           </div>
         </header>
         <main className="stern-main">{children}</main>
+        <Suspense fallback={null}><QuickAddSheet /></Suspense>
       </div>
     </div>
   );

@@ -106,6 +106,7 @@ async function main() {
   const [{ getDb, nowIso }, types, audit] = await Promise.all([import("@/db"), import("@/lib/stern-types"), import("@/lib/stern/audit")]);
   console.log = realLog;
   const { SternError } = await import("@/lib/stern/errors");
+  const people = await import("@/lib/stern/people");
   const db: Db = getDb();
   const auditSource = source; // imessage -> imessage, agent -> agent, manual -> manual (all valid AUDIT_SOURCES)
   const personSource = source === "manual" ? "manual" : "imessage"; // people.source has no 'agent'
@@ -137,21 +138,6 @@ async function main() {
     let row: any = db.prepare("SELECT id, name FROM stern_clubs WHERE slug = ? OR lower(name) = ? OR (short_name <> '' AND lower(short_name) = ?) ORDER BY interested DESC, id LIMIT 1").get(slug, key, key);
     if (!row) row = db.prepare("SELECT id, name FROM stern_clubs WHERE name LIKE ? ORDER BY interested DESC, id LIMIT 1").get(`%${s}%`);
     return row || null;
-  };
-
-  const touchLastContact = (personId: number, occurredAt: string) => {
-    db.prepare("UPDATE people SET last_contact_at = CASE WHEN last_contact_at = '' OR last_contact_at < ? THEN ? ELSE last_contact_at END, updated_at = ? WHERE id = ?").run(occurredAt, occurredAt, nowIso(), personId);
-  };
-
-  const insertTouchpoint = (personId: number, kind: string, occurredAt: string, summary: string, detail: string): number => {
-    if (!(types.TOUCHPOINT_KINDS as readonly string[]).includes(kind)) throw new SternError(400, `invalid touchpoint kind: ${kind}`);
-    const result = db
-      .prepare("INSERT INTO people_touchpoints (person_id, kind, occurred_at, source, summary, detail) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(personId, kind, occurredAt, touchpointSource, summary.slice(0, 500), detail.slice(0, 5000));
-    const id = Number(result.lastInsertRowid);
-    audit.logCreate("touchpoint", id, { person_id: personId, kind, occurred_at: occurredAt, source: touchpointSource, summary }, meta);
-    touchLastContact(personId, occurredAt);
-    return id;
   };
 
   let output: Record<string, unknown>;
@@ -200,54 +186,15 @@ async function main() {
       notes: str(input.notes, 20000),
     };
 
-    const tx = db.transaction(() => {
-      const existing = db.prepare("SELECT * FROM people WHERE dedupe_key = ?").get(dedupeKey) as any;
-      let id: number;
-      let created = false;
-      const ts = nowIso();
-      if (existing) {
-        id = existing.id;
-        const updates: Record<string, string | number> = {};
-        for (const [key, value] of Object.entries(fields)) {
-          if (key === "strength" || key === "sphere" || key === "relationship_type" || key === "met_at") continue; // defaults, never "blank"
-          if ((existing[key] === "" || existing[key] === null) && value !== "") updates[key] = value;
-        }
-        if (needToReachOut && existing.status !== "need_to_reach_out") updates.status = "need_to_reach_out";
-        if (Object.keys(updates).length) {
-          for (const [key, value] of Object.entries(updates)) {
-            audit.logChange({ ...meta, entityType: "person", entityId: id, action: "update", field: key, before: existing[key], after: value });
-          }
-          const sets = Object.keys(updates).map((k) => `${k} = @${k}`).join(", ");
-          db.prepare(`UPDATE people SET ${sets}, updated_at = @updated_at WHERE id = @id`).run({ ...updates, updated_at: ts, id });
-        }
-      } else {
-        created = true;
-        const row = { ...fields, dedupe_key: dedupeKey, status: needToReachOut ? "need_to_reach_out" : "met", source: personSource, created_at: ts, updated_at: ts };
-        const cols = Object.keys(row);
-        const result = db.prepare(`INSERT INTO people (${cols.join(", ")}) VALUES (${cols.map((c) => `@${c}`).join(", ")})`).run(row);
-        id = Number(result.lastInsertRowid);
-        audit.logCreate("person", id, { id, ...row }, meta);
-      }
-      let affiliationId = 0;
-      if (club || org) {
-        const affOrg = club ? club.name : org;
-        const result = db
-          .prepare("INSERT OR IGNORE INTO people_affiliations (person_id, club_id, org, role, is_eboard, relevant_for_recruiting) VALUES (?, ?, ?, ?, ?, ?)")
-          .run(id, club?.id ?? 0, affOrg, str(input.role, 120), bool(input.is_eboard) ? 1 : 0, club ? 1 : 0);
-        if (result.changes > 0) {
-          affiliationId = Number(result.lastInsertRowid);
-          audit.logCreate("affiliation", affiliationId, { person_id: id, club_id: club?.id ?? 0, org: affOrg, role: str(input.role, 120), is_eboard: bool(input.is_eboard) ? 1 : 0 }, meta);
-        }
-      }
-      let touchpointId = 0;
+    const result = people.peopleWrite(() => {
+      const created = people.createPerson({ ...fields, source: personSource, status: needToReachOut ? "need_to_reach_out" : "met" }, meta);
+      const id = created.person.id;
+      if (needToReachOut && created.person.status !== "need_to_reach_out") people.setStatus(id, "need_to_reach_out", meta);
+      const affiliationId = club || org ? people.addAffiliation(id, { clubId: club?.id || 0, org, role: input.role, isEboard: bool(input.is_eboard), relevantForRecruiting: !!club }, meta).id : 0;
       const hasMet = db.prepare("SELECT id FROM people_touchpoints WHERE person_id = ? AND kind = 'met' LIMIT 1").get(id);
-      if (!hasMet) {
-        const summary = fields.met_event ? `Met at ${fields.met_event}` : "Met";
-        touchpointId = insertTouchpoint(id, "met", metAt, summary, "");
-      }
-      return { id, created, affiliationId, touchpointId };
+      const touchpointId = hasMet ? 0 : people.addTouchpoint(id, "met", { occurredAt: metAt, source: touchpointSource, summary: fields.met_event ? `Met at ${fields.met_event}` : "Met" }, meta).id;
+      return { id, created: created.created, affiliationId, touchpointId };
     });
-    const result = tx.immediate();
     output = { ok: true, ...result, batchId, displayName: display, dedupeKey, clubResolved: !!club, clubName: club?.name ?? "", status: db.prepare("SELECT status FROM people WHERE id = ?").pluck().get(result.id) };
   } else if (command === "add-task") {
     const input = payloadFrom(flags);
@@ -282,8 +229,7 @@ async function main() {
     const occurredAt = isoOrEmpty(input.occurred_at, "occurred_at") || nowIso();
     const summary = str(input.summary, 500);
     if (!summary) throw new SternError(400, "summary is required");
-    const tx = db.transaction(() => insertTouchpoint(person.id, kind, occurredAt, summary, str(input.detail, 5000)));
-    const id = tx.immediate();
+    const id = people.addTouchpoint(person.id, kind, { occurredAt, summary, detail: str(input.detail, 5000), source: touchpointSource }, meta).id;
     output = { ok: true, id, created: true, batchId, personId: person.id, personName: person.display_name, kind };
   } else {
     // set-person-status
@@ -291,15 +237,10 @@ async function main() {
     const person = resolvePerson(input.person);
     const status = str(input.status, 40);
     if (!(types.PERSON_STATUSES as readonly string[]).includes(status)) throw new SternError(400, `invalid status: ${status}`);
-    const tx = db.transaction(() => {
-      const before = db.prepare("SELECT status FROM people WHERE id = ?").pluck().get(person.id) as string;
-      if (before !== status) {
-        audit.logChange({ ...meta, entityType: "person", entityId: person.id, action: "update", field: "status", before, after: status });
-        db.prepare("UPDATE people SET status = ?, updated_at = ? WHERE id = ?").run(status, nowIso(), person.id);
-      }
-      return { before, changed: before !== status };
-    });
-    output = { ok: true, id: person.id, personName: person.display_name, status, ...tx.immediate(), batchId };
+    const before = db.prepare("SELECT status FROM people WHERE id = ?").pluck().get(person.id) as string;
+    people.setStatus(person.id, status, meta);
+    const result = { before, changed: before !== status };
+    output = { ok: true, id: person.id, personName: person.display_name, status, ...result, batchId };
   }
 
   process.stdout.write(JSON.stringify(output) + "\n");

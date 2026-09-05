@@ -1,0 +1,4 @@
+[
+  { "display_name": "Example Student", "email": "student@example.test", "org": "Example Club", "relationship_type": "club_connect", "strength": 3, "notes": "Interested in the exploratory program." },
+  { "display_name": "Sample Mentor", "org": "Example Organization", "relationship_type": "mentor", "sphere": "professional", "email": "mentor@example.test" }
+]

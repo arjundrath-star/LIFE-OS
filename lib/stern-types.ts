@@ -204,7 +204,7 @@ export type SternSnapshot = {
     llmMode: string;           // STERN_LLM_MODE or 'live'
   };
   recruiting: { process: Record<string, unknown> | null; clubs: unknown[]; deadlines: unknown[] };
-  network: { recent: unknown[] };
+  network: NetworkSnapshot;
   tasks: { dueToday: unknown[]; overdue: unknown[] };
   classes: { nextMeeting: Record<string, unknown> | null; dueSoon: unknown[] };
   needsYou: unknown[];
@@ -245,3 +245,24 @@ export function statusLabel(value: string | null | undefined): string {
 export function statusTone(value: string | null | undefined): StatusTone {
   return (value && STATUS_TONES[value]) || "neutral";
 }
+
+// Network rows shared by API responses and client components.
+export type Person = {
+  id: number; dedupe_key: string; first_name: string; last_name: string; display_name: string;
+  year: string; major: string; org: string; title: string; sphere: Sphere;
+  relationship_type: RelationshipType; strength: number; status: PersonStatus; how_met: HowMet | "";
+  met_at: string; met_event: string; email: string; email_alt: string; phone: string;
+  instagram: string; linkedin: string; hometown: string; dorm: string; last_contact_at: string;
+  next_action: string; next_action_at: string; notes: string; source: PersonSource; archived: number;
+  created_at: string; updated_at: string;
+};
+export type Affiliation = { id: number; person_id: number; club_id: number; org: string; role: string; is_eboard: number; relevant_for_recruiting: number; created_at: string; club_name?: string };
+export type Touchpoint = { id: number; person_id: number; kind: TouchpointKind; occurred_at: string; source: TouchpointSource; gmail_account: string; gmail_message_id: string; summary: string; detail: string };
+export type PersonDetail = Person & {
+  affiliations: Affiliation[]; touchpoints: Touchpoint[];
+  coffeeChats: { id: number; state: CoffeeChatState; requested_at: string; scheduled_at: string; occurred_at: string; thank_you_sent_at: string; location: string; takeaways: string }[];
+  drafts: { id: number; kind: DraftKind; subject: string; body: string; state: DraftState; gmail_account: string; gmail_draft_id: string }[];
+};
+export type PeopleFilters = { q?: string; relationshipType?: string[]; strengthMin?: number; status?: string[]; clubId?: number; sphere?: string; followUpOwed?: boolean; archived?: boolean; sort?: "name" | "recent" | "strength" | "last_contact"; page?: number };
+export type NetworkSnapshot = { counts: { total: number; byRelationshipType: Record<RelationshipType, number>; followUpsOwed: number; needToReachOut: number }; recent: Person[] };
+export type NetworkResponse = NetworkSnapshot & { people: (Person & { affiliations: Affiliation[] })[]; total: number; page: number; pageSize: number; clubs: { id: number; name: string; short_name: string }[] };

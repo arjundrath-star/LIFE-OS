@@ -502,3 +502,88 @@ textarea:focus-visible,
   .stern-rail { transition: none; }
   .stern-skeleton i { animation: none; }
 }
+
+/* WP2 Network: design handoff screens 04, 05, and 11. */
+.stern-mode .stern-network-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.stern-mode .stern-network-filters .stern-select { width:auto; max-width:230px; min-height:28px; font-size:12px; }
+.stern-mode .stern-network-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.stern-mode .stern-network-chips button { border:1px solid var(--stern-border); border-radius:999px; padding:4px 10px; font-size:12px; background:var(--stern-surface); }
+.stern-mode .stern-network-chips button.active { color:var(--stern-accent); background:var(--stern-accent-soft); border-color:var(--stern-accent-soft); }
+.stern-mode .stern-network-search { display:flex; align-items:center; gap:6px; margin-left:auto; }
+.stern-mode .stern-network-search input { width:220px; min-height:28px; background:var(--stern-surface-2); }
+.stern-mode .stern-network-table-wrap { border:1px solid var(--stern-border); border-radius:12px; overflow:auto; background:var(--stern-surface); box-shadow:var(--stern-shadow); }
+.stern-mode .stern-network-table { width:100%; min-width:1080px; border-collapse:collapse; text-align:left; font-size:13px; }
+.stern-mode .stern-network-table th { height:36px; font-size:12px; font-weight:500; color:var(--stern-text-muted); background:var(--stern-surface-2); white-space:nowrap; }
+.stern-mode .stern-network-table th, .stern-mode .stern-network-table td { padding:5px 12px; border-bottom:1px solid var(--stern-border); }
+.stern-mode .stern-network-table tbody tr { height:40px; cursor:pointer; }
+.stern-mode .stern-network-table tbody tr:hover { background:var(--stern-accent-soft); }
+.stern-mode .stern-network-person-link { display:flex; align-items:center; gap:8px; font-weight:500; text-align:left; min-width:145px; }
+.stern-mode .stern-network-initials { display:inline-flex; width:24px; height:24px; flex:none; align-items:center; justify-content:center; border-radius:50%; background:var(--stern-accent-soft); color:var(--stern-accent); font-size:10px; }
+.stern-mode .stern-network-affiliation { display:flex; flex-direction:column; min-width:165px; }
+.stern-mode .stern-network-affiliation small { color:var(--stern-text-muted); font-size:11px; }
+.stern-mode .stern-network-eboard { display:inline-block; padding:1px 5px; border-radius:4px; font-size:10px; background:var(--stern-accent-soft); color:var(--stern-accent); white-space:nowrap; }
+.stern-mode .stern-network-relationship, .stern-mode .stern-network-affiliation-chip { background:var(--stern-accent-soft); color:var(--stern-accent); border-radius:999px; padding:3px 8px; font-size:12px; }
+.stern-mode .stern-network-relationship > i { display:none; }
+.stern-mode .stern-network-contact-icons { display:flex; gap:10px; }
+.stern-mode .stern-network-pagination { display:flex; justify-content:space-between; align-items:center; padding:6px 16px; font-size:12px; color:var(--stern-text-muted); }
+.stern-mode .stern-network-scrim { position:fixed; inset:0; background:rgba(20,20,31,.32); z-index:70; }
+.stern-mode .stern-network-dialog { position:fixed; z-index:71; display:flex; flex-direction:column; background:var(--stern-surface); color:var(--stern-text); box-shadow:0 8px 24px rgba(20,20,31,.12); }
+.stern-mode .stern-person-panel { width:440px; max-width:100vw; top:0; right:0; height:100dvh; border-left:1px solid var(--stern-border); }
+.stern-mode .stern-network-dialog-title { display:flex; flex:none; justify-content:space-between; align-items:center; gap:10px; padding:20px 24px 8px; font-size:20px; font-weight:600; }
+.stern-mode .stern-person-summary { padding:0 24px 16px; border-bottom:1px solid var(--stern-border); }
+.stern-mode .stern-person-summary p { color:var(--stern-text-muted); font-size:13px; margin:4px 0 10px; }
+.stern-mode .stern-network-inline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.stern-mode .stern-network-inline > .stern-input { flex:1; min-width:150px; }
+.stern-mode .stern-network-text-button { color:var(--stern-accent); font-size:12px; font-weight:500; }
+.stern-mode .stern-person-body { overflow:auto; flex:1; min-height:0; padding:16px 24px; display:flex; flex-direction:column; gap:20px; }
+.stern-mode .stern-person-body section > h3, .stern-mode .stern-network-section-heading h3 { font-size:12px; font-weight:600; color:var(--stern-text-muted); margin-bottom:8px; }
+.stern-mode .stern-network-section-heading { display:flex; justify-content:space-between; align-items:baseline; }
+.stern-mode .stern-person-contacts { display:flex; flex-direction:column; gap:8px; font-size:13px; }
+.stern-mode .stern-person-contacts > div { display:grid; grid-template-columns:75px minmax(0,1fr) 18px; gap:8px; align-items:center; }
+.stern-mode .stern-person-contacts span { overflow-wrap:anywhere; }
+.stern-mode .stern-person-contacts small { font-size:11px; color:var(--stern-text-muted); }
+.stern-mode .stern-person-contacts button:disabled { opacity:.25; }
+.stern-mode .stern-network-form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.stern-mode .stern-network-field { display:flex; flex-direction:column; gap:4px; min-width:0; font-size:12px; color:var(--stern-text-muted); }
+.stern-mode .stern-network-two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stern-mode .stern-network-toggle { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--stern-text-muted); }
+.stern-mode .stern-network-toggle input { appearance:none; width:32px; height:18px; border-radius:999px; background:var(--stern-off); cursor:pointer; flex:none; position:relative; }
+.stern-mode .stern-network-toggle input:after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:white; }
+.stern-mode .stern-network-toggle input:checked { background:var(--stern-accent); }
+.stern-mode .stern-network-toggle input:checked:after { left:16px; }
+.stern-mode .stern-person-affiliation { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.stern-mode .stern-network-muted { color:var(--stern-text-muted); font-size:12px; }
+.stern-mode .stern-network-notice { font-size:13px; padding:8px; background:var(--stern-surface-2); border-radius:8px; }
+.stern-mode .stern-person-coffee { padding:8px 0; font-size:13px; }
+.stern-mode .stern-person-coffee dl { display:grid; grid-template-columns:76px 1fr; gap:6px; margin-top:8px; }
+.stern-mode .stern-person-coffee dt { color:var(--stern-text-muted); }
+.stern-mode .stern-person-coffee dd { font-family:var(--stern-font-mono); font-size:12px; }
+.stern-mode .stern-person-drafts { padding:12px; margin-top:8px; background:var(--stern-surface-2); border:1px solid var(--stern-border); border-radius:8px; font-size:13px; }
+.stern-mode .stern-person-drafts article { display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
+.stern-mode .stern-person-drafts p { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5; }
+.stern-mode .stern-person-timeline { list-style:none; padding:0; font-size:13px; }
+.stern-mode .stern-person-timeline li { padding:8px 0 8px 12px; border-left:2px solid var(--stern-border); }
+.stern-mode .stern-person-timeline li > div { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.stern-mode .stern-person-timeline strong { font-weight:400; flex:1; }
+.stern-mode .stern-person-timeline time { font-size:11px; color:var(--stern-text-muted); }
+.stern-mode .stern-person-timeline p { margin-top:6px; color:var(--stern-text-muted); white-space:pre-wrap; }
+.stern-mode .stern-person-footer { display:flex; flex:none; gap:8px; padding:12px 24px; border-top:1px solid var(--stern-border); }
+.stern-mode .stern-network-disabled { pointer-events:none; opacity:.5; }
+.stern-mode .stern-add-sheet { top:50%; left:50%; transform:translate(-50%,-50%); width:520px; max-width:96vw; max-height:90dvh; border:1px solid var(--stern-border); border-radius:12px; }
+.stern-mode .stern-add-sheet .stern-network-dialog-title { font-size:16px; padding:12px 16px; }
+.stern-mode .stern-add-segments { display:grid; grid-template-columns:repeat(3,1fr); margin:0 16px 12px; padding:2px; background:var(--stern-surface-2); border:1px solid var(--stern-border); border-radius:8px; }
+.stern-mode .stern-add-segments button { height:30px; font-size:13px; color:var(--stern-text-muted); }
+.stern-mode .stern-add-segments button.active { background:var(--stern-surface); box-shadow:var(--stern-shadow); font-weight:600; color:var(--stern-text); border-radius:6px; }
+.stern-mode .stern-add-form { display:flex; flex-direction:column; min-height:0; }
+.stern-mode .stern-add-fields { display:flex; flex-direction:column; gap:10px; overflow:auto; padding:0 16px 16px; }
+.stern-mode .stern-add-form footer { flex:none; padding:12px 16px; border-top:1px solid var(--stern-border); }
+.stern-mode .stern-add-form footer button { width:100%; justify-content:center; }
+@media(max-width:639px) {
+  .stern-mode .stern-add-sheet { top:auto; left:0; right:0; bottom:calc(100dvh - var(--stern-viewport-height,100dvh) - var(--stern-viewport-top,0px)); transform:none; max-width:none; width:100%; max-height:calc(var(--stern-viewport-height,100dvh) - 12px); border-radius:12px 12px 0 0; }
+  .stern-mode .stern-add-fields input:not([type=checkbox]), .stern-mode .stern-add-fields select { min-height:44px; font-size:16px; }
+  .stern-mode .stern-add-fields .stern-network-toggle { min-height:44px; font-size:14px; }
+  .stern-mode .stern-add-form footer { padding-bottom:max(12px,env(safe-area-inset-bottom)); }
+  .stern-mode .stern-add-form footer button { height:44px; font-size:15px; }
+  .stern-mode .stern-network-filters { gap:8px; }
+  .stern-mode .stern-network-search { margin-left:0; }
+}
