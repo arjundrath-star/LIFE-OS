@@ -195,3 +195,77 @@ Merged `feature/stern-tab` into `stern/wp6` first (fast-forward to `c99eff4`, in
 ### Known gaps and follow-ups
 
 No provider scan, OAuth completion, outbound delivery, deployment, service restart, or push was performed. Browser verification uses Chromium with explicit mousedown default-prevention assertions; native macOS/iOS Safari remains a WP7 device check. Merge this fix round through the orchestrator's integration flow and retain WP7's connected-account checks.
+
+### Acceptance references
+
+| Finding | Code / evidence |
+| --- | --- |
+| A: zero warning counts | `components/stern/overview/Overview.tsx:23`; browser asserts neutral zero and warning positive value |
+| B: editable thresholds | `components/stern/automation/AutomationView.tsx:24`, `:42`; browser submits invalid pair, checks inline error, corrects auto threshold and saves |
+| 1/2: timestamp REST polling | `lib/stern/automation-snapshot.ts:13`, `lib/stern/automation-connections.ts:7`, `components/stern/automation/AutomationView.tsx:25`; browser counts one GET after three connections ticks and a changed live card |
+| 3: Home deadline date | `components/home/Home.tsx:280`; EDT and winter instant/date-only formatter tests |
+| 4: Task domains | `components/stern/automation/ComponentSheet.tsx:11`; browser checks Academic/Professional/Campus |
+| 5: audit names and statuses | `lib/stern/display.ts:17`, `lib/stern/audit.ts:370`, `components/stern/automation/shared.tsx:35`; DB tests cover person, program, course and deleted-entity fallback |
+| 6: search blur/click | `components/stern/Search.tsx:15`; browser asserts mousedown cancellation and follows the result deep link |
+| 7: suggestion proposal/evidence | `lib/stern/display.ts:31`, `components/stern/automation/AutomationView.tsx:38`; object and classifier-effect summaries tested |
+| 8: class dedupe | `lib/stern/overview.ts:16`; EDT schedule fixture includes a matching calendar class copy |
+| 9: obligation age/context | `components/stern/overview/Overview.tsx:26`, `app/globals.css:915`; desktop and phone captures |
+| 10: actual component states | `components/stern/recruiting/People.tsx:39`, `components/stern/classes/AssignmentRow.tsx:5`, `components/stern/automation/ComponentSheet.tsx:25`; browser asserts three PersonRows/four AssignmentRows |
+
+### How verified
+
+Implementation commits: `f268cd8`, `3a70f95`.
+
+The first focused run caught a test selecting a migration-seeded audit row instead of its fixture row; the assertion now selects its entity. The first full gate caught the program label separator written with SQL identifier quotes. All five failures had this same cause; it was fixed with a SQL string literal and explicit program/course label coverage. The first browser run caught a harness refocus step after Escape; the harness now blurs before refocusing and verifies the actual pointer activation path.
+
+Final focused suite:
+
+```text
+npx tsx --test tests/stern-overview.test.ts tests/stern-search.test.ts tests/stern-automation.test.ts tests/stern-recruiting.test.ts
+# tests 64
+# pass 64
+# fail 0
+# skipped 0
+```
+
+Updated screenshot list (the existing all-screen list above remains applicable):
+
+- Overview: [desktop](wp6-screenshots/01-overview-desktop.png), [phone](wp6-screenshots/12-overview-phone.png).
+- Automation: [proposal and connections](wp6-screenshots/10-automation.png), [audit and reminders](wp6-screenshots/10-automation-reminders.png), [settings](wp6-screenshots/settings.png), [inline threshold error](wp6-screenshots/settings-validation.png).
+- Component sheet: [controls and status dots](wp6-screenshots/13-component-sheet.png), [Task domains and PersonRows](wp6-screenshots/13-component-sheet-statuses.png), [coffee chat and AssignmentRow states](wp6-screenshots/13-component-sheet-rows.png).
+- All other previously listed application screens were recaptured by the same authenticated, external-request-blocked harness. The design export was not rendered.
+
+Final browser rerun:
+
+```text
+npm run e2e:stern-wp6
+screenshot settings-validation.png
+screenshot 13-component-sheet-rows.png
+screenshot overview-loading.png
+PASS: all 13 screens, real auth, live update, five cards, search, suggestion/settings/snooze actions, undo errors/skips, dialog Escape, dry-run notice, 4-column desktop / 2-column phone, empty/error/loading states; external requests blocked
+```
+
+Reviewed the refreshed desktop Overview, phone Overview, Automation, settings/validation, and component sheet captures. Thresholds and quiet-hour values use mono text; empty/warn colors, mobile row stacking and the phone sync dot are visible in the final captures.
+
+The combined browser-and-gate rerun terminated with exit 143 during tests, without a completed gate result. The browser phase had passed. Its unused disposable test directory was removed, and the mechanical gate was rerun as a standalone command.
+
+Final standalone mechanical gate:
+
+```text
+bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp6 /home/Arjun/stern-build/db/wp6.db wp6
+--- typecheck rc=0
+# tests 325
+# pass 325
+# fail 0
+# skipped 0
+--- tests rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp6.db
+--- migrate-1 rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp6.db
+--- migrate-2 rc=0
+✓ Compiled successfully in 14.3s
+--- build rc=0
+GATE wp6 result=PASS log=/home/Arjun/stern-build/logs/gate-wp6-20260905T043204Z.log
+```
+
+Fix-round acceptance: all review findings addressed, all thirteen screens verified, mechanical gate PASS, and changes committed on `stern/wp6`. Final handoff includes the refreshed screenshots and this report; no deployment or push is required for this work package.
