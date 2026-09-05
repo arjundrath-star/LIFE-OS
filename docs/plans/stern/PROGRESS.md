@@ -5,9 +5,9 @@ Single source of truth for resumption. The orchestrator updates this file after 
 | WP | Scope | Builder | Status | Branch | Gate | Merged | Email sent |
 |---|---|---|---|---|---|---|---|
 | 0 | Foundation: schema, shell, routes, CLI writer, docs | Fable | merged, reviewed, fixed | feature/stern-tab | PASS 19:39 EDT | 17378ee + fixes 84e5540 | WP0 email 19:51 EDT |
-| 1 | Club Recruiting | Codex | merged; fix round queued (1 high, 1 medium) | stern/wp1 | PASS 20:23 EDT (verify) | 553db61 | merged email 21:12 EDT |
-| 2 | Network | Codex | merged; fix round queued (7 medium) | stern/wp2 | PASS 20:20 EDT (verify) | a2cb6c3 | merged email 21:12 EDT |
-| 3 | Email and Calendar automation | Codex | in progress (Codex launched 21:10 EDT) | stern/wp3 | | | |
+| 1 | Club Recruiting | Codex | merged; fix round running (launched 22:53 EDT) | stern/wp1 | PASS 20:23 EDT (verify) | 553db61 | merged email 21:12 EDT |
+| 2 | Network | Codex | merged; fix round running (launched 23:00 EDT) | stern/wp2 | PASS 20:20 EDT (verify) | a2cb6c3 | merged email 21:12 EDT |
+| 3 | Email and Calendar automation | Codex | built; verify gate + review running | stern/wp3 | | | |
 | 4 | Tasks, Classes, Career | Codex | merged (review running) | stern/wp4 | PASS 22:58 EDT (verify, 232 tests) | merged 23:02 EDT | |
 | 5 | Reminders, Hermes profile, memo, capture | Fable + Codex | not started | stern/wp5 | | | |
 | 6 | Overview, Automation page, design conversion, polish | Codex | not started | stern/wp6 | | | |
@@ -37,3 +37,4 @@ Status values: not started, in progress, gate failed (n), gate passed, merged, b
 - 2026-09-04 21:42 EDT sweep: inbox folder unchanged (only stern-tab-design-v1.zip), no "Stern:" emails from Arjun, Codex WP3 and WP4 alive (branches at d69ef2c and 04653a0, verification phase), 4.4 GB available, load 0.25, no target behind.
 - 2026-09-04 22:47 EDT: CORRECTION. The Codex WP3/WP4 processes did die at 21:28 EDT with the harness memory kill; my liveness checks had matched my own monitor loops (their command lines contained the pgrep pattern) and the logs had been silent since 21:28. Relaunched both with codex-wp.sh <n> --resume --notes under setsid/nohup (detached from the tool's process tree); partial work on the branches is preserved (wp3 d69ef2c + uncommitted files, wp4 04653a0 + uncommitted). Liveness is now checked with an anchored pattern (^node .../codex exec) and exit detection watches for the 'codex WP<n> exit=' line the launcher appends to logs/wp<n>-codex.log.
 - 2026-09-04 23:02 EDT: Codex finished WP4 on resume (stern/wp4 60038cb; 3 commits; report docs/plans/stern/reports/WP4-report.md; tasks, classes with grade book, courses seed, 0031 legacy todos migration, Career under .stern-mode with a body.stern-theme fix for portaled dialogs). Verification gate PASS (232 tests). Merged into feature/stern-tab with no conflicts. Lean four-lens review running. WP1 fix round launched 22:53 EDT on the freed Codex slot; WP2 fix round waits for the next slot (WP3 still running).
+- 2026-09-04 23:00 EDT: Codex finished WP3 on resume (stern/wp3 ad35e02, 5 commits, gate PASS 238 tests on its side; report docs/plans/stern/reports/WP3-report.md with the complete auto-apply rule table). Verification gate and four-lens review launched (security emphasis on the email-to-Codex boundary). WP2 fix round launched on the freed slot. At the WP3 merge: swap WP3's temporary assignment/task helpers in lib/stern/apply.ts for WP4's lib/stern/classes.ts upsertAssignmentFromEmail and lib/stern/tasks.ts, then rerun tests/stern-automation.test.ts.
