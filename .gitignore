@@ -55,3 +55,5 @@ SESSION_PROGRESS.md
 .stern-network-e2e/
 .stern-wp4-test-*/
 .stern-wp4-e2e/
+
+.stern-reminders-test-*/

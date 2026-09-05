@@ -54,6 +54,11 @@ export function nyDateKey(now: Date | string | number = new Date()): string {
 }
 
 
+/** Date-only values already represent a local calendar day. */
+export function localDateKey(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : nyDateKey(value);
+}
+
 /** Calendar-date deadlines mean the end of that NY day; instants retain their offset. */
 export function deadlineInstant(value: string): number {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -62,7 +67,7 @@ export function deadlineInstant(value: string): number {
   return Date.parse(value);
 }
 export function deadlineDays(value: string, now: Date = new Date()): number {
-  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : nyDateKey(value);
+  const dateKey = localDateKey(value);
   return Math.round((Date.parse(`${dateKey}T00:00:00Z`) - Date.parse(`${nyDateKey(now)}T00:00:00Z`)) / 86400000);
 }
 export function validDate(value: string): boolean {

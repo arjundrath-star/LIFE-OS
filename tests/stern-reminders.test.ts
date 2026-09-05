@@ -41,6 +41,12 @@ test.beforeEach(() => {
   db.prepare("INSERT INTO people(id,display_name) VALUES(1,?)").run(fixture.person);
   calls.length = 0; process.env.STERN_NOTIFY_DRY_RUN = "1";
 });
+test.afterEach(() => {
+  for (const reminder of rows()) {
+    const message = store.reminderMessage(reminder);
+    assert.doesNotMatch(message.subject + message.body, /[\u2013\u2014]/);
+  }
+});
 test.after(() => { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); globalThis.fetch = originalFetch; });
 
 test("all deadline offsets, interview eve, task and daily suggestion rules are idempotent and audited", () => {
@@ -143,26 +149,27 @@ test("dry-run never invokes even an injected runner; environment is read at each
 
 test("real transport shape uses argv, MIME, bounded timeouts, and fallback only for ENOENT", async () => {
   process.env.STERN_NOTIFY_DRY_RUN = "0";
-  settings.updateNotificationSettings({ "stern.hermes_alias": "stern", "stern.imessage_target": "photon:fixture-target", "stern.memo_email": "sample@example.com" });
-  const injected: NotificationRunner = async (file, args, options) => { if (file === "stern") throw Object.assign(new Error("missing"), { code: "ENOENT" }); return runner(file, args, options); };
+  settings.updateNotificationSettings({ "stern.hermes_alias": "stern", "stern.imessage_target": "photon:fixture;-;+12025550100", "stern.memo_email": "sample@example.com" });
+  const injected: NotificationRunner = async (file, args, options) => { if (file === "/home/Arjun/.local/bin/stern") throw Object.assign(new Error("missing"), { code: "ENOENT" }); return runner(file, args, options); };
   const body = 'Literal $(touch unwanted) `command` "quote"\nSecond line';
   const result = await notify.send({ channel: "both", subject: "Subject", body, urgent: false }, { runner: injected, now });
   assert.equal(result.delivery_status, "sent"); assert.equal(result.error, "");
-  assert.deepEqual(calls.map(c => c.file), ["personal-trainer", "python3", "gws"]);
-  assert.deepEqual(calls[0].args, ["send", "-t", "photon:fixture-target", body]);
+  assert.deepEqual(calls.map(c => c.file), ["/home/Arjun/.local/bin/personal-trainer", "python3", "gws"]);
+  assert.deepEqual(calls[0].args, ["send", "-t", "photon:fixture;-;+12025550100", body]);
   assert.equal(calls[1].args[4], body); assert.match(calls[1].args[1], /EmailMessage/);
   assert.equal(calls[2].options.env.GOOGLE_WORKSPACE_CLI_CONFIG_DIR, "/home/Arjun/.config/gws-arjun");
   assert.deepEqual(JSON.parse(calls[2].args.at(-1)!), { raw: "bWltZQ==" });
   assert.ok(calls.every(c => c.options.timeout === 20_000));
+  for (const call of calls) assert.deepEqual(Object.keys(call.options.env).sort(), (call.file === "gws" ? ["PATH", "HOME", "LANG", "GOOGLE_WORKSPACE_CLI_CONFIG_DIR"] : ["PATH", "HOME", "LANG"]).sort());
   calls.length = 0;
-  const partial = await notify.send({ channel: "both", subject: "Timeout", body, urgent: false }, { now: new Date(now.getTime() + 1), runner: async (file, args, options) => { if (file === "stern") throw Object.assign(new Error("sensitive argv"), { killed: true }); return runner(file, args, options); } });
+  const partial = await notify.send({ channel: "both", subject: "Timeout", body, urgent: false }, { now: new Date(now.getTime() + 1), runner: async (file, args, options) => { if (file === "/home/Arjun/.local/bin/stern") throw Object.assign(new Error("sensitive argv"), { killed: true }); return runner(file, args, options); } });
   assert.equal(partial.delivery_status, "failed"); assert.match(partial.error, /email sent; imessage: timeout/); assert.ok(!partial.error.includes("sensitive"));
-  assert.ok(!calls.some(c => c.file === "personal-trainer"));
+  assert.ok(!calls.some(c => c.file === "/home/Arjun/.local/bin/personal-trainer"));
 });
 
 test("concurrent dispatchers claim once and failed sends do not automatically retry", async () => {
   process.env.STERN_NOTIFY_DRY_RUN = "0";
-  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture-target" });
+  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture;-;+12025550100" });
   add("claim", now.toISOString());
   await Promise.all([rules.dispatchDue(now, { runner }), rules.dispatchDue(now, { runner })]);
   assert.equal(calls.length, 1); assert.equal(rows()[0].delivery_status, "sent");
@@ -188,6 +195,7 @@ test("memo builds all sections from local fixtures and caps iMessage at eight li
   assert.ok(result.imessage.endsWith("Full memo in email."));
   assert.ok(!result.email.includes("|---"));
   assert.equal(memo.buildMemo(now).email, result.email);
+  assert.doesNotMatch(result.subject + result.email + result.imessage, /[\u2013\u2014]/);
 });
 
 test("memo dry-run preserves today's real send; daily marker and channels are idempotent", async () => {
@@ -195,7 +203,7 @@ test("memo dry-run preserves today's real send; daily marker and channels are id
   assert.equal(preview.skipped, false); assert.equal(rows().length, 2); assert.ok(rows().every(r => r.error === "dry-run"));
   assert.equal(db.prepare("SELECT v FROM kv WHERE k='stern.memo_last_date'").get(), undefined);
   process.env.STERN_NOTIFY_DRY_RUN = "0";
-  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture-target", "stern.memo_email": "sample@example.com" });
+  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture;-;+12025550100", "stern.memo_email": "sample@example.com" });
   await Promise.all([memo.sendMemo(now, { runner }), memo.sendMemo(now, { runner })]);
   assert.equal(calls.length, 3); assert.ok(rows().every(r => r.delivery_status === "sent"));
   assert.equal((db.prepare("SELECT v FROM kv WHERE k='stern.memo_last_date'").get() as { v: string }).v, '"2026-09-07"');
@@ -241,7 +249,7 @@ test("undo refuses an active delivery and preserves later delivery history", asy
   store.changeReminder(reminder.id, { delivery_status: "failed", error: "delivery-in-progress" });
   assert.throws(() => audit.undoBatch(createBatch.batch_id), /Delivery is in progress/);
   store.changeReminder(reminder.id, { delivery_status: "sent", error: "", sent_at: now.toISOString() });
-  assert.throws(() => audit.undoBatch(createBatch.batch_id), /later changes/);
+  assert.throws(() => audit.undoBatch(createBatch.batch_id), /Delivered reminders cannot be undone/);
 });
 
 test("Automation API gates WP5 actions, validates input, and broadcasts each mutation", async () => {
@@ -276,7 +284,11 @@ test("Automation API gates WP5 actions, validates input, and broadcasts each mut
   assert.equal((await post({ action: "reminder.send_test", channel: "shell" })).status, 400);
   assert.equal((await post({ action: "settings.update", settings: { "stern.memo_last_date": "2026-09-07" } })).status, 400);
   assert.equal((await post({ action: "reminder.snooze", id: 999999, until: new Date(Date.now() + 60_000).toISOString() })).status, 404);
-  assert.equal(broadcasts, 4);
+  for (const target of ["--help", "-t", "a b"]) assert.equal((await post({ action: "settings.update", settings: { "stern.imessage_target": target } })).status, 400);
+  assert.equal((await post({ action: "settings.update", settings: { "stern.threshold_auto": "1.2" } })).status, 400);
+  assert.equal((await post({ action: "settings.update", settings: { "stern.threshold_auto": "0.9" } })).status, 200);
+  assert.equal((await (await route.GET()).json()).notificationSettings["stern.threshold_auto"], "0.9");
+  assert.equal(broadcasts, 5);
 });
 
 test("a booked interview remains eligible on an open program; one tick shares an undoable batch", async () => {
@@ -298,4 +310,161 @@ test("an interrupted delivery claim remains explicitly undoable after its bounde
   db.prepare("UPDATE stern_audit_log SET created_at=? WHERE batch_id=?").run(new Date(Date.now() - 121_000).toISOString(), claim.batchId);
   assert.equal(audit.undoBatch(claim.batchId).skipped, 0);
   assert.equal(store.reminderRow(reminder.id).delivery_status, "pending");
+});
+
+test("threshold settings validate the stored pair atomically and drive classification decisions", async () => {
+  assert.deepEqual(settings.thresholds(), { auto: 0.85, suggest: 0.6 });
+  for (const value of ["1.2", "-0.1", "NaN", "Infinity", "", " ", "0x1"]) {
+    assert.throws(() => settings.updateNotificationSettings({ "stern.threshold_auto": value }), { status: 400 });
+  }
+  const changed = settings.updateNotificationSettings({ "stern.threshold_auto": "0.9", "stern.threshold_suggest": "0.8" });
+  const auditCount = n("SELECT COUNT(*) n FROM stern_audit_log");
+  assert.throws(() => settings.updateNotificationSettings({ "stern.threshold_auto": "0.7", "stern.memo_email": "other@example.com" }), { status: 400 });
+  assert.throws(() => settings.updateNotificationSettings({ "stern.threshold_suggest": "0.95" }), { status: 400 });
+  assert.equal(n("SELECT COUNT(*) n FROM stern_audit_log"), auditCount);
+  assert.deepEqual(settings.thresholds(), { auto: 0.9, suggest: 0.8 });
+  const details = (await import("@/lib/stern/automation-snapshot")).automationDetails();
+  assert.equal(details.notificationSettings["stern.threshold_auto"], "0.9");
+  audit.undoBatch(changed.batchId);
+  assert.deepEqual(settings.thresholds(), { auto: 0.85, suggest: 0.6 });
+  settings.updateNotificationSettings({ "stern.threshold_auto": "1", "stern.threshold_suggest": "0" });
+  assert.deepEqual(settings.thresholds(), { auto: 1, suggest: 0 });
+
+  const { applyClassification } = await import("@/lib/stern/apply");
+  const { expected } = (await import("./fixtures/stern/emails.json")).default[0];
+  const cls = { ...expected, confidence: 0.8 } as import("@/lib/stern-types").EmailClassification;
+  db.exec("INSERT INTO stern_programs(id,club_id,name) VALUES(1,1,'Threshold track'); DELETE FROM stern_email_messages; INSERT INTO stern_email_messages(id,gmail_message_id,direction) VALUES(1,'threshold-fixture','outbound')");
+  const message = db.prepare("SELECT * FROM stern_email_messages WHERE id=1").get() as import("@/lib/stern-types").SternEmailMessage;
+  const options = { dryRun: true, effects: [{ kind: "program_window" as const, programId: 1, fields: { requirements: "Fixture requirement" } }] };
+  settings.updateNotificationSettings({ "stern.threshold_auto": "0.9", "stern.threshold_suggest": "0.81" });
+  assert.equal((await applyClassification(message, cls, options)).applied, "ignored");
+  settings.updateNotificationSettings({ "stern.threshold_suggest": "0.8" });
+  assert.equal((await applyClassification(message, cls, options)).applied, "suggested");
+  settings.updateNotificationSettings({ "stern.threshold_auto": "0.8" });
+  assert.equal((await applyClassification(message, cls, options)).applied, "auto_applied");
+  assert.equal((db.prepare("SELECT requirements FROM stern_programs WHERE id=1").get() as { requirements: string }).requirements, "Fixture requirement");
+});
+
+test("date-only interviews appear on their local day, with no forbidden punctuation from source text", () => {
+  db.exec("INSERT INTO stern_programs(club_id,name,status,interview_at) VALUES(1,'Date-only track','interview_invited','2026-09-08')");
+  db.prepare("UPDATE stern_clubs SET name=? WHERE id=1").run("Fixture \u2014 club");
+  db.prepare("INSERT INTO stern_tasks(title,due_at) VALUES(?,'2026-09-08')").run("Fixture \u2013 task");
+  assert.doesNotMatch(memo.buildMemo(now).email, /All day Interview/);
+  assert.doesNotMatch(memo.buildMemo(now).imessage, /All day interview/);
+  const day = new Date("2026-09-08T12:00:00Z"), result = memo.buildMemo(day);
+  assert.match(result.email, /All day Interview: Fixture, club, Date-only track/);
+  assert.match(result.imessage, /All day interview: Fixture, club/);
+  assert.doesNotMatch(result.subject + result.email + result.imessage, /[\u2013\u2014]/);
+  rules.evaluateRules(day);
+  assert.ok(rows().some(r => r.entity_type === "program_interview"));
+});
+
+test("de-listing a club skips queued deadlines and interviews and stops new inserts", async () => {
+  const { setInterested } = await import("@/lib/stern/recruiting");
+  setInterested(1, true);
+  db.exec("UPDATE stern_programs SET status='open',app_deadline_at='2026-09-14',interview_at='2026-09-14T18:00:00Z'");
+  assert.equal(rules.evaluateRules(now).inserted, 4);
+  setInterested(1, false);
+  assert.equal(rules.evaluateRules(now).inserted, 0);
+  assert.equal((await rules.dispatchDue(now, { runner: forbidden })).skipped, 4);
+  assert.ok(rows().every(r => r.error === "no-longer-applicable"));
+  assert.equal(rules.evaluateRules(new Date("2026-09-11T12:00:00Z")).inserted, 0);
+});
+
+test("Hermes targets and aliases are validated at settings and transport boundaries", async () => {
+  for (const value of ["-t", "--help", "--list", "a b", "photon:any; rm -rf x", "photon:fixture-target", 'photon:any;-;"12345678"']) {
+    assert.throws(() => settings.updateNotificationSettings({ "stern.imessage_target": value }), { status: 400 });
+  }
+  for (const value of ["Stern", "stern_bot", "../stern", "stern send", "a".repeat(65)]) {
+    assert.throws(() => settings.updateNotificationSettings({ "stern.hermes_alias": value }), { status: 400 });
+  }
+  settings.updateNotificationSettings({ "stern.imessage_target": "" });
+  process.env.STERN_NOTIFY_DRY_RUN = "0";
+  let sendOffset = 0;
+  for (const value of ["--help", "a b", ""]) {
+    db.prepare("INSERT OR REPLACE INTO kv(k,v) VALUES('stern.imessage_target',?)").run(JSON.stringify(value));
+    const result = await notify.send({ channel: "imessage", subject: "Test", body: "Test", urgent: false }, { now: new Date(now.getTime() + sendOffset++), runner: forbidden });
+    assert.equal(result.error, "imessage: not-configured"); assert.equal(result.delivery_status, "failed");
+  }
+  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture;-;+12025550100" });
+  db.prepare("INSERT OR REPLACE INTO kv(k,v) VALUES('stern.hermes_alias',?)").run(JSON.stringify("Bad_Alias"));
+  const result = await notify.send({ channel: "imessage", subject: "Test", body: "Test", urgent: false }, { now: new Date(now.getTime() + sendOffset++), runner: forbidden });
+  assert.equal(result.error, "imessage: not-configured");
+});
+
+test("delivered reminders cannot be undone or requeued even when creation and send share a batch", async () => {
+  process.env.STERN_NOTIFY_DRY_RUN = "0";
+  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture;-;+12025550100" });
+  db.exec("INSERT INTO stern_tasks(title,due_at) VALUES('Delivered task','2026-09-07')");
+  const meta = store.reminderMeta();
+  rules.evaluateRules(now, { audit: meta });
+  await rules.dispatchDue(now, { audit: meta, runner });
+  assert.equal(calls.length, 1);
+  const before = rows();
+  assert.throws(() => audit.undoBatch(meta.batchId), { status: 409 });
+  assert.deepEqual(rows(), before);
+  assert.equal(rules.evaluateRules(new Date(now.getTime() + 60_000)).inserted, 0);
+  await rules.dispatchDue(new Date(now.getTime() + 60_000), { runner: forbidden });
+  assert.equal(n("SELECT COUNT(*) n FROM stern_audit_log WHERE undone_at<>''"), 0);
+});
+
+test("delivered and partially delivered memos protect their rows and daily marker from undo", async () => {
+  process.env.STERN_NOTIFY_DRY_RUN = "0";
+  settings.updateNotificationSettings({ "stern.imessage_target": "photon:fixture;-;+12025550100", "stern.memo_email": "fixture@example.com" });
+  const meta = store.reminderMeta();
+  await memo.sendMemo(now, { runner, audit: meta });
+  assert.throws(() => audit.undoBatch(meta.batchId), { status: 409 });
+  assert.equal(rows().length, 2);
+  const marker = store.reminderMeta();
+  db.transaction(() => settings.writeNotificationSetting("stern.memo_last_date", "2026-09-07", marker)).immediate();
+  // Exercise a standalone marker batch, including the case where a marker was repaired.
+  db.exec("DELETE FROM kv WHERE k='stern.memo_last_date'");
+  db.transaction(() => settings.writeNotificationSetting("stern.memo_last_date", "2026-09-07", marker)).immediate();
+  assert.throws(() => audit.undoBatch(marker.batchId), { status: 409 });
+  assert.equal((await memo.tickMemo(now, { runner: forbidden })).skipped, true);
+
+  const next = new Date("2026-09-08T12:00:00Z"), partial = store.reminderMeta();
+  await memo.sendMemo(next, { audit: partial, runner: async (file, args, options) => {
+    if (file.endsWith("/stern")) throw new Error("Fixture transport failure");
+    return runner(file, args, options);
+  } });
+  assert.throws(() => audit.undoBatch(partial.batchId), { status: 409 });
+  const replay = await memo.tickMemo(new Date("2026-09-08T12:01:00Z"), { runner: forbidden });
+  assert.equal(replay.skipped, true); assert.equal(replay.reason, "already-attempted");
+  assert.deepEqual(replay.deliveries?.map(d => d.delivery_status), ["sent", "failed"]);
+});
+
+test("snoozing beyond the original daily window still dispatches open items and skips completed ones", async () => {
+  db.exec("INSERT INTO stern_programs(club_id,name,status,app_deadline_at) VALUES(1,'Snoozed track','open','2026-09-14'); INSERT INTO stern_tasks(title,due_at) VALUES('Open task','2026-09-07'),('Completed task','2026-09-07'); INSERT INTO stern_suggestions(dedupe_key) VALUES('snoozed-suggestion')");
+  rules.evaluateRules(now);
+  assert.equal(rows().length, 4);
+  for (const row of rows()) rules.snoozeReminder(row.id, "2026-09-08T12:00:00Z", now);
+  db.exec("UPDATE stern_tasks SET status='done' WHERE title='Completed task'");
+  assert.equal(rules.evaluateRules(now).inserted, 0);
+  const result = await rules.dispatchDue(new Date("2026-09-08T12:00:00Z"), { runner: forbidden });
+  assert.equal(result.skipped, 4);
+  assert.equal(rows().filter(r => r.error === "dry-run").length, 3);
+  assert.equal(rows().filter(r => r.error === "no-longer-applicable").length, 1);
+});
+
+test("snooze collisions are a 409 and dashboard delivery never claims success", async () => {
+  const first = add("collision", now.toISOString());
+  const next = new Date(now.getTime() + 60_000).toISOString();
+  add("collision", next);
+  assert.throws(() => rules.snoozeReminder(first.id, next, now), { status: 409 });
+  assert.equal(store.reminderRow(first.id).delivery_status, "pending");
+  process.env.STERN_NOTIFY_DRY_RUN = "0";
+  const result = await notify.send({ channel: "dashboard", subject: "Test", body: "Test", urgent: false }, { now, runner: forbidden });
+  assert.equal(result.delivery_status, "skipped"); assert.equal(result.sent_at, ""); assert.equal(result.error, "dashboard-channel-not-implemented");
+});
+
+
+test("threshold undo refuses an invalid pair and preserves newer settings", () => {
+  const first = settings.updateNotificationSettings({ "stern.threshold_auto": "0.95" });
+  const second = settings.updateNotificationSettings({ "stern.threshold_suggest": "0.9" });
+  assert.throws(() => audit.undoBatch(first.batchId), { status: 409 });
+  assert.deepEqual(settings.thresholds(), { auto: 0.95, suggest: 0.9 });
+  audit.undoBatch(second.batchId);
+  audit.undoBatch(first.batchId);
+  assert.deepEqual(settings.thresholds(), { auto: 0.85, suggest: 0.6 });
 });

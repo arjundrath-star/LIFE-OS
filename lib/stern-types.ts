@@ -367,7 +367,10 @@ export type SternEmailMessage = {
 };
 
 // WP5 delivery read model. message contains a version-independent JSON envelope; body is display text.
-export const STERN_NOTIFICATION_KEYS = ["stern.hermes_alias", "stern.imessage_target", "stern.memo_email", "stern.quiet_hours_start", "stern.quiet_hours_end", "stern.memo_last_date"] as const;
+export const HERMES_ALIAS = /^[a-z0-9-]{1,64}$/;
+// Photon project, thread, and E.164-style destination. Empty is allowed only in settings.
+export const HERMES_TARGET = /^photon:[a-z0-9_-]+;[a-z0-9_+-]*;\+?[0-9]{7,15}$/i;
+export const STERN_NOTIFICATION_KEYS = ["stern.hermes_alias", "stern.imessage_target", "stern.memo_email", "stern.quiet_hours_start", "stern.quiet_hours_end", "stern.memo_last_date", "stern.threshold_auto", "stern.threshold_suggest"] as const;
 export type SternNotificationSettings = Record<Exclude<(typeof STERN_NOTIFICATION_KEYS)[number], "stern.memo_last_date">, string>;
 export type ReminderMessage = { key: string; subject: string; body: string; urgent: boolean; scheduledAt: string; validUntil?: string; fingerprint?: string };
 export type SternReminder = { id: number; rule_key: string; entity_type: string; entity_id: number; fire_at: string; channel: ReminderChannel; message: string; delivery_status: (typeof REMINDER_DELIVERY_STATUSES)[number]; sent_at: string; error: string; created_at: string };

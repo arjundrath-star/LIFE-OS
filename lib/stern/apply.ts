@@ -1,8 +1,9 @@
+import { thresholds } from "./notification-settings";
 import crypto from "node:crypto";
 import { createTask, updateTask, EDITABLE as TASK_EDITABLE } from "@/lib/stern/tasks";
 import { upsertAssignmentFromEmail, gradeAssignment } from "@/lib/stern/classes";
 import { getDb, nowIso } from "@/db";
-import { STERN_THRESHOLDS, type EmailClassification, type SternEmailMessage, type Person, type CoffeeChat, type RecruitingClub, type RecruitingProgram } from "@/lib/stern-types";
+import { type EmailClassification, type SternEmailMessage, type Person, type CoffeeChat, type RecruitingClub, type RecruitingProgram } from "@/lib/stern-types";
 import { newBatchId, type AuditMeta } from "./audit";
 import { insert, patch, row, type Row } from "./recruiting-write";
 import { createPerson, addAffiliation, addTouchpoint, observePersonStatus, peopleWrite } from "./people";
@@ -214,10 +215,11 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
 export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
   const audit = options.audit || messageMeta(message, cls), effects = options.effects || effectsFor(cls);
   let intents: CalendarIntent[] = [], applied = "ignored";
+  const confidenceThresholds = thresholds();
   const outboundOnly = ["coffee_chat_request_sent", "follow_up_sent", "thank_you_sent"].includes(cls.category);
   const forceSuggest = !options.accept && (cls.category === "other_nyu" || cls.category === "club_other" || (outboundOnly && message.direction !== "outbound"));
-  if (effects.length && cls.confidence >= STERN_THRESHOLDS.suggest) {
-    if (!options.accept && (cls.confidence < STERN_THRESHOLDS.auto || forceSuggest)) {
+  if (effects.length && cls.confidence >= confidenceThresholds.suggest) {
+    if (!options.accept && (cls.confidence < confidenceThresholds.auto || forceSuggest)) {
       getDb().transaction(() => suggest(`message:${message.id}`, effects, message, audit)).immediate(); applied = "suggested";
     } else {
       try { intents = peopleWrite(() => executeEffects(effects, message, audit)); applied = "auto_applied"; }
