@@ -5,7 +5,7 @@ import { careerSnapshot } from "@/lib/career";
 import type { SternMemo } from "@/lib/stern-types";
 import { sternSnapshot } from "./snapshot";
 import { nyDayBounds, nyDateKey, nyClock, nyWallTime, dayWindowSql, dayWindowParams } from "./time";
-import { reminderChats, replyOwed, thankYouOwed, reminderPrograms } from "./reminders";
+import { reminderChats, replyOwed, thankYouOwed, reminderPrograms, activeInterview } from "./reminders";
 import { queueReminder, reminderMeta, reminderRow, changeReminder, reminderMessage } from "./reminder-store";
 import { notificationDryRun, send, type SendOptions } from "./notify";
 import { writeNotificationSetting } from "./notification-settings";
@@ -34,7 +34,7 @@ export function buildMemo(date: Date = new Date()): SternMemo {
   const chats = reminderChats();
   const todayChats = chats.filter(ch => ch.state === "scheduled" && ch.scheduled_at && nyDateKey(ch.scheduled_at) === today.dateKey);
   for (const chat of todayChats) if (!calendar.some(e => e.coffee_chat_id === chat.id)) addSchedule(chat.scheduled_at, `Coffee chat with ${chat.person_name}`, chat.location);
-  const interviews = reminderPrograms().filter(p => ["submitted", "interview_invited"].includes(p.status) && p.interview_at && nyDateKey(p.interview_at) === today.dateKey);
+  const interviews = reminderPrograms().filter(p => activeInterview(p) && nyDateKey(p.interview_at) === today.dateKey);
   for (const p of interviews) if (!calendar.some(e => e.program_id === p.id && e.kind === "interview")) addSchedule(p.interview_at, `Interview: ${p.club_name} — ${p.name} (dress: ${p.dress_code || "not provided"})`, p.interview_location);
   schedule.sort((a, b) => a.at.localeCompare(b.at));
   const deadlines = stern.recruiting.deadlines.filter(d => d.days >= 0 && d.days <= 7);

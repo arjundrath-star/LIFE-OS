@@ -292,7 +292,8 @@ async function tickSternCalendar() {
 export async function tickSternReminders() {
   const { evaluateRules, dispatchDue } = await import("@/lib/stern/reminders");
   const { automationJob } = await import("@/lib/stern/automation-source");
-  await automationJob(async () => { const now = new Date(); evaluateRules(now); await dispatchDue(now); });
+  const { reminderMeta } = await import("@/lib/stern/reminder-store");
+  await automationJob(async () => { const now = new Date(), audit = reminderMeta(); evaluateRules(now, { audit }); await dispatchDue(now, { audit }); });
   const { broadcastStern } = await import("@/lib/stern/snapshot");
   broadcastStern();
 }

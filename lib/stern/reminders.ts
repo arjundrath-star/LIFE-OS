@@ -7,7 +7,8 @@ import { send, type SendOptions } from "./notify";
 import { SternError } from "./errors";
 const HOUR = 3_600_000;
 const OPEN = new Set(["not_open", "open", "drafting"]);
-const INTERVIEW = new Set(["submitted", "interview_invited"]);
+const INTERVIEW = new Set(["not_open", "open", "drafting", "submitted", "interview_invited"]);
+export function activeInterview(program: RecruitingProgram) { return INTERVIEW.has(program.status) && !!program.interview_at; }
 export type DueChat = CoffeeChat & { person_name: string };
 export function reminderChats(): DueChat[] {
   return getDb().prepare("SELECT ch.*,p.display_name person_name FROM coffee_chats ch JOIN people p ON p.id=ch.person_id WHERE p.archived=0").all() as DueChat[];
@@ -19,8 +20,8 @@ export function reminderPrograms(): (RecruitingProgram & { club_name: string })[
 export function replyOwed(chat: CoffeeChat) { return !!chat.reply_needs_me && !["done", "thank_you_sent", "declined", "no_reply"].includes(chat.state); }
 export function thankYouOwed(chat: CoffeeChat, now: Date) { return chat.state === "done" && !chat.thank_you_sent_at && Date.parse(chat.occurred_at) + 20 * HOUR <= now.getTime(); }
 
-export function evaluateRules(now = new Date()) {
-  const today = nyDayBounds(now), audit = reminderMeta();
+export function evaluateRules(now = new Date(), options: Pick<SendOptions, "audit"> = {}) {
+  const today = nyDayBounds(now), audit = options.audit ?? reminderMeta();
   let inserted = 0;
   const add = (rule: string, entity: string, entityId: number, fire: Date, body: string, urgent = false, fingerprint = "", validUntil = "") => {
     if (!Number.isFinite(fire.getTime()) || fire > now || (validUntil && Date.parse(validUntil) <= now.getTime())) return;

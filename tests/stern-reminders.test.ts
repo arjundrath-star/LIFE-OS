@@ -278,3 +278,24 @@ test("Automation API gates WP5 actions, validates input, and broadcasts each mut
   assert.equal((await post({ action: "reminder.snooze", id: 999999, until: new Date(Date.now() + 60_000).toISOString() })).status, 404);
   assert.equal(broadcasts, 4);
 });
+
+test("a booked interview remains eligible on an open program; one tick shares an undoable batch", async () => {
+  db.exec("INSERT INTO stern_programs(id,club_id,name,status,app_deadline_at,interview_at) VALUES(1,1,'Open track','open','2026-09-07','2026-09-07T18:00:00Z')");
+  const meta = store.reminderMeta();
+  assert.equal(rules.evaluateRules(now, { audit: meta }).inserted, 2);
+  await rules.dispatchDue(now, { runner: forbidden, audit: meta });
+  assert.equal(n("SELECT COUNT(DISTINCT batch_id) n FROM stern_audit_log"), 1);
+  assert.match(memo.buildMemo(now).email, /Interview: Stern Venture Society/);
+  assert.equal(audit.undoBatch(meta.batchId).skipped, 0);
+  assert.equal(rows().length, 0);
+});
+
+test("an interrupted delivery claim remains explicitly undoable after its bounded transport window", () => {
+  const reminder = add("interrupted", now.toISOString());
+  const claim = store.reminderMeta();
+  store.changeReminder(reminder.id, { delivery_status: "failed", error: "delivery-in-progress" }, claim);
+  assert.throws(() => audit.undoBatch(claim.batchId), /wait two minutes/);
+  db.prepare("UPDATE stern_audit_log SET created_at=? WHERE batch_id=?").run(new Date(Date.now() - 121_000).toISOString(), claim.batchId);
+  assert.equal(audit.undoBatch(claim.batchId).skipped, 0);
+  assert.equal(store.reminderRow(reminder.id).delivery_status, "pending");
+});

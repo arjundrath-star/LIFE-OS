@@ -204,7 +204,12 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
       const table = entityTable(row.entity_type);
       if (row.entity_type === "reminder") {
         const current = db.prepare("SELECT * FROM stern_reminders WHERE id=?").get(row.entity_id) as Record<string, unknown> | undefined;
-        if (!checkedReminderIds.has(row.entity_id) && current?.error === "delivery-in-progress") throw new SternError(409, "Delivery is in progress or interrupted; reconcile its outcome before undo");
+        if (!checkedReminderIds.has(row.entity_id) && current?.error === "delivery-in-progress") {
+          const claim = db.prepare("SELECT created_at FROM stern_audit_log WHERE entity_type='reminder' AND entity_id=? AND field='error' AND after_value='delivery-in-progress' ORDER BY id DESC LIMIT 1").get(row.entity_id) as { created_at: string } | undefined;
+          // All transport calls together are bounded below two minutes. A stale claim can be
+          // undone explicitly after reviewing provider delivery; it is never retried automatically.
+          if (!claim || Date.now() - Date.parse(claim.created_at) < 120_000) throw new SternError(409, "Delivery is in progress; wait two minutes and review its outcome before undo");
+        }
         checkedReminderIds.add(row.entity_id);
         if (row.action === "create" && current) {
           const created = JSON.parse(row.after_value || "{}") as Record<string, unknown>;
