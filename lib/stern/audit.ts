@@ -5,6 +5,7 @@
 // Rules: entity tables are enumerated explicitly (never trust a caller's table name);
 // field names are validated against PRAGMA table_info before they reach SQL; undo runs
 // in one IMMEDIATE transaction so a second process (stern-cli) cannot interleave.
+import { thresholds } from "./notification-settings";
 import crypto from "node:crypto";
 import { writePersonNote } from "./people-note";
 import type { Person } from "@/lib/stern-types";
@@ -196,6 +197,20 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     if (rows.some((r) => r.source === "seed" && r.action === "create" && CATALOG_SEED_TYPES.has(r.entity_type))) {
       throw new SternError(400, "catalog seed batches are not undoable; re-run the seed instead");
     }
+    // Preflight before reverting any fields: a sent update must never be unwound into
+    // a deletable create, because that would erase the durable delivery dedupe key.
+    for (const row of rows) {
+      if (row.entity_type === "reminder" && db.prepare("SELECT 1 FROM stern_reminders WHERE id=? AND (delivery_status='sent' OR sent_at<>'')").get(row.entity_id)) {
+        throw new SternError(409, "Delivered reminders cannot be undone");
+      }
+      if (row.entity_type === "notification_setting" && row.field === "stern.memo_last_date") {
+        const date = JSON.parse(row.after_value) as string;
+        if (db.prepare(`SELECT 1 FROM stern_reminders WHERE rule_key='memo' AND (delivery_status='sent' OR sent_at<>'')
+          AND json_valid(message) AND json_extract(message,'$.key') IN (?,?)`).get(`memo:email:${date}`, `memo:imessage:${date}`)) {
+          throw new SternError(409, "Delivered memo date cannot be undone");
+        }
+      }
+    }
     let reverted = 0;
     let skipped = 0;
     const ts = nowIso();
@@ -309,6 +324,10 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
            (entity_type, entity_id, action, field, before_value, after_value, source, confidence, evidence_type, batch_id, undo_of)
          VALUES (?, ?, 'undo', ?, ?, ?, ?, 0, 'manual', ?, ?)`
       ).run(row.entity_type, row.entity_id, row.field, row.after_value, row.before_value, source, batchId, row.id);
+    }
+    if (rows.some(row => row.entity_type === "notification_setting" && row.field.startsWith("stern.threshold_"))) {
+      try { thresholds(); }
+      catch { throw new SternError(409, "Undo would invalidate thresholds; undo the newer settings batches first"); }
     }
     // Keep the ingestion identity to suppress reapplication after undo.
     db.prepare(`UPDATE stern_email_messages SET applied='ignored' WHERE EXISTS (

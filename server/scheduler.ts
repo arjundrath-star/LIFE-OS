@@ -293,16 +293,20 @@ export async function tickSternReminders() {
   const { evaluateRules, dispatchDue } = await import("@/lib/stern/reminders");
   const { automationJob } = await import("@/lib/stern/automation-source");
   const { reminderMeta } = await import("@/lib/stern/reminder-store");
-  await automationJob(async () => { const now = new Date(), audit = reminderMeta(); evaluateRules(now, { audit }); await dispatchDue(now, { audit }); });
-  const { broadcastStern } = await import("@/lib/stern/snapshot");
-  broadcastStern();
+  let changed = false;
+  await automationJob(async () => {
+    const now = new Date(), audit = reminderMeta();
+    const evaluation = evaluateRules(now, { audit }), delivery = await dispatchDue(now, { audit });
+    changed = evaluation.inserted > 0 || Object.values(delivery).some(count => count > 0);
+  });
+  if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
 }
 export async function tickSternMemo() {
   const { tickMemo } = await import("@/lib/stern/memo");
   const { automationJob } = await import("@/lib/stern/automation-source");
-  await automationJob(async () => { await tickMemo(); });
-  const { broadcastStern } = await import("@/lib/stern/snapshot");
-  broadcastStern();
+  let changed = false;
+  await automationJob(async () => { changed = !(await tickMemo()).skipped; });
+  if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
 }
 
 export function guarded(name: string, fn: () => Promise<void>) {

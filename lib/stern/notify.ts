@@ -1,8 +1,8 @@
 import { getDb } from "@/db";
-import { STERN_SETTINGS_DEFAULTS, type ReminderChannel } from "@/lib/stern-types";
+import { HERMES_ALIAS, HERMES_TARGET, STERN_SETTINGS_DEFAULTS, type ReminderChannel } from "@/lib/stern-types";
 import { notificationSettings } from "./notification-settings";
 import { notificationRunner, runnerOptions, sendEmail, type NotificationRunner } from "./email-send";
-import { changeReminder, queueReminder, reminderMeta, reminderRow } from "./reminder-store";
+import { notificationText, changeReminder, queueReminder, reminderMeta, reminderRow } from "./reminder-store";
 import type { AuditMeta } from "./audit";
 import { SternError } from "./errors";
 export type SendOptions = { dryRun?: boolean; runner?: NotificationRunner; now?: Date; audit?: AuditMeta };
@@ -21,6 +21,7 @@ function failure(channel: string, error: unknown) {
 export async function send(input: NotificationInput, options: SendOptions = {}) {
   if (!["imessage", "email", "both", "dashboard"].includes(input.channel)) throw new SternError(400, "Invalid channel");
   if (!input.subject || /[\r\n\0]/.test(input.subject) || input.subject.length > 500 || !input.body || input.body.includes("\0") || input.body.length > 100_000) throw new SternError(400, "Invalid notification content");
+  input = { ...input, subject: notificationText(input.subject), body: notificationText(input.body) };
   const now = options.now ?? new Date(), audit = options.audit ?? reminderMeta();
   const reminderId = input.reminderId ?? queueReminder({ rule: "test", entity: "notification", entityId: 0, fireAt: now.toISOString(), channel: input.channel,
     message: { key: audit.batchId, subject: input.subject, body: input.body, urgent: input.urgent, scheduledAt: now.toISOString() } }, audit).reminder.id;
@@ -31,20 +32,21 @@ export async function send(input: NotificationInput, options: SendOptions = {}) 
     changeReminder(reminderId, { delivery_status: "failed", error: "delivery-in-progress" }, audit);
     return true;
   }).immediate();
-  if (!claimed) return reminderRow(reminderId);
-  if (notificationDryRun(options.dryRun)) return changeReminder(reminderId, { delivery_status: "skipped", error: "dry-run", sent_at: "" }, audit);
+  if (!claimed) return { ...reminderRow(reminderId), attempted: false };
+  if (input.channel === "dashboard") return { ...changeReminder(reminderId, { delivery_status: "skipped", error: "dashboard-channel-not-implemented", sent_at: "" }, audit), attempted: true };
+  if (notificationDryRun(options.dryRun)) return { ...changeReminder(reminderId, { delivery_status: "skipped", error: "dry-run", sent_at: "" }, audit), attempted: true };
   const runner = options.runner ?? notificationRunner, settings = notificationSettings();
   const results: string[] = [], errors: string[] = [];
   if (input.channel === "imessage" || input.channel === "both") {
     try {
       const alias = settings["stern.hermes_alias"], target = settings["stern.imessage_target"];
-      if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(alias) || !target || /[\r\n\0]/.test(target)) throw Object.assign(new Error(), { code: "not-configured" });
+      if (!HERMES_ALIAS.test(alias) || !HERMES_TARGET.test(target)) throw Object.assign(new Error(), { code: "not-configured" });
       const args = ["send", "-t", target, input.body];
-      try { await runner(alias, args, runnerOptions()); }
+      try { await runner(`/home/Arjun/.local/bin/${alias}`, args, runnerOptions()); }
       catch (error) {
         // Only missing wrappers can fall back safely; a timeout may already have delivered.
         if ((error as NodeJS.ErrnoException).code !== "ENOENT" || alias === STERN_SETTINGS_DEFAULTS.hermesAliasFallback) throw error;
-        await runner(STERN_SETTINGS_DEFAULTS.hermesAliasFallback, args, runnerOptions());
+        await runner(`/home/Arjun/.local/bin/${STERN_SETTINGS_DEFAULTS.hermesAliasFallback}`, args, runnerOptions());
       }
       results.push("imessage sent");
     } catch (error) { errors.push(failure("imessage", error)); }
@@ -53,5 +55,5 @@ export async function send(input: NotificationInput, options: SendOptions = {}) 
     try { await sendEmail(settings["stern.memo_email"], input.subject, input.body, runner); results.push("email sent"); }
     catch (error) { errors.push(failure("email", error)); }
   }
-  return changeReminder(reminderId, { delivery_status: errors.length ? "failed" : "sent", sent_at: results.length || input.channel === "dashboard" ? now.toISOString() : "", error: errors.length ? [...results, ...errors].join("; ") : "" }, audit);
+  return { ...changeReminder(reminderId, { delivery_status: errors.length ? "failed" : "sent", sent_at: results.length ? now.toISOString() : "", error: errors.length ? [...results, ...errors].join("; ") : "" }, audit), attempted: true };
 }

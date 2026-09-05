@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 import type { SternReminder, ReminderMessage, CoffeeChat, RecruitingProgram } from "@/lib/stern-types";
 import { notificationSettings } from "./notification-settings";
-import { deadlineInstant, nyDayBounds, nyDateKey, nyClock, nyWallTime, validDate } from "./time";
+import { deadlineInstant, nyDayBounds, localDateKey, nyClock, nyWallTime, validDate } from "./time";
 import { changeReminder, queueReminder, reminderMessage, reminderMeta, reminderRow } from "./reminder-store";
 import { send, type SendOptions } from "./notify";
 import { SternError } from "./errors";
@@ -15,7 +15,7 @@ export function reminderChats(): DueChat[] {
 }
 export function reminderPrograms(): (RecruitingProgram & { club_name: string })[] {
   return getDb().prepare(`SELECT p.*,c.name club_name FROM stern_programs p JOIN stern_clubs c ON c.id=p.club_id
-    JOIN stern_processes s ON s.id=c.process_id WHERE s.status='active' AND c.status NOT IN ('archived','declined','rejected')`).all() as (RecruitingProgram & { club_name: string })[];
+    JOIN stern_processes s ON s.id=c.process_id WHERE s.status='active' AND c.interested=1 AND c.status NOT IN ('archived','declined','rejected')`).all() as (RecruitingProgram & { club_name: string })[];
 }
 export function replyOwed(chat: CoffeeChat) { return !!chat.reply_needs_me && !["done", "thank_you_sent", "declined", "no_reply"].includes(chat.state); }
 export function thankYouOwed(chat: CoffeeChat, now: Date) { return chat.state === "done" && !chat.thank_you_sent_at && Date.parse(chat.occurred_at) + 20 * HOUR <= now.getTime(); }
@@ -37,17 +37,17 @@ export function evaluateRules(now = new Date(), options: Pick<SendOptions, "audi
       ];
       for (const { value, entity, label } of dates) {
         if (!value || !validDate(value) || deadlineInstant(value) < now.getTime()) continue;
-        const date = value.length === 10 ? value : nyDateKey(value);
+        const date = localDateKey(value);
         for (const [offset, rule] of [[7, "deadline_t7"], [3, "deadline_t3"], [1, "deadline_t1"], [0, "deadline_day"]] as const) {
           const dueDay = nyDayBounds(`${date}T12:00:00Z`, -offset).dateKey;
           // Catch up within the applicable local day, never dump a week's old nudges at startup.
           if (dueDay !== today.dateKey) continue;
-          add(rule, entity, program.id, nyWallTime(dueDay), `${label}: ${program.club_name} — ${program.name}, ${value}.`, false, value, new Date(Math.min(Date.parse(today.endIso), deadlineInstant(value) + 1)).toISOString());
+          add(rule, entity, program.id, nyWallTime(dueDay), `${label}: ${program.club_name}, ${program.name}, ${value}.`, false, value, new Date(Math.min(Date.parse(today.endIso), deadlineInstant(value) + 1)).toISOString());
         }
         if (entity === "program_interview") {
           const eve = nyDayBounds(`${date}T12:00:00Z`, -1).dateKey;
           if (eve === today.dateKey) add("interview_eve", entity, program.id, nyWallTime(eve, "18:00"),
-            `Interview tomorrow: ${program.club_name} — ${program.name}, ${value}. Dress code: ${program.dress_code || "not provided"}. Location: ${program.interview_location || "not provided"}.`, false, value, new Date(deadlineInstant(value) + 1).toISOString());
+            `Interview tomorrow: ${program.club_name}, ${program.name}, ${value}. Dress code: ${program.dress_code || "not provided"}. Location: ${program.interview_location || "not provided"}.`, false, value, new Date(deadlineInstant(value) + 1).toISOString());
         }
       }
     }
@@ -71,7 +71,7 @@ export function evaluateRules(now = new Date(), options: Pick<SendOptions, "audi
     const tasks = getDb().prepare("SELECT id,title,due_at FROM stern_tasks WHERE status='open' AND due_at<>''").all() as { id: number; title: string; due_at: string }[];
     for (const task of tasks) {
       if (!validDate(task.due_at)) continue;
-      const date = task.due_at.length === 10 ? task.due_at : nyDateKey(task.due_at);
+      const date = localDateKey(task.due_at);
       if (date === today.dateKey) add("task_due", "task", task.id, nyWallTime(date), `Task due today: ${task.title}.`, false, task.due_at, today.endIso);
     }
     const pending = (getDb().prepare("SELECT COUNT(*) n FROM stern_suggestions WHERE state='pending'").get() as { n: number }).n;
@@ -136,6 +136,12 @@ export function snoozeReminder(id: number, until: unknown, now = new Date()) {
   return getDb().transaction(() => {
     const reminder = reminderRow(id);
     if (!["pending", "snoozed"].includes(reminder.delivery_status)) throw new SternError(409, "Only pending reminders can be snoozed");
-    return changeReminder(id, { fire_at: new Date(until).toISOString(), delivery_status: "snoozed", error: "manual-snooze" }, reminderMeta("manual"));
+    const fireAt = new Date(until).toISOString();
+    if (getDb().prepare("SELECT 1 FROM stern_reminders WHERE rule_key=? AND entity_type=? AND entity_id=? AND fire_at=? AND id<>?").get(reminder.rule_key, reminder.entity_type, reminder.entity_id, fireAt, id)) {
+      throw new SternError(409, "Another reminder for this item already fires at that time");
+    }
+    // Explicit snoozes outlive the rule's original daily window, but still check entity state.
+    const message = { ...reminderMessage(reminder), validUntil: "" };
+    return changeReminder(id, { fire_at: fireAt, message: JSON.stringify(message), delivery_status: "snoozed", error: "manual-snooze" }, reminderMeta("manual"));
   }).immediate();
 }

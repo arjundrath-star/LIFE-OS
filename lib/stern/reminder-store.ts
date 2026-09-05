@@ -3,6 +3,9 @@ import type { SternReminder, ReminderMessage, ReminderChannel } from "@/lib/ster
 import { type AuditMeta, newBatchId } from "./audit";
 import { insert, patch, row, type Row } from "./recruiting-write";
 
+/** House punctuation also applies to titles and names supplied by source snapshots. */
+export const notificationText = (value: string) => value.replace(/[ \t]*[\u2013\u2014][ \t]*/g, ", ");
+
 export function reminderMeta(source = "agent"): AuditMeta { return { source, batchId: newBatchId("reminders") }; }
 export function reminderMessage(reminder: SternReminder): ReminderMessage {
   try {
@@ -23,7 +26,7 @@ export function queueReminder(input: { rule: string; entity: string; entityId: n
       (json_valid(message) AND json_extract(message,'$.key')=?) ORDER BY id LIMIT 1`)
       .get(input.rule, input.entity, input.entityId, input.fireAt, input.message.key) as SternReminder | undefined;
     if (prior) return { reminder: prior, inserted: false };
-    const id = insert("reminder", { rule_key: input.rule, entity_type: input.entity, entity_id: input.entityId, fire_at: input.fireAt, channel: input.channel ?? "imessage", message: JSON.stringify(input.message) }, audit);
+    const id = insert("reminder", { rule_key: input.rule, entity_type: input.entity, entity_id: input.entityId, fire_at: input.fireAt, channel: input.channel ?? "imessage", message: JSON.stringify({ ...input.message, subject: notificationText(input.message.subject), body: notificationText(input.message.body) }) }, audit);
     return { reminder: reminderRow(id), inserted: true };
   }).immediate();
 }
