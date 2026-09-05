@@ -59,7 +59,6 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   };
 
   const recruiting = recruitingSnapshot(now);
-  counts.coffeeChatsOwed = recruiting.counts.coffeeChatsOwed;
   counts.deadlines14d = recruiting.counts.deadlines14d;
 
   const autoAppliedToday = db

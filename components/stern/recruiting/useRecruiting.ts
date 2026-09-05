@@ -26,8 +26,8 @@ export function useRecruiting() {
     setBusy(true); setNotice("");
     try {
       const result = await apiPost("/api/stern", { action: "audit.undo", batchId }) as { snapshot: SternSnapshot };
-      adopt(result.snapshot.recruiting); setLastBatch("");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Undo failed"); }
+      adopt(result.snapshot.recruiting); setLastBatch(""); return true;
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Undo failed"); return false; }
     finally { setBusy(false); }
   };
   return { snapshot, busy, notice, lastBatch, mutate, undo, loading: api.loading, error: api.error, refetch: api.refetch };

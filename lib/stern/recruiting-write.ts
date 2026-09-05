@@ -1,6 +1,6 @@
 // Internal server-only helpers. Callers own an IMMEDIATE transaction around each operation.
 import { getDb, nowIso } from "@/db";
-import { entityTable, logChange, logCreate, newBatchId, type AuditMeta } from "@/lib/stern/audit";
+import { entityTable, tableColumns, logChange, logCreate, newBatchId, type AuditMeta } from "@/lib/stern/audit";
 import type { AuditEntityType } from "@/lib/stern-types";
 import { SternError } from "@/lib/stern/errors";
 export type Row = Record<string, string | number>;
@@ -17,6 +17,8 @@ export function row<T>(entity: AuditEntityType, value: number): T {
 }
 export function insert(entity: AuditEntityType, fields: Row, audit: AuditMeta): number {
   const keys = Object.keys(fields);
+  const columns = tableColumns(entityTable(entity));
+  if (!keys.length || keys.some(key => key === "id" || !/^[a-z_][a-z0-9_]*$/.test(key) || !columns.has(key))) throw new SternError(400, "Unknown insert field");
   const result = getDb().prepare(`INSERT INTO ${entityTable(entity)} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`).run(...Object.values(fields));
   const value = Number(result.lastInsertRowid);
   logCreate(entity, value, row(entity, value), audit);

@@ -1,5 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
+import publicCatalog from "@/docs/plans/stern/seeds/clubs-catalog.json";
 import { getDb, nowIso } from "@/db";
 import {
   CLUB_CATEGORIES, CLUB_TRANSITIONS, PROGRAM_TRACKS, PROGRAM_TRANSITIONS, CHECKLIST_KEYS, CHECKLIST_LABELS, statusLabel,
@@ -14,7 +13,8 @@ export { deadlineDays } from "./time";
 
 const PROCESS_SLUG = "stern-clubs-fall-2026";
 function catalogSeed(): { clubs: Array<Record<string, string>>; program_windows: RecruitingWindow[] } {
-  return JSON.parse(fs.readFileSync(path.join(process.cwd(), "docs/plans/stern/seeds/clubs-catalog.json"), "utf8"));
+  // Bundled once with the server, so snapshots do not depend on runtime cwd or docs files.
+  return publicCatalog as { clubs: Array<Record<string, string>>; program_windows: RecruitingWindow[] };
 }
 function slug(name: string) { return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 function activeClub(clubId: number) {
@@ -29,7 +29,11 @@ export function seedClubCatalog(): { processId: number; clubs: number } {
     const seed = catalogSeed();
     let process = db.prepare("SELECT * FROM stern_processes WHERE slug = ?").get(PROCESS_SLUG) as RecruitingProcess | undefined;
     if (!process) process = row("process", insert("process", { slug: PROCESS_SLUG, name: "Stern Clubs, Fall 2026", kind: "club_recruiting", season: "Fall 2026" }, audit));
-    for (const item of seed.clubs) {
+    for (const raw of seed.clubs) {
+      const item = textFields(Object.fromEntries(["name", "short_name", "category", "website", "instagram", "notes"].map(key => [key, raw[key] ?? ""])), ["name", "short_name", "category", "website", "instagram", "notes"]) as Record<string, string>;
+      if (!item.name || !slug(item.name) || !(CLUB_CATEGORIES as readonly string[]).includes(item.category)) throw new SternError(400, "Invalid club catalog entry");
+      httpUrl(item.website);
+      if (item.instagram && !/^@?[a-zA-Z0-9._]+$/.test(item.instagram)) httpUrl(item.instagram);
       const existing = db.prepare("SELECT * FROM stern_clubs WHERE process_id = ? AND slug = ?").get(process!.id, slug(item.name)) as RecruitingClub | undefined;
       if (!existing) insert("club", { process_id: process!.id, slug: slug(item.name), ...item, interested: 0 }, audit);
       else {
@@ -49,7 +53,7 @@ export function seedClubCatalog(): { processId: number; clubs: number } {
 export function setInterested(clubId: number, interested: boolean, options: ChangeMeta = {}) {
   if (typeof interested !== "boolean") throw new SternError(400, "interested must be a boolean");
   return getDb().transaction(() => {
-    const club = row<RecruitingClub>("club", clubId);
+    const club = activeClub(clubId);
     const audit = meta(options);
     if (interested) {
       activeClub(clubId);
@@ -71,7 +75,7 @@ export function setInterested(clubId: number, interested: boolean, options: Chan
 
 export function updateClub(clubId: number, input: Record<string, unknown>, options: ChangeMeta = {}) {
   return getDb().transaction(() => {
-    row("club", clubId);
+    activeClub(clubId);
     const { priority, target_chats, ...strings } = input;
     const fields = textFields(strings, ["name", "short_name", "category", "website", "instagram", "coffee_chat_form_url", "email_domains", "notes"]);
     if (fields.name !== undefined && !fields.name) throw new SternError(400, "Club name is required");
@@ -158,10 +162,25 @@ export function setProgramStatus(programId: number, next: ProgramStatus, options
 /** Scheduler-owned sweep, one audit batch per scan. Snapshot GETs remain read-only. */
 export function markMissedPrograms(now: Date = new Date(), options: ChangeMeta = {}) {
   return getDb().transaction(() => {
-    const audit = meta({ ...options, source: options.source || "agent", evidenceType: "deadline", evidenceExcerpt: "Application deadline passed" });
+    const audit = meta({ ...options, source: options.source || "auto_calendar", evidenceType: "deadline", evidenceExcerpt: "Application deadline passed" });
     const candidates = getDb().prepare("SELECT p.* FROM stern_programs p JOIN stern_clubs c ON c.id = p.club_id JOIN stern_processes r ON r.id = c.process_id WHERE p.status IN ('open','drafting') AND p.app_deadline_at <> '' AND c.interested = 1 AND c.status <> 'archived' AND r.status = 'active'").all() as RecruitingProgram[];
-    const missed = candidates.filter(p => deadlineInstant(p.app_deadline_at) < now.getTime());
-    for (const program of missed) patch("program", program.id, { status: "missed" }, audit);
+    const missed = candidates.filter(p => {
+      if (!(deadlineInstant(p.app_deadline_at) < now.getTime())) return false;
+      // Undo is an intentional correction. Keep it until a newer status/deadline edit.
+      // Ignore undo mirror rows; the original row retains both its value and undone_at.
+      const latest = getDb().prepare(`SELECT id, after_value, undone_at, evidence_type, evidence_excerpt
+        FROM stern_audit_log WHERE entity_type = 'program' AND entity_id = ?
+        AND field = 'status' AND action = 'update' ORDER BY id DESC LIMIT 1`).get(p.id) as
+        { id: number; after_value: string; undone_at: string; evidence_type: string; evidence_excerpt: string } | undefined;
+      if (!latest?.undone_at || latest.after_value !== "missed" || latest.evidence_type !== "deadline") return true;
+      const deadlineEdited = getDb().prepare(`SELECT 1 FROM stern_audit_log WHERE entity_type = 'program'
+        AND entity_id = ? AND field = 'app_deadline_at' AND id > ? LIMIT 1`).get(p.id, latest.id);
+      // Legacy sweeps had no date in their excerpt: conservatively preserve their undo too.
+      return !!deadlineEdited || (latest.evidence_excerpt !== "Application deadline passed"
+        && latest.evidence_excerpt !== `Application deadline passed (${p.app_deadline_at})`);
+    });
+    for (const program of missed) patch("program", program.id, { status: "missed" },
+      { ...audit, evidenceExcerpt: `Application deadline passed (${program.app_deadline_at})` });
     return { missed: missed.length, batchId: audit.batchId };
   }).immediate();
 }
@@ -196,19 +215,38 @@ export function upsertPrep(input: Record<string, unknown>, options: ChangeMeta =
 function clubTimeline(clubId: number): RecruitingActivity[] {
   const db = getDb();
   const audit = db.prepare(`SELECT a.id, a.created_at at, a.source, a.batch_id, a.undone_at,
-    a.entity_type, a.action, a.field, a.after_value
+    a.entity_type, a.action, a.field, a.after_value, a.evidence_type, a.evidence_excerpt
     FROM stern_audit_log a WHERE a.field <> 'updated_at' AND (
     (a.entity_type = 'club' AND a.entity_id = ?) OR
     (a.entity_type = 'program' AND a.entity_id IN (SELECT id FROM stern_programs WHERE club_id = ?)) OR
     (a.entity_type = 'checklist_item' AND a.entity_id IN (SELECT id FROM stern_checklist_items WHERE club_id = ?)) OR
     (a.entity_type = 'coffee_chat' AND a.entity_id IN (SELECT id FROM coffee_chats WHERE club_id = ?)) OR
     (a.entity_type = 'interview_prep' AND a.entity_id IN (SELECT i.id FROM stern_interview_prep i JOIN stern_programs p ON p.id = i.program_id WHERE p.club_id = ?))
-    ) ORDER BY a.id DESC LIMIT 100`).all(clubId, clubId, clubId, clubId, clubId) as (Omit<RecruitingActivity, "key" | "summary"> & { entity_type: string; action: string; field: string; after_value: string })[];
+    ) ORDER BY a.id DESC LIMIT 100`).all(clubId, clubId, clubId, clubId, clubId) as (Omit<RecruitingActivity, "key" | "summary"> & { entity_type: string; action: string; field: string; after_value: string; evidence_type: string; evidence_excerpt: string })[];
   audit.reverse();
   const touches = db.prepare(`SELECT t.id, t.occurred_at at, t.source, t.summary, '' batch_id, '' undone_at FROM people_touchpoints t
     WHERE t.person_id IN (SELECT person_id FROM people_affiliations WHERE club_id = ?) ORDER BY t.id DESC LIMIT 100`).all(clubId) as Omit<RecruitingActivity, "key">[];
   touches.reverse();
   const labels: Record<string, string> = { club: "Club", program: "Program", coffee_chat: "Coffee chat", checklist_item: "Checklist item", interview_prep: "Interview prep" };
+  const batchSummaries = new Map<string, string>();
+  function undoSummary(batchId: string): string {
+    if (batchSummaries.has(batchId)) return batchSummaries.get(batchId)!;
+    const changes = db.prepare(`SELECT action, entity_type, after_value, COUNT(*) n FROM stern_audit_log
+      WHERE batch_id = ? AND undone_at = '' AND action <> 'undo' AND field <> 'updated_at'
+      GROUP BY action, entity_type, CASE WHEN action = 'create' THEN id ELSE 0 END`).all(batchId) as
+      { action: string; entity_type: string; after_value: string; n: number }[];
+    const summary = changes.map(change => {
+      const label = labels[change.entity_type] || statusLabel(change.entity_type);
+      if (change.action === "create") {
+        let name = "";
+        try { const value = JSON.parse(change.after_value); name = value.name || value.label || value.question || ""; } catch { /* Older history may lack a row snapshot. */ }
+        return `Remove ${label.toLowerCase()}${name ? `: ${name}` : ""}`;
+      }
+      return change.action === "delete" ? `Restore ${change.n} ${label.toLowerCase()} record(s)` : `Revert ${change.n} ${label.toLowerCase()} field change(s)`;
+    }).join(". ");
+    batchSummaries.set(batchId, summary);
+    return summary;
+  }
   const summaries = audit.map(a => {
     const entity = labels[a.entity_type] || statusLabel(a.entity_type);
     const field = statusLabel(a.field);
@@ -217,7 +255,10 @@ function clubTimeline(clubId: number): RecruitingActivity[] {
       : a.field === "done_at" ? `Checklist item ${a.after_value ? "completed" : "reopened"}`
       : a.field === "interested" ? `Club ${a.after_value === "1" ? "added to" : "removed from"} board`
       : `${entity}: ${field.toLowerCase()} updated`;
-    return { key: `audit-${a.id}`, id: a.id, at: a.at, source: a.source, summary, batch_id: a.batch_id, undone_at: a.undone_at };
+    return { key: `audit-${a.id}`, id: a.id, at: a.at, source: a.evidence_type === "deadline" ? "auto_calendar" : a.source,
+      summary: a.evidence_type === "deadline" && a.action !== "undo" ? `${summary} · ${a.evidence_excerpt}` : summary,
+      batch_id: a.source === "seed" || a.source === "undo" || a.action === "undo" || (a.action === "create" && ["club", "process"].includes(a.entity_type)) ? "" : a.batch_id, undone_at: a.undone_at,
+      undoSummary: undoSummary(a.batch_id) };
   });
   return [...summaries, ...touches.map(t => ({ ...t, key: `touch-${t.id}` }))]
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id - a.id).slice(0, 100);

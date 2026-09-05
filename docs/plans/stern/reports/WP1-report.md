@@ -153,3 +153,91 @@ No outstanding WP1 acceptance gaps. Real people/affiliations, club-specific requ
 - Wire the network route's `drafts.request` action to the supplied `personId`, `clubId`, and optional `coffeeChatId` payload.
 - Use `npm run seed:stern` in the eventual target environment to load only public clubs; it never selects targets or loads personal data. Use `npm run stern:recruiting-deadlines` for a local sweep if needed.
 - Run integration review and the orchestrator's separate AI acceptance gate before merging/deploying. WP1's production browser harness is deliberately restricted to this worktree/database/port and must not be pointed at production.
+
+## Fix round
+
+### Summary
+
+Merged `feature/stern-tab` into `stern/wp1` first (fast-forward to `dfd12f3`). Retained the orchestrator's seed-undo rejection, transactional cascade guard, stale-update handling, nullable restores, and unchanged-snapshot broadcast suppression. Fixed all eight confirmed findings (the repeated seed/undo and provenance reports describe the same underlying defects) plus the inexpensive unverified findings. Implementation commit: `ff0cc5e`.
+
+### Files changed
+
+- `lib/stern/recruiting.ts:215`: seed, undo, and club/process-create activity has no undo batch ID. Deadline activity includes its evidence and uses calendar provenance, including older agent-sourced deadline rows. Batch summaries name created programs/checklist/prep rows that undo would remove and count all field changes across the batch.
+- `components/stern/recruiting/ClubDetail.tsx:14`: both Timeline and Recent activity require a Radix confirmation before batch undo. The dialog describes the whole-batch scope and record removals, keeps rejection errors visible, and supports cancellation. Seed and undo activity read “Catalog seed” and “Undo”.
+- `components/stern/recruiting/useRecruiting.ts`: undo returns success/failure so the confirmation closes only after success.
+- `lib/stern/audit.ts:202`: added recruiting-specific checks for later club/program edits and coffee-chat links without foreign keys. Unsafe create undo returns 409 and rolls back the complete transaction. The merged FK guard protects later interview-prep rows; no migration was changed.
+- `lib/stern-types.ts`: Missed → Submitted/Declined/Withdrawn corrections; optional activity batch summary.
+- `lib/stern/recruiting.ts:163`: sweeps use calendar provenance with the actual deadline in evidence. An undone missed status stays undone until a subsequent status or deadline edit, preventing 15-second audit churn.
+- `lib/stern/coffee.ts:26`: browser metadata allowlist excludes provider IDs and automation provenance. Repeated Gmail touchpoint keys reuse existing evidence while still auditing chat-state changes; only newly inserted touchpoints get create audit rows.
+- `app/api/stern/recruiting/route.ts`: applies that browser allowlist before calling the trusted domain function; auth remains required.
+- `lib/stern/recruiting.ts:15`: public JSON is bundled with the server, eliminating per-snapshot filesystem reads and runtime working-directory dependency. Seed inserts explicitly select and validate the six catalog fields. Archived club details and interest changes are read-only.
+- `lib/stern/recruiting-write.ts`: validates insert columns against the enumerated table's schema and identifier syntax; rejects unknown keys and explicit IDs with SternError 400.
+- `lib/stern/snapshot.ts`: retains the global SQL coffee-chat obligation count, including club-less chats. Recruiting's narrower count remains under `snapshot.recruiting.counts`.
+- `tests/stern-recruiting.test.ts:147`: extended sweep/undo/provenance regression coverage; seven additional test groups at lines 262–380 cover protected catalog and prep, later edits and chat links, late outcomes, shared Gmail evidence, archive/browser validation, global counts, bundled seed, and insert validation.
+- `scripts/stern-recruiting-e2e.ts`: extended the isolated browser journey for confirmation/cancel/success, blocked unsafe undo, absent seed/undo buttons, and rejected browser provenance. Updated the optional draft-button expectation to reflect the merged network route.
+
+### How verified
+
+Targeted suite after implementation:
+
+```text
+$ npm run test:stern-recruiting
+1..18
+# tests 18
+# pass 18
+# fail 0
+```
+
+The full mechanical gate passed against implementation commit `ff0cc5e`, using the assigned DB, synthetic auth, disabled telemetry/vault writes, and `/dev/null` for the secrets path:
+
+```text
+$ bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp1 /home/Arjun/stern-build/db/wp1.db wp1
+--- typecheck rc=0
+# tests 226
+# pass 226
+# fail 0
+--- tests rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp1.db
+--- migrate-1 rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp1.db
+--- migrate-2 rc=0
+✓ Compiled successfully in 39.3s
+--- build rc=0
+GATE wp1 result=PASS log=/home/Arjun/stern-build/logs/gate-wp1-20260905T025931Z.log
+```
+
+Typecheck and whitespace validation passed. Lifecycle event is confined to the assigned database:
+
+```json
+{"eventId":6022,"run":"platform-dev-wp1-fix-20260905","agent":"rathworkspace-platform-developer","status":"running"}
+```
+
+Isolated production browser/API/WebSocket verification also passed:
+
+```text
+$ RATHWORKSPACE_DB=/home/Arjun/stern-build/db/wp1.db npm run e2e:stern-recruiting
+{"auth":"401 anonymous API, 307 anonymous page, 200 placeholder session","catalog":32,"tabs":5,"checklist":7,"programSaved":true,"prepPersisted":true,"chatTransitions":true,"liveMessages":17,"archiveUndo":true,"timelineUndoConfirmed":true,"unsafeUndoBlocked":true,"provenanceRejected":true,"phoneFits":true,"browserErrors":0}
+{"cleanup":"test mutations undone; public catalog retained"}
+```
+
+Desktop and phone screenshots were inspected. They show the preserved prep/program data after rejected undo, an explicit error, the “Undo” source label without another undo button, and no horizontal page overflow. Screenshots remain ignored artifacts under `shots/`. The isolated server exited, and browser fixture mutations were undone. No deployment, push, real provider request, or production checkout change occurred.
+
+### Decisions made
+
+- Retained one audit batch per deadline scan, as required by the work-package operating rules. The confirmation explicitly covers the whole batch, and its summary includes changes outside the currently visible club. Correct a single late-recorded application directly through its status control; undo intentionally retains batch semantics.
+- Deadline undo suppression uses the latest original status audit row, ignoring undo mirrors, plus subsequent deadline edits. Older deadline sweeps without a date in their evidence also preserve the user's undo until an edit. No mutable counter, new schema, or polling loop was introduced.
+- Use the merged seed rejection (HTTP 400) and cascade refusal (HTTP 409), with additional 409 checks for recruiting links/edits. Unsafe undo leaves every row and audit record intact; undo the newer batches first to remove a created program safely.
+- Bundle the public seed through a static JSON import instead of introducing a new storage table or a silent empty fallback. The application build validates the asset exists; running snapshots and interest changes no longer need the runtime docs file. Public catalog changes require a rebuild.
+- Keep seed/undo display labels local to recruiting; do not expand the shared SourceBadge vocabulary across other packages.
+- Did not edit `lib/stern/people.ts`. People and affiliation reads continue through the schema. Tests and browser runs disable vault writes and external provider requests.
+
+### Known gaps
+
+No outstanding confirmed WP1 fix-round finding. The merged WP2 network route exists but does not yet implement `drafts.request`; the optional recruiting button follows the specified route-presence behavior. Its automation implementation remains WP3 integration work, with no external draft/send operation performed here.
+
+### Follow-ups for the orchestrator
+
+- Merge the WP1 fix commits, preserving the recruiting-specific additions to `lib/stern/audit.ts` alongside the already-merged generic undo hardening.
+- Implement the existing optional `drafts.request` network action in WP3. The merged WP2 route now enables the recruiting draft button under the original WP1 route-presence contract.
+- The shared SourceBadge helper still classifies seed/undo as Manual on other surfaces. Recruiting now renders explicit labels; consider consistent labels across the remaining Stern tabs during WP7.
+- Preserve global `counts.coffeeChatsOwed` independently of recruiting's scoped count when building Overview.

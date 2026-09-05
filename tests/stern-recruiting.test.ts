@@ -154,6 +154,14 @@ test("missed sweep handles NY end-of-day, offsets, open/drafting only, archived 
   assert.equal(recruiting.markMissedPrograms(new Date("2026-09-20T04:00:00Z")).missed, 0);
   audit.undoBatch(result.batchId);
   assert.equal(program().status, "open");
+  const auditCount = n("SELECT COUNT(*) n FROM stern_audit_log");
+  assert.equal(recruiting.markMissedPrograms(new Date("2026-09-20T04:00:15Z")).missed, 0);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_audit_log"), auditCount, "undo must not churn on every tick");
+  const timeline = recruiting.recruitingSnapshot().clubs[0].timeline;
+  const missedRow = timeline.find(a => a.summary.startsWith("Program: Missed"))!;
+  assert.equal(missedRow.source, "auto_calendar");
+  assert.match(missedRow.summary, /Application deadline passed/);
+  assert.ok(timeline.filter(a => a.source === "undo").every(a => !a.batch_id));
   db.prepare("UPDATE stern_programs SET status = 'drafting', app_opens_at = '', app_deadline_at = '2026-09-10T12:00:00-04:00'").run();
   assert.equal(recruiting.markMissedPrograms(new Date("2026-09-10T16:00:01Z")).missed, 2);
   for (const state of ["not_open", "submitted", "accepted"] as const) {
@@ -248,4 +256,126 @@ test("deadline day math crosses local midnight EDT and DST without UTC off-by-on
   assert.equal(recruiting.deadlineDays("2026-09-20T03:59:00Z", new Date("2026-09-19T04:00:00Z")), 0);
   assert.equal(recruiting.deadlineDays("2026-11-02", new Date("2026-11-01T04:00:00Z")), 1);
   assert.equal(recruiting.deadlineDays("2026-03-09", new Date("2026-03-08T05:00:00Z")), 1);
+});
+
+
+test("seed and undo activity cannot offer undo; seed API undo preserves catalog and all recruiting data", () => {
+  reset();
+  const seedBatch = (db.prepare("SELECT batch_id FROM stern_audit_log WHERE source = 'seed' LIMIT 1").get() as { batch_id: string }).batch_id;
+  const prepId = recruiting.upsertPrep({ program_id: program().id, question: fixture.question, answer: fixture.answer });
+  coffee.createCoffeeChat(person(), club().id, program().id);
+  const before = db.prepare("SELECT * FROM stern_audit_log ORDER BY id").all();
+  bad(() => audit.undoBatch(seedBatch));
+  assert.equal(n("SELECT COUNT(*) n FROM stern_clubs"), 32);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_processes"), 1);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_programs"), 2);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_checklist_items"), 7);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_interview_prep WHERE id = ?", prepId), 1);
+  assert.equal(n("SELECT COUNT(*) n FROM coffee_chats"), 1);
+  assert.deepEqual(db.prepare("SELECT * FROM stern_audit_log ORDER BY id").all(), before);
+  const seeds = recruiting.recruitingSnapshot().clubs[0].timeline.filter(a => a.source === "seed");
+  assert.ok(seeds.length);
+  assert.ok(seeds.every(a => a.batch_id === ""));
+});
+
+test("undo program creation refuses later prep and soft-linked chats atomically", () => {
+  reset();
+  const interestBatch = (db.prepare("SELECT batch_id FROM stern_audit_log WHERE entity_type = 'program' AND entity_id = ? AND action = 'create'").get(program().id) as { batch_id: string }).batch_id;
+  const prepBatch = audit.newBatchId();
+  const prepId = recruiting.upsertPrep({ program_id: program().id, question: fixture.question, answer: fixture.answer }, { batchId: prepBatch });
+  const before = db.prepare("SELECT * FROM stern_audit_log ORDER BY id").all();
+  assert.throws(() => audit.undoBatch(interestBatch), e => e instanceof SternError && e.status === 409);
+  assert.equal(club().interested, 1);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_programs"), 2);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_checklist_items"), 7);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_interview_prep WHERE id = ?", prepId), 1);
+  assert.deepEqual(db.prepare("SELECT * FROM stern_audit_log ORDER BY id").all(), before);
+  const activity = recruiting.recruitingSnapshot().clubs[0].timeline.find(a => a.batch_id === interestBatch)!;
+  assert.match(activity.undoSummary!, /Remove program: Exploratory program/);
+  assert.match(activity.undoSummary!, /Remove checklist item/);
+  audit.undoBatch(prepBatch);
+  const editBatch = audit.newBatchId();
+  recruiting.upsertProgram({ id: program().id, notes: "Keep this later edit" }, { batchId: editBatch });
+  assert.throws(() => audit.undoBatch(interestBatch), e => e instanceof SternError && e.status === 409);
+  assert.equal(program().notes, "Keep this later edit");
+  audit.undoBatch(editBatch);
+  const chatBatch = audit.newBatchId();
+  coffee.createCoffeeChat(person(), club().id, program().id, { batchId: chatBatch });
+  assert.throws(() => audit.undoBatch(interestBatch), e => e instanceof SternError && e.status === 409);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_programs"), 2);
+  assert.equal(n("SELECT COUNT(*) n FROM coffee_chats"), 1);
+  audit.undoBatch(chatBatch);
+  audit.undoBatch(interestBatch);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_programs"), 0);
+});
+
+test("missed applications accept late-recorded outcomes; edited deadlines re-enable the sweep", () => {
+  for (const next of ["submitted", "declined", "withdrawn"] as const) {
+    reset();
+    recruiting.setProgramStatus(program().id, "open");
+    recruiting.markMissedPrograms(new Date("2026-09-20T04:00:00Z"));
+    assert.equal(program().status, "missed");
+    recruiting.setProgramStatus(program().id, next);
+    assert.equal(program().status, next);
+    assert.equal(recruiting.markMissedPrograms(new Date("2026-09-20T04:00:15Z")).missed, 0);
+  }
+  reset();
+  recruiting.setProgramStatus(program().id, "open");
+  const result = recruiting.markMissedPrograms(new Date("2026-09-20T04:00:00Z"));
+  audit.undoBatch(result.batchId);
+  assert.equal(recruiting.markMissedPrograms(new Date("2026-09-20T04:00:15Z")).missed, 0);
+  recruiting.upsertProgram({ id: program().id, app_deadline_at: "2026-09-21" });
+  assert.equal(recruiting.markMissedPrograms(new Date("2026-09-22T04:00:00Z")).missed, 1);
+});
+
+test("reclassified and preexisting Gmail evidence is reused while every chat transition stays audited", () => {
+  reset(); const personId = person(); const chatId = coffee.createCoffeeChat(personId, club().id);
+  coffee.transition(chatId, "requested");
+  const evidence = { source: "auto_email", gmailAccount: "student@example.com", gmailMessageId: "fixture-reply" };
+  const replyBatch = audit.newBatchId();
+  coffee.transition(chatId, "reply_received", { ...evidence, batchId: replyBatch });
+  const declineBatch = audit.newBatchId();
+  coffee.transition(chatId, "declined", { ...evidence, batchId: declineBatch });
+  assert.equal(n("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id = 'fixture-reply'"), 1);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_audit_log WHERE batch_id = ? AND entity_type = 'touchpoint'", declineBatch), 0);
+  assert.equal(n("SELECT COUNT(*) n FROM stern_audit_log WHERE batch_id = ? AND field = 'state'", declineBatch), 1);
+  audit.undoBatch(declineBatch);
+  assert.equal((db.prepare("SELECT state FROM coffee_chats WHERE id = ?").get(chatId) as CoffeeChat).state, "reply_received");
+  assert.equal(n("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id = 'fixture-reply'"), 1);
+  // Evidence may have been written by the email ingestion job before the state transition.
+  audit.undoBatch(replyBatch);
+  db.prepare("INSERT INTO people_touchpoints (person_id,kind,source,gmail_account,gmail_message_id) VALUES (?,'email_received','gmail',?,?)").run(personId, evidence.gmailAccount, evidence.gmailMessageId);
+  coffee.transition(chatId, "reply_received", evidence);
+  assert.equal(n("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id = 'fixture-reply'"), 1);
+});
+
+test("archived club edits and browser automation metadata are rejected", () => {
+  reset(); recruiting.archiveClub(club().id);
+  bad(() => recruiting.updateClub(club().id, { priority: 1, notes: "Cannot change archive" }));
+  bad(() => recruiting.setInterested(club().id, false));
+  for (const key of ["gmail_thread_id", "calendar_event_id", "source", "gmailMessageId", "batchId"]) bad(() => coffee.manualChatTransitionMeta({ [key]: "spoofed" }));
+  assert.deepEqual(coffee.manualChatTransitionMeta({ location: "Campus", reply_needs_me: false }), { location: "Campus", reply_needs_me: false });
+});
+
+test("global coffee chat obligations include club-less chats; recruiting remains scoped", async () => {
+  reset(); const personId = person();
+  coffee.createCoffeeChat(personId, club().id);
+  db.prepare("INSERT INTO coffee_chats (person_id,club_id,state,reply_needs_me) VALUES (?,0,'reply_received',1)").run(personId);
+  const { sternSnapshot } = await import("@/lib/stern/snapshot");
+  assert.equal(sternSnapshot().counts.coffeeChatsOwed, 2);
+  assert.equal(sternSnapshot().counts.replyOwed, 1);
+  assert.equal(sternSnapshot().recruiting.counts.coffeeChatsOwed, 1);
+});
+
+test("bundled seed works without runtime docs and insert rejects unknown SQL identifiers", async () => {
+  reset(); const cwd = process.cwd();
+  try {
+    process.chdir(tmp);
+    assert.equal(recruiting.recruitingSnapshot().windows.length, 2);
+    recruiting.setInterested(club().id + 1, true);
+    assert.equal(recruiting.seedClubCatalog().clubs, 32);
+  } finally { process.chdir(cwd); }
+  const { insert, meta } = await import("@/lib/stern/recruiting-write");
+  for (const key of ["unknown_column", "name) VALUES ('bad'); --", "id"]) bad(() => insert("club", { [key]: "bad" }, meta()));
+  assert.equal(n("SELECT COUNT(*) n FROM stern_clubs"), 32);
 });
