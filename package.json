@@ -48,7 +48,10 @@
     "test:stern-recruiting": "tsx --test tests/stern-recruiting.test.ts",
     "seed:stern": "tsx scripts/seed-stern.ts",
     "stern:recruiting-deadlines": "tsx scripts/stern-recruiting-deadlines.ts",
-    "e2e:stern-recruiting": "tsx scripts/stern-recruiting-e2e.ts"
+    "e2e:stern-recruiting": "tsx scripts/stern-recruiting-e2e.ts",
+    "test:stern-automation": "STERN_LLM_MODE=fixture STERN_VAULT_WRITE=0 tsx --test tests/stern-automation.test.ts",
+    "stern:email-scan": "tsx scripts/stern-automation.ts email",
+    "stern:calendar-sync": "tsx scripts/stern-automation.ts calendar"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

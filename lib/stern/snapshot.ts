@@ -1,6 +1,7 @@
 // Stern live snapshot: the payload behind GET /api/stern and the "stern" WebSocket channel.
 // Built with SQL only. WP0 fills the counts and automation block; later packages fill the
 // per-area pieces (they stay empty arrays until then, never fake data). Server-only.
+import { automationDetails } from "./automation-snapshot";
 import { networkSnapshot } from "./people";
 import { getDb, nowIso } from "@/db";
 import { getHub } from "@/server/live";
@@ -54,6 +55,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     accountsScanned: count("SELECT COUNT(*) n FROM stern_scan_state"),
     lastError: scalar<string>("SELECT last_error v FROM stern_scan_state WHERE last_error <> '' ORDER BY last_checked DESC LIMIT 1") || "",
     llmMode: process.env.STERN_LLM_MODE || "live",
+    ...automationDetails(),
   };
 
   const recruiting = recruitingSnapshot(now);

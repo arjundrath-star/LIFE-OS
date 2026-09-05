@@ -13,6 +13,7 @@ import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, typ
 import { SternError } from "@/lib/stern/errors";
 
 export const ENTITY_TABLES: Record<AuditEntityType, string> = {
+  email_message: "stern_email_messages",
   process: "stern_processes",
   interview_prep: "stern_interview_prep",
   person: "people",
@@ -248,6 +249,10 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
          VALUES (?, ?, 'undo', ?, ?, ?, ?, 0, 'manual', ?, ?)`
       ).run(row.entity_type, row.entity_id, row.field, row.after_value, row.before_value, source, batchId, row.id);
     }
+    // Keep the ingestion identity to suppress reapplication after undo.
+    db.prepare(`UPDATE stern_email_messages SET applied='ignored' WHERE EXISTS (
+      SELECT 1 FROM stern_audit_log a WHERE a.batch_id=? AND a.gmail_account=stern_email_messages.gmail_account
+      AND a.gmail_message_id=stern_email_messages.gmail_message_id)`).run(batchId);
     return { batchId, reverted, skipped };
   });
   const result = tx.immediate();

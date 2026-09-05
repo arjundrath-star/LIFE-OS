@@ -1,5 +1,6 @@
 // The connections registry — source of truth for which integrations exist, on which
 // surfaces, how to reconnect, and how to health-check them. Real checks only.
+import { sternConnections } from "@/lib/stern/connections";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +32,7 @@ export type ConnectionDef = {
 const HIGGS_CREDS = path.join(os.homedir(), ".config", "higgsfield", "credentials.json");
 
 export const REGISTRY: ConnectionDef[] = [
+  ...sternConnections,
   {
     id: "hermes",
     label: "Hermes",

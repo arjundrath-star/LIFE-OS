@@ -55,7 +55,7 @@ export const EVIDENCE_TYPES = ["gmail", "calendar", "imessage", "web", "manual"]
 export const SUGGESTION_STATES = ["pending", "accepted", "dismissed"] as const;
 export const AUDIT_ACTIONS = ["create", "update", "delete", "undo"] as const;
 export const AUDIT_SOURCES = ["manual", "auto_email", "auto_calendar", "imessage", "suggestion_accept", "seed", "agent", "undo"] as const;
-export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep"] as const;
+export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep", "email_message"] as const;
 export const REMINDER_RULES = ["deadline_t7", "deadline_t3", "deadline_t1", "deadline_day", "reply_owed", "thank_you_due", "no_reply_3d", "interview_eve", "task_due", "suggestions_pending", "memo"] as const;
 export const REMINDER_CHANNELS = ["imessage", "email", "both", "dashboard"] as const;
 export const REMINDER_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped", "snoozed"] as const;
@@ -201,6 +201,11 @@ export type SternSnapshot = {
     lastCalendarSyncAt: string;
     accountsScanned: number;
     lastError: string;
+    scanState: unknown[];
+    recentMessages: unknown[];
+    suggestions: unknown[];
+    drafts: unknown[];
+    audit: unknown[];
     llmMode: string;           // STERN_LLM_MODE or 'live'
   };
   recruiting: RecruitingSnapshot;
@@ -315,4 +320,20 @@ export type RecruitingSnapshot = {
   updatedAt: string; today: string; process: RecruitingProcess | null; clubs: RecruitingClubDetail[]; catalog: RecruitingClub[];
   deadlines: RecruitingDeadline[]; windows: RecruitingWindow[];
   counts: { coffeeChatsOwed: number; deadlines14d: number; archived: number; interested: number; applying: number; interviewing: number };
+};
+
+export type EmailClassification = {
+  category: ClassifierCategory; confidence: number; direction: "inbound" | "outbound";
+  people: { name: string; email: string; role?: string; club_or_org?: string; is_eboard?: boolean | null }[];
+  club?: string | null; program_track?: "exploratory" | "teams" | null; course_code?: string | null;
+  proposed_times?: string[]; confirmed_time?: string | null; location?: string | null;
+  assignment?: { title?: string; kind?: AssignmentKind; due_at?: string | null; points_possible?: number | null } | null;
+  deadline_mentions?: { label: string; date: string }[]; requires_reply_from_me: boolean;
+  summary: string; evidence_excerpt: string;
+};
+export type SternEmailMessage = {
+  id: number; gmail_account: string; gmail_message_id: string; gmail_thread_id: string;
+  direction: "inbound" | "outbound"; from_addr: string; to_addrs: string; subject: string;
+  internal_date: number; snippet: string; content_hash: string; classification: string;
+  category: string; confidence: number; applied: string; error: string;
 };

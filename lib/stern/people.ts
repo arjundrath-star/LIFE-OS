@@ -322,3 +322,15 @@ export function networkSnapshot(): NetworkSnapshot {
   for (const r of db.prepare("SELECT relationship_type type,COUNT(*) n FROM people WHERE archived=0 GROUP BY relationship_type").all() as { type: Person["relationship_type"]; n: number }[]) counts.byRelationshipType[r.type] = r.n;
   return { counts, recent: db.prepare("SELECT * FROM people WHERE archived=0 ORDER BY id DESC LIMIT 10").all() as Person[] };
 }
+
+/** Evidence can establish a later relationship stage when earlier emails were outside the scan window. */
+export function observePersonStatus(id: number, status: "reached_out" | "replied" | "chatted", options: WriteOptions) {
+  return peopleWrite(() => {
+    const m = meta(options), p = personRow(id);
+    if (!["auto_email", "auto_calendar", "suggestion_accept"].includes(String(m.source))) throw new SternError(400, "Observed status needs automation evidence");
+    if (["dormant", "follow_up_owed"].includes(p.status) || PERSON_STATUSES.indexOf(p.status) >= PERSON_STATUSES.indexOf(status)) return p;
+    patchRow("person", id, { status, updated_at: nowIso() }, m);
+    syncPersonNote(personRow(id));
+    return personRow(id);
+  });
+}

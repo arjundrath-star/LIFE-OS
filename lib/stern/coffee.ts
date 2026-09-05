@@ -81,3 +81,29 @@ export function ensureCoffeeChatsForPerson(personId: number, options: ChangeMeta
     });
   }).immediate();
 }
+
+/** Reconcile an observed email/calendar fact without inventing intermediate touchpoints. */
+export function observeCoffeeChat(chatId: number, input: {
+  state?: CoffeeChatState; requested_at?: string; reply_at?: string; reply_needs_me?: number;
+  scheduled_at?: string; location?: string; calendar_event_id?: string; occurred_at?: string;
+  thank_you_sent_at?: string; last_follow_up_at?: string; gmail_thread_id?: string; prep_notes?: string;
+}, options: ChangeMeta) {
+  return getDb().transaction(() => {
+    const chat = row<CoffeeChat>("coffee_chat", chatId);
+    validateClub(chat.club_id);
+    const audit = meta(options);
+    if (!["auto_email", "auto_calendar", "suggestion_accept", "agent"].includes(String(audit.source))) throw new SternError(400, "Observed facts require automation evidence");
+    const fields: Row = { ...input };
+    const rank: Record<CoffeeChatState, number> = { to_request: 0, requested: 1, no_reply: 1, reply_received: 2, scheduled: 3, done: 4, thank_you_sent: 5, declined: 5 };
+    if (input.state && rank[input.state] < rank[chat.state]) delete fields.state;
+    for (const key of ["requested_at", "reply_at", "scheduled_at", "occurred_at", "thank_you_sent_at", "last_follow_up_at"] as const) {
+      if (input[key] && (!validDate(input[key]!) || !input[key]!.includes("T"))) throw new SternError(400, `Invalid ${key}`);
+    }
+    if ((fields.state || chat.state) === "scheduled" && !(fields.scheduled_at || chat.scheduled_at)) throw new SternError(400, "Scheduled chat needs a time");
+    if (input.reply_needs_me !== undefined && ![0, 1].includes(input.reply_needs_me)) throw new SternError(400, "Invalid reply flag");
+    if (["scheduled", "done", "thank_you_sent", "declined"].includes(String(fields.state || chat.state))) fields.reply_needs_me = 0;
+    if (input.last_follow_up_at) fields.follow_up_count = (getDb().prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id=? AND kind='follow_up_sent' AND json_valid(detail) AND json_extract(detail,'$.coffee_chat_id')=?").get(chat.person_id, chatId) as { n: number }).n;
+    patch("coffee_chat", chatId, fields, audit);
+    return chatId;
+  }).immediate();
+}
