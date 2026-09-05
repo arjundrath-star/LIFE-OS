@@ -140,7 +140,7 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
   const m = meta(options);
   const result = peopleWrite(() => {
     const fields = normalized({ ...input, display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
-    fields.display_name = text(fields.display_name) || text(input.name) || `${text(fields.first_name)} ${text(fields.last_name)}`.trim();
+    fields.display_name = text(fields.display_name) || bounded(input.name, 2000, "name") || `${text(fields.first_name)} ${text(fields.last_name)}`.trim();
     if (!fields.display_name) throw new SternError(400, "Name is required");
     if (!fields.first_name && !fields.last_name) {
       const [first, ...last] = String(fields.display_name).split(/\s+/); fields.first_name = first; fields.last_name = last.join(" ");
@@ -217,6 +217,7 @@ export function addAffiliation(personId: number, input: Input, options: WriteOpt
 }
 export function updateAffiliation(id: number, input: Input, options: WriteOptions = {}): Affiliation {
   return peopleWrite(() => {
+    object(input);
     const before = row<Affiliation>("affiliation", id);
     const fields = affiliationFields({ ...input, clubId: input.clubId ?? input.club_id ?? before.club_id });
     const after = { ...before, ...fields };

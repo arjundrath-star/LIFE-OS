@@ -828,3 +828,9 @@ textarea:focus-visible,
 .stern-mode .stern-network-table tr:focus-within .stern-network-row-actions { opacity:1; }
 .stern-mode .stern-add-fields fieldset { border:0; padding:0; margin:0; display:grid; gap:14px; min-width:0; }
 @media(hover:none) { .stern-mode .stern-network-row-actions { opacity:1; } }
+
+/* Recruiting still uses the shared Button primitive; its remaps must preserve Network ghost states. */
+.stern-mode .stern-network-dialog .stern-btn.ghost,
+.stern-mode .stern-network-pagination .stern-btn.ghost { background:transparent !important; border-color:transparent !important; color:var(--stern-text-muted) !important; }
+.stern-mode .stern-network-dialog .stern-btn.ghost:hover,
+.stern-mode .stern-network-pagination .stern-btn.ghost:hover { background:var(--stern-surface-2) !important; color:var(--stern-text) !important; }

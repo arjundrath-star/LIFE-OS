@@ -19,27 +19,39 @@ async function main() {
   await page.setRequestInterception(true);
   let tasksMissing = false;
   let networkGets = 0;
+  const pendingNetwork = new Set<unknown>();
+  const settleNetwork = async () => {
+    let stable = 0, last = -1;
+    for (let i = 0; i < 300; i++) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      stable = pendingNetwork.size === 0 && last === networkGets ? stable + 1 : 0;
+      last = networkGets;
+      if (stable >= 10) return;
+    }
+    throw new Error(`Network queries did not settle (${pendingNetwork.size} pending)`);
+  };
+  page.on("requestfinished", r => pendingNetwork.delete(r));
+  page.on("requestfailed", r => pendingNetwork.delete(r));
   page.on("request", request => {
-    if (request.url().includes("/api/stern/network") && request.method() === "GET") networkGets++;
-    if (tasksMissing && request.url().includes("/api/stern/tasks")) { void request.respond({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not found" }) }); return; } if (request.url().startsWith(origin) || request.url().startsWith("data:")) void request.continue(); else void request.abort(); });
+    if (request.url().includes("/api/stern/network") && request.method() === "GET") { networkGets++; pendingNetwork.add(request); }
+    if (tasksMissing && request.url().includes("/api/stern/tasks")) { void request.respond({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not found" }) }); return; }
+    if (request.url().startsWith(origin) || request.url().startsWith("data:")) void request.continue(); else void request.abort();
+  });
   // Drive the real LiveProvider with deterministic local snapshots, without starting a scheduler.
-  await page.evaluateOnNewDocument(() => {
-    class LocalSocket {
-      onopen: (() => void) | null = null;
-      onmessage: ((e: { data: string }) => void) | null = null;
-      close() {}
+  await page.evaluateOnNewDocument(`
+    window.WebSocket = class {
       constructor() {
-        (window as any).__sternPush = (payload: unknown) => this.onmessage?.({ data: JSON.stringify({ channel: "stern", payload }) });
+        window.__sternPush = payload => this.onmessage?.({ data: JSON.stringify({ channel: "stern", payload }) });
         setTimeout(() => this.onopen?.(), 0);
       }
-    }
-    (window as any).WebSocket = LocalSocket;
-  });
+      close() {}
+    };
+  `);
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(String(e)));
   const batches: string[] = [];
   page.on("response", async response => {
-    if (response.url().includes("/api/stern/network") && response.request().method() === "POST" && response.ok()) {
+    if (/\/api\/stern\/(network|tasks)/.test(response.url()) && response.request().method() === "POST" && response.ok()) {
       const value = await response.json().catch(() => null); if (value?.batchId) batches.push(value.batchId);
     }
   });
@@ -75,13 +87,13 @@ async function main() {
     assert.equal(await page.$eval('[data-testid="stern-person-status"]', el => (el as HTMLSelectElement).value), "need_to_reach_out");
     const liveSnapshot = await page.evaluate(async () => (await fetch("/api/stern")).json());
     await page.evaluate(snapshot => (window as any).__sternPush(snapshot), liveSnapshot);
-    await page.waitForNetworkIdle();
+    await settleNetwork();
     const idleGets = networkGets;
     for (let i = 0; i < 3; i++) await page.evaluate(({ snapshot, tick }) => (window as any).__sternPush({ ...snapshot, updatedAt: `fixture-tick-${tick}` }), { snapshot: liveSnapshot, tick: i });
-    await page.waitForNetworkIdle();
+    await settleNetwork();
     assert.equal(networkGets, idleGets, "idle/unrelated Stern snapshots must not refetch table or drawer");
     await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, network: { ...snapshot.network, version: "fixture-external-change" } }), liveSnapshot);
-    await page.waitForNetworkIdle();
+    await settleNetwork();
     assert.equal(networkGets, idleGets + 2, "changed network snapshot refreshes table and drawer once");
     const drawerWidth = await page.$eval('[data-testid="stern-person-drawer"]', el => el.getBoundingClientRect().width); assert.equal(drawerWidth, 440);
     for (const section of ["contacts", "affiliations", "coffee-chats", "drafts", "touchpoints"]) assert.ok(await page.$(`[data-testid="stern-person-${section}"]`));
@@ -108,6 +120,14 @@ async function main() {
     const rect = await page.$eval('[data-testid="stern-quick-add"]', el => { const r = el.getBoundingClientRect(); return { x: r.x, width: r.width, bottom: r.bottom }; });
     assert.equal(rect.width, 390); assert.equal(rect.x, 0); assert.ok(rect.bottom <= 845);
     await page.waitForSelector('[data-testid="stern-quick-add-club"]');
+    const sheetSnapshot = await page.evaluate(async () => (await fetch("/api/stern")).json());
+    await page.evaluate(snapshot => (window as any).__sternPush(snapshot), sheetSnapshot);
+    await settleNetwork();
+    const sheetGets = networkGets;
+    await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, updatedAt: "fixture-sheet-tick" }), sheetSnapshot);
+    await settleNetwork(); assert.equal(networkGets, sheetGets);
+    await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, network: { ...snapshot.network, version: "fixture-sheet-change" } }), sheetSnapshot);
+    await settleNetwork(); assert.equal(networkGets, sheetGets + 2, "changed marker refreshes table and open sheet");
     await page.screenshot({ path: path.join(artifactDir, "phone-quick-add.png") });
     await page.setViewport({ width: 390, height: 520, isMobile: true, hasTouch: true });
     await page.waitForFunction(() => (document.querySelector('[data-testid="stern-quick-add-save"]')?.getBoundingClientRect().bottom || 1000) <= 520);
@@ -121,8 +141,14 @@ async function main() {
     await page.click('[data-testid="stern-quick-add-save"]');
     await page.waitForSelector('[data-testid="stern-quick-add"]', { hidden: true });
     await page.waitForFunction(() => !new URL(window.location.href).searchParams.has("add"));
+    tasksMissing = false;
+    await page.evaluate(id => window.dispatchEvent(new CustomEvent("stern:quick-add", { detail: { segment: "Task", personId: Number(id) } })), personId);
+    await page.waitForSelector('[data-testid="stern-quick-add-task-title"]');
+    await page.type('[data-testid="stern-quick-add-task-title"]', "Browser Example Follow-up Task");
+    await page.click('[data-testid="stern-quick-add-save"]');
+    await page.waitForSelector('[data-testid="stern-quick-add"]', { hidden: true });
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ anonymousStatus: 401, duplicateCaptureNotice: true, unchangedLiveGets: 0, changedLiveGets: 2, desktopTable: true, drawerWidth, deepLink: true, escape: true, notesAutosave: true, relationshipAndStrength: true, phoneSheet: rect, task404Fallback: true, quickNote: true, keyboardViewportSaveVisible: true, browserErrors: errors.length }));
+    console.log(JSON.stringify({ anonymousStatus: 401, duplicateCaptureNotice: true, unchangedLiveGets: 0, changedLiveGets: 2, unchangedSheetGets: 0, changedSheetGets: 2, desktopTable: true, drawerWidth, deepLink: true, escape: true, notesAutosave: true, relationshipAndStrength: true, phoneSheet: rect, task404Fallback: true, taskCreate: true, quickNote: true, keyboardViewportSaveVisible: true, browserErrors: errors.length }));
   } finally {
     // Undo only this journey's mutation batches, in reverse order, through the gated audit API.
     for (const batchId of batches.reverse()) {

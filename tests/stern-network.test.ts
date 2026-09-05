@@ -164,7 +164,7 @@ test("vault writes stable People notes on create/notes edits, no notes on rollba
 
 // Execute the real route with only the session boundary and broadcast replaced by local stubs.
 // No HTTP listener, credential reads, provider calls, or public auth bypass is introduced.
-test("API dispatches every action, exports and filters; unauthorized requests never mutate or broadcast", async () => {
+test("API dispatches every action, exports and filters; unauthorized requests never mutate or broadcast", async t => {
   const { people, audit, db } = await setup();
   const source = fs.readFileSync("app/api/stern/network/route.ts", "utf8");
   assert.equal((source.match(/await requireUser\(\)/g) || []).length, 2);
@@ -215,6 +215,10 @@ test("API dispatches every action, exports and filters; unauthorized requests ne
   assert.equal((await post({ action: "person.create", person: { name: "Bad affiliation rollback" }, affiliation: { clubId: 999999 } })).status, 404);
   assert.equal(people.networkSnapshot().counts.total, count); assert.deepEqual(fs.readdirSync(path.join(tmp, "vault", "Stern", "People")), files);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE display_name='Unauthorized'").get() as { n: number }).n, 0);
+  const logger = t.mock.method(console, "error", () => {});
+  const rename = t.mock.method(fs, "renameSync", () => { throw new Error("private/filesystem/path"); });
+  try { await success({ action: "person.update", id, patch: { notes: "API remains successful after vault failure" } }); }
+  finally { rename.mock.restore(); logger.mock.restore(); }
 });
 
 
@@ -235,6 +239,10 @@ test("fix round: archived recapture restores visibility and merge identities rem
   assert.match(p.getPerson(drop.id).dedupe_key, /^merged:/);
   assert.equal(p.updatePerson(drop.id, { notes: "Archived notes remain editable" }).notes, "Archived notes remain editable");
   assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE dedupe_key='' OR dedupe_key IS NULL").get() as { n: number }).n, 0);
+  const survivor = p.createPerson({ name: "Merge Chain Survivor", email: "chain-survivor@example.test" }).person;
+  p.mergePeople(survivor.id, keep.id);
+  assert.equal(p.createPerson({ name: drop.display_name, email: drop.email }).person.id, survivor.id);
+  assert.deepEqual(p.getPerson(survivor.id).mergedRecords.map(r => r.id).sort((a,b) => a-b), [keep.id, drop.id].sort((a,b) => a-b));
 });
 
 test("fix round: undo older touchpoints recomputes contact from remaining rows", async () => {
@@ -306,6 +314,7 @@ test("fix round: input caps, linked organization and manual Gmail evidence", asy
   const { people: p, db } = await setup();
   const person = p.createPerson({ name: "Validation Example" }).person;
   assert.throws(() => p.createPerson({ name: "x".repeat(2001) }), /display_name is too long/);
+  assert.throws(() => p.createPerson({ display_name: " ", name: "x".repeat(2001) }), /name is too long/);
   for (const [key, length] of [["org", 241], ["role", 121]] as const) assert.throws(() => p.addAffiliation(person.id, { org: "Example", [key]: "x".repeat(length) }), /too long/);
   for (const [key, length] of [["summary", 501], ["detail", 5001]] as const) assert.throws(() => p.addTouchpoint(person.id, "note", { [key]: "x".repeat(length) }), /too long/);
   const club = db.prepare("SELECT id,name FROM stern_clubs LIMIT 1").get() as { id: number; name: string };
