@@ -41,7 +41,7 @@ export function NetworkTable() {
       <select className="stern-select" aria-label="Sort people" value={sort} onChange={e => setSort(e.target.value)} data-testid="stern-network-sort"><option value="name">Name</option><option value="recent">Recently added</option><option value="strength">Strength</option><option value="last_contact">Last contact</option></select>
     </div>
     {error && <p role="alert">{error} <button className="stern-btn" data-testid="stern-network-retry" onClick={refetch}>Retry</button></p>}
-    {loading ? <SkeletonRows rows={8} /> : data && <div className="stern-network-table-wrap">
+    {loading && !data ? <SkeletonRows rows={8} /> : data && <div className="stern-network-table-wrap">
       <table className="stern-network-table" data-testid="stern-network-table"><thead><tr>{["Name", "Affiliation", "Relationship", "Strength", "Status", "Last contact", "Next action", "Contact"].map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>
         {data.people.map(p => <tr key={p.id} data-testid="stern-network-row" data-person-id={p.id} onClick={() => selectPerson(p.id)}>
           <td><button className="stern-network-person-link" data-testid={`stern-network-open-${p.id}`} onClick={e => { e.stopPropagation(); selectPerson(p.id); }}><span className="stern-network-initials">{p.display_name.split(/\s+/).slice(0, 2).map(n => n[0]).join("")}</span>{p.display_name}</button></td>

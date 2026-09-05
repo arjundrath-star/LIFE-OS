@@ -4,7 +4,7 @@ import { getDb, nowIso } from "@/db";
 import { HOW_MET, PERSON_SOURCES, PERSON_STATUSES, RELATIONSHIP_TYPES, SPHERES, TOUCHPOINT_KINDS, TOUCHPOINT_SOURCES, type Person, type PersonDetail, type Affiliation, type Touchpoint, type PeopleFilters, type NetworkSnapshot, type AuditEntityType } from "@/lib/stern-types";
 import { logChange, logCreate, logDelete, newBatchId, type AuditMeta, ENTITY_TABLES } from "./audit";
 import { SternError } from "./errors";
-import { upsertNote } from "./vault-write";
+import { writePersonNote } from "./people-note";
 
 // Defer vault writes until the outermost domain/API transaction commits.
 let writeDepth = 0;
@@ -86,7 +86,7 @@ function remove(entity: AuditEntityType, id: number, m: AuditMeta) {
 // Stable id-based slugs survive name edits and distinguish people with identical names.
 export function syncPersonNote(p: Person) {
   if (writeDepth > 0) { pendingNotes.add(p.id); return; }
-  return upsertNote(`People/person-${p.id}.md`, { name: p.display_name, org: p.org, relationship: p.relationship_type, strength: p.strength, status: p.status }, p.notes);
+  return writePersonNote(p);
 }
 function normalized(input: Input): Input {
   object(input);
@@ -238,9 +238,11 @@ export function mergePeople(keepId: number, dropId: number, options: WriteOption
     if (keepId === dropId) throw new SternError(400, "Choose two different people");
     const keep = personRow(keepId), drop = personRow(dropId);
     const blanks = Object.fromEntries(EDITABLE.filter(k => keep[k] === "" && drop[k] !== "").map(k => [k, drop[k]]));
-    // Keep identity/dedupe stable; two distinct emails remain on their original records.
-    delete blanks.email;
-    if (!keep.email_alt && drop.email && drop.email !== keep.email) blanks.email_alt = drop.email;
+    // Transfer a missing email/identity to the survivor, releasing the archived row's
+    // unique key first. Both changes are audited so undo restores the two identities.
+    const nextKey = dedupeKeyFor({ ...keep, ...blanks });
+    if (nextKey === drop.dedupe_key && nextKey !== keep.dedupe_key) patchRow("person", dropId, { dedupe_key: "" }, m);
+    if (keep.email && !keep.email_alt && drop.email && drop.email !== keep.email) blanks.email_alt = drop.email;
     if (drop.notes && keep.notes && !keep.notes.includes(drop.notes)) blanks.notes = `${keep.notes}\n\n${drop.notes}`;
     updateInside(keepId, blanks, m);
     for (const entity of ["affiliation", "touchpoint"] as const) {
@@ -281,8 +283,8 @@ function where(filters: PeopleFilters) {
     const selected = filters[key];
     if (selected?.length) { selected.forEach(v => enumValue(v, valid, key)); clauses.push(`p.${column} IN (${selected.map(() => "?").join(",")})`); values.push(...selected); }
   }
-  if (filters.strengthMin) { clauses.push("p.strength >= ?"); values.push(integer(filters.strengthMin, 1, 5, "strength")); }
-  if (filters.clubId) { clauses.push("EXISTS (SELECT 1 FROM people_affiliations a WHERE a.person_id=p.id AND a.club_id=?)"); values.push(integer(filters.clubId, 1, Number.MAX_SAFE_INTEGER, "club")); }
+  if (filters.strengthMin !== undefined) { clauses.push("p.strength >= ?"); values.push(integer(filters.strengthMin, 1, 5, "strength")); }
+  if (filters.clubId !== undefined) { clauses.push("EXISTS (SELECT 1 FROM people_affiliations a WHERE a.person_id=p.id AND a.club_id=?)"); values.push(integer(filters.clubId, 1, Number.MAX_SAFE_INTEGER, "club")); }
   if (filters.sphere) { clauses.push("p.sphere = ?"); values.push(enumValue(filters.sphere, SPHERES, "sphere")); }
   if (filters.followUpOwed) clauses.push("p.status = 'follow_up_owed'");
   return { sql: clauses.join(" AND "), values };

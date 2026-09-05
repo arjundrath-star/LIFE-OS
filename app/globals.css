@@ -587,3 +587,16 @@ textarea:focus-visible,
   .stern-mode .stern-network-filters { gap:8px; }
   .stern-mode .stern-network-search { margin-left:0; }
 }
+.stern-mode .stern-network-rail-count { margin-left:auto; border-radius:5px; background:var(--stern-accent); color:white; padding:1px 6px; font-size:11px; }
+.stern-mode.stern-rail-collapsed .stern-network-rail-count { display:none; }
+/* Shared Button utility classes carry dark-theme colors; Stern controls own their colors. */
+.stern-mode .stern-btn { background:var(--stern-surface) !important; color:var(--stern-text) !important; border-color:var(--stern-border) !important; }
+.stern-mode .stern-btn:hover { background:var(--stern-surface-2) !important; }
+.stern-mode .stern-btn.primary { background:var(--stern-accent) !important; color:var(--stern-on-accent) !important; border-color:var(--stern-accent) !important; }
+.stern-mode .stern-btn.primary:hover { background:var(--stern-accent-hover) !important; }
+.stern-mode .stern-btn.ghost { background:transparent !important; border-color:transparent !important; color:var(--stern-text-muted) !important; }
+.stern-mode .stern-btn svg { flex-shrink:0; }
+.stern-mode .stern-network-dialog-title button { padding:0; }
+@media(max-width:639px) {
+  .stern-mode .stern-add-fields .stern-network-two:has(input[type=datetime-local]) { grid-template-columns:1fr; }
+}

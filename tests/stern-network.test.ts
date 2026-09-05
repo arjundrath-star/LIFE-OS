@@ -103,6 +103,22 @@ test("merge moves and dedupes children, retains read-only chats/drafts, and reve
   assert.deepEqual(p.getPerson(keep.id), before.keep); assert.deepEqual(p.getPerson(drop.id), before.drop);
 });
 
+test("merge can transfer an email or name+org identity into a blank survivor", async () => {
+  const { people: p, audit } = await setup();
+  for (const email of ["", "transfer@example.test"]) {
+    const name = email ? "Email Transfer Student" : "Org Transfer Student";
+    const keep = p.createPerson({ name }).person;
+    const drop = p.createPerson({ name, org: "Transfer Organization", email }).person;
+    const batchId = audit.newBatchId();
+    const merged = p.mergePeople(keep.id, drop.id, { batchId });
+    assert.equal(merged.org, drop.org); assert.equal(merged.email, email);
+    assert.equal(p.createPerson({ name, org: drop.org, email }).person.id, keep.id);
+    audit.undoBatch(batchId);
+    assert.equal(p.getPerson(keep.id).dedupe_key, keep.dedupe_key);
+    assert.equal(p.getPerson(drop.id).dedupe_key, drop.dedupe_key);
+  }
+});
+
 test("SQL search, compound filters, pagination, counts, CSV escaping and idempotent atomic import", async () => {
   const { people: p, audit } = await setup();
   const fixtures = JSON.parse(fs.readFileSync("tests/fixtures/stern/network.json", "utf8"));
@@ -127,7 +143,11 @@ test("vault writes stable People notes on create/notes edits, no notes on rollba
   const { people: p, audit } = await setup();
   const a = p.createPerson({ name: "Vault Student", notes: "First note", org: "Example Org" }).person;
   assert.match(fs.readFileSync(note(a.id), "utf8"), /name: Vault Student/); assert.match(fs.readFileSync(note(a.id), "utf8"), /relationship: general_connect/);
-  p.updatePerson(a.id, { notes: "Changed note" }); assert.match(fs.readFileSync(note(a.id), "utf8"), /Changed note/);
+  const batchId = audit.newBatchId();
+  p.updatePerson(a.id, { notes: "Changed note" }, { batchId }); assert.match(fs.readFileSync(note(a.id), "utf8"), /Changed note/);
+  audit.undoBatch(batchId); assert.match(fs.readFileSync(note(a.id), "utf8"), /First note/);
+  const captureBatch = audit.newBatchId(); const withdrawn = p.createPerson({ name: "Withdrawn Capture", notes: "Preserved narrative" }, { batchId: captureBatch }).person;
+  audit.undoBatch(captureBatch); assert.match(fs.readFileSync(note(withdrawn.id), "utf8"), /capture_undone: true/);
   p.updatePerson(a.id, { display_name: "Renamed Vault Student" }); assert.match(fs.readFileSync(note(a.id), "utf8"), /name: Renamed Vault Student/);
   let rollbackId = 0; assert.throws(() => p.peopleWrite(() => { rollbackId = p.createPerson({ name: "Rolled Back Student" }).person.id; throw new Error("rollback"); }), /rollback/);
   assert.equal(fs.existsSync(note(rollbackId)), false);
