@@ -3,7 +3,7 @@
 // search, Quick add, sync status, and account. Mirrors BusinessShell; theme is the
 // .stern-mode scope in app/globals.css.
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -27,7 +27,10 @@ import {
 import { STERN_ROUTES, activeSternRoute, sternPageTitle } from "@/lib/stern-workspace";
 import type { SternSnapshot } from "@/lib/stern-types";
 import { useConnStatus, useLiveData } from "@/hooks/useLiveData";
+import { useApi } from "@/hooks/useApi";
 import { timeAgo } from "@/lib/time";
+
+import { QuickAddSheet } from "@/components/stern/network/QuickAddSheet";
 
 const ICONS: Record<(typeof STERN_ROUTES)[number]["key"], LucideIcon> = {
   overview: LayoutDashboard,
@@ -76,6 +79,9 @@ function SyncStatus() {
 
 export function SternShell({ user, children }: { user: User; children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: initialSnapshot } = useApi<SternSnapshot>("/api/stern");
+  const liveSnapshot = useLiveData<SternSnapshot>("stern");
+  const networkCount = (liveSnapshot || initialSnapshot)?.network.counts.needToReachOut || 0;
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -144,6 +150,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
             >
               <Icon aria-hidden="true" />
               <span>{label}</span>
+              {key === "network" && networkCount > 0 && <b className="stern-network-rail-count stern-mono" data-testid="stern-network-rail-count" title="People who need outreach">{networkCount}</b>}
             </Link>
           );
         })}
@@ -216,6 +223,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
           </div>
         </header>
         <main className="stern-main">{children}</main>
+        <Suspense fallback={null}><QuickAddSheet /></Suspense>
       </div>
     </div>
   );

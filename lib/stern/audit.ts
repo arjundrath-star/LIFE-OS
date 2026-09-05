@@ -6,6 +6,8 @@
 // field names are validated against PRAGMA table_info before they reach SQL; undo runs
 // in one IMMEDIATE transaction so a second process (stern-cli) cannot interleave.
 import crypto from "node:crypto";
+import { writePersonNote } from "./people-note";
+import type { Person } from "@/lib/stern-types";
 import { getDb, nowIso } from "@/db";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
 import { SternError } from "@/lib/stern/errors";
@@ -215,7 +217,21 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     }
     return { batchId, reverted, skipped };
   });
-  return tx.immediate();
+  const result = tx.immediate();
+  // The database transaction is committed before reflecting restored people in the vault.
+  const personIds = db.prepare("SELECT DISTINCT entity_id FROM stern_audit_log WHERE batch_id=? AND entity_type='person'").all(batchId) as { entity_id: number }[];
+  for (const { entity_id: id } of personIds) {
+    const person = db.prepare("SELECT * FROM people WHERE id=?").get(id) as Person | undefined;
+    if (person) writePersonNote(person, false, true);
+    else {
+      const capture = db.prepare("SELECT after_value FROM stern_audit_log WHERE batch_id=? AND entity_type='person' AND entity_id=? AND action='create' ORDER BY id DESC LIMIT 1").get(batchId, id) as { after_value: string } | undefined;
+      if (capture) {
+        const prior = JSON.parse(capture.after_value) as Person;
+        if (prior.display_name !== undefined) writePersonNote({ ...prior, id }, true);
+      }
+    }
+  }
+  return result;
 }
 
 /** Live tail of the audit log (newest N, returned oldest-first for rendering). */
