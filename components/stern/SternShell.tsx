@@ -65,12 +65,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function SyncStatus() {
   const snapshot = useLiveData<SternSnapshot>("stern");
   const conn = useConnStatus();
-  const state = conn === "open" ? (snapshot ? "ok" : "warn") : conn === "connecting" ? "warn" : "error";
+  const lastError = snapshot?.automation?.lastError || "";
+  const state = conn === "open" ? (snapshot ? (lastError ? "warn" : "ok") : "warn") : conn === "connecting" ? "warn" : "error";
   const lastScan = snapshot?.automation?.lastScanAt || "";
   const text =
-    conn === "closed" ? "Live updates offline" : lastScan ? `Last scan ${timeAgo(lastScan)}` : "No scan yet";
+    conn === "closed" ? "Live updates offline" : lastError ? "Scan error" : lastScan ? `Last scan ${timeAgo(lastScan)}` : "No scan yet";
   return (
-    <span className="stern-sync" data-testid="stern-sync" data-state={state} title={`WebSocket ${conn}`}>
+    <span className="stern-sync" data-testid="stern-sync" data-state={state} title={lastError ? `Last scan error: ${lastError}` : `WebSocket ${conn}`}>
       <i aria-hidden="true" />
       {text}
     </span>
@@ -111,7 +112,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
   // outside a field, return to the dashboard.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       if (open) {
         setOpen(false);
         return;

@@ -6,8 +6,8 @@ import { getDb, nowIso } from "@/db";
 import { getHub } from "@/server/live";
 import { type SternSnapshot } from "@/lib/stern-types";
 
-import { nyDayBounds } from "@/lib/stern/time";
-export { nyDayBounds, nyDateKey } from "@/lib/stern/time";
+import { nyDayBounds, dayWindowSql, dayWindowParams, beforeDaySql } from "@/lib/stern/time";
+export { nyDayBounds, nyDateKey, dayWindowSql, dayWindowParams, beforeDaySql } from "@/lib/stern/time";
 import { recruitingSnapshot } from "@/lib/stern/recruiting";
 
 function count(sql: string, ...params: unknown[]): number {
@@ -25,9 +25,9 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   const today = nyDayBounds(now);
   const in14 = nyDayBounds(now, 14);
   const in7 = nyDayBounds(now, 7);
-  // julianday() understands both 'Z' and '-04:00' ISO forms and date-only strings, so mixed
-  // producers (fixtures with offsets, app writes in UTC) compare correctly.
-  const between = (col: string) => `${col} <> '' AND julianday(${col}) >= julianday(?) AND julianday(${col}) < julianday(?)`;
+  // Date-only values (YYYY-MM-DD) mean that whole New York day; instants with any offset compare
+  // through julianday(). Both forms exist because fixtures carry -04:00 and app writes use Z.
+  const between = dayWindowSql;
 
   const counts: SternSnapshot["counts"] = {
     people: count("SELECT COUNT(*) n FROM people WHERE archived = 0"),
@@ -36,17 +36,15 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     replyOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE reply_needs_me = 1 AND state NOT IN ('done','thank_you_sent','declined','no_reply')"),
     deadlines14d: count(
       `SELECT COUNT(*) n FROM stern_programs WHERE status IN ('open','drafting','not_open') AND ${between("app_deadline_at")}`,
-      today.startIso,
-      in14.endIso
+      ...dayWindowParams(today, in14)
     ),
-    tasksDueToday: count(`SELECT COUNT(*) n FROM stern_tasks WHERE status = 'open' AND ${between("due_at")}`, today.startIso, today.endIso),
-    tasksOverdue: count("SELECT COUNT(*) n FROM stern_tasks WHERE status = 'open' AND due_at <> '' AND julianday(due_at) < julianday(?)", today.startIso),
+    tasksDueToday: count(`SELECT COUNT(*) n FROM stern_tasks WHERE status = 'open' AND ${between("due_at")}`, ...dayWindowParams(today, today)),
+    tasksOverdue: count(`SELECT COUNT(*) n FROM stern_tasks WHERE status = 'open' AND ${beforeDaySql("due_at")}`, today.dateKey, today.startIso),
     followUpsOwed: count("SELECT COUNT(*) n FROM people WHERE archived = 0 AND status = 'follow_up_owed'"),
     suggestionsPending: count("SELECT COUNT(*) n FROM stern_suggestions WHERE state = 'pending'"),
     assignmentsDueSoon: count(
       `SELECT COUNT(*) n FROM assignments WHERE status IN ('upcoming','in_progress') AND ${between("due_at")}`,
-      today.startIso,
-      in7.endIso
+      ...dayWindowParams(today, in7)
     ),
   };
 
@@ -69,7 +67,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
         WHERE source IN ('auto_email','auto_calendar','imessage') AND ${between("created_at")}
         ORDER BY id DESC LIMIT 20`
     )
-    .all(today.startIso, today.endIso) as unknown[];
+    .all(...dayWindowParams(today, today)) as unknown[];
   autoAppliedToday.reverse();
 
   return {

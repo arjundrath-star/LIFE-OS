@@ -85,14 +85,20 @@ function serialize(value: unknown): string {
 }
 
 // Column lists per table, read once from SQLite so field names can never be injected.
-const columnCache = new Map<string, Set<string>>();
-export function tableColumns(table: string): Set<string> {
+// Only the enumerated entity tables may be inspected (the name is interpolated into PRAGMA).
+const TABLE_SET = new Set<string>(Object.values(ENTITY_TABLES));
+const columnCache = new Map<string, Map<string, { notnull: boolean }>>();
+export function tableColumnInfo(table: string): Map<string, { notnull: boolean }> {
   const cached = columnCache.get(table);
   if (cached) return cached;
-  const rows = getDb().prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  const set = new Set(rows.map((r) => r.name));
-  columnCache.set(table, set);
-  return set;
+  if (!TABLE_SET.has(table)) throw new SternError(400, `unknown audit table: ${table}`);
+  const rows = getDb().prepare(`PRAGMA table_info(${table})`).all() as { name: string; notnull: number }[];
+  const map = new Map(rows.map((r) => [r.name, { notnull: !!r.notnull }]));
+  columnCache.set(table, map);
+  return map;
+}
+export function tableColumns(table: string): Set<string> {
+  return new Set(tableColumnInfo(table).keys());
 }
 
 export function entityTable(entityType: string): string {
@@ -103,7 +109,7 @@ export function entityTable(entityType: string): string {
 function assertField(entityType: string, field: string) {
   if (!field) return;
   const table = entityTable(entityType);
-  if (!/^[a-z_][a-z0-9_]*$/.test(field) || !tableColumns(table).has(field)) {
+  if (field === "id" || !/^[a-z_][a-z0-9_]*$/.test(field) || !tableColumns(table).has(field)) {
     throw new SternError(400, `unknown field ${field} for ${entityType}`);
   }
 }
@@ -176,16 +182,30 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     let reverted = 0;
     let skipped = 0;
     const ts = nowIso();
+    const totalChanges = () => Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
     for (const row of rows) {
       const table = entityTable(row.entity_type);
       let changes = 0;
       if (row.action === "update") {
         assertField(row.entity_type, row.field);
         if (row.field) {
-          changes = db.prepare(`UPDATE ${table} SET ${row.field} = ? WHERE id = ?`).run(row.before_value, row.entity_id).changes;
+          // Restore only when the row still holds the value this batch wrote; a later change
+          // by another batch wins and this row is reported as skipped (not stamped undone).
+          const info = tableColumnInfo(table).get(row.field);
+          const restore = row.before_value === "" && info && !info.notnull ? null : row.before_value;
+          changes = db
+            .prepare(`UPDATE ${table} SET ${row.field} = ? WHERE id = ? AND ${row.field} IS ?`)
+            .run(restore, row.entity_id, row.after_value).changes;
         }
       } else if (row.action === "create") {
+        // Foreign keys cascade on delete. Refuse when the delete would take dependent rows
+        // this batch did not create (they would vanish with no audit snapshot to restore).
+        const before = totalChanges();
         changes = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(row.entity_id).changes;
+        const cascaded = totalChanges() - before - changes;
+        if (cascaded > 0) {
+          throw new SternError(409, `${row.entity_type} ${row.entity_id} has ${cascaded} dependent row(s) created outside this batch; undo the newer batches first`);
+        }
       } else if (row.action === "delete") {
         let snapshot: Record<string, unknown> | null = null;
         try {
@@ -200,16 +220,27 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
           if (keys.length) {
             const values = keys.map((k) => {
               const v = snapshot![k];
-              return v === null || v === undefined ? null : typeof v === "object" ? JSON.stringify(v) : (v as string | number);
+              if (v === null || v === undefined) return null;
+              if (typeof v === "boolean") return v ? 1 : 0;
+              return typeof v === "object" ? JSON.stringify(v) : (v as string | number);
             });
-            changes = db
-              .prepare(`INSERT OR IGNORE INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`)
-              .run(...values).changes;
+            try {
+              changes = db
+                .prepare(`INSERT OR IGNORE INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`)
+                .run(...values).changes;
+            } catch (e) {
+              // A parent row that no longer exists makes the re-insert impossible; report it as skipped.
+              if (!/FOREIGN KEY|constraint/i.test(String((e as Error).message))) throw e;
+              changes = 0;
+            }
           }
         }
       }
       if (changes > 0) reverted += 1;
-      else skipped += 1;
+      else {
+        skipped += 1;
+        continue; // leave the row eligible for a later undo; nothing was reverted
+      }
       db.prepare("UPDATE stern_audit_log SET undone_at = ? WHERE id = ?").run(ts, row.id);
       db.prepare(
         `INSERT INTO stern_audit_log

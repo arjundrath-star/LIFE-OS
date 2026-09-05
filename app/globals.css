@@ -350,6 +350,7 @@ textarea:focus-visible,
   line-height: 1.45;
 }
 .stern-mode *:focus-visible { outline: 2px solid var(--stern-accent); outline-offset: 2px; }
+.stern-mode .stern-rail a:focus-visible, .stern-mode .stern-rail button:focus-visible { outline-color: #fff; outline-offset: -3px; }
 .stern-mode [class*="bg-base"] { background-color: #F7F7FA !important; }
 .stern-mode [class~="bg-panel"], .stern-mode [class*="bg-panel/"] { background-color: #fff !important; }
 .stern-mode [class~="bg-panel-2"], .stern-mode [class*="bg-panel-2/"] { background-color: #F1F1F6 !important; }
@@ -377,7 +378,7 @@ textarea:focus-visible,
 /* shell */
 .stern-desktop-rail { display: none; flex: none; }
 .stern-rail { display: flex; width: var(--stern-rail-w); height: 100%; flex-direction: column; background: var(--stern-rail); color: var(--stern-rail-text); outline: none; transition: width .18s ease; overflow: hidden; }
-.stern-rail-collapsed .stern-rail { width: var(--stern-rail-w-collapsed); }
+.stern-rail-collapsed .stern-desktop-rail .stern-rail { width: var(--stern-rail-w-collapsed); }
 .stern-brand { display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 20px; flex: none; }
 .stern-brand > span { display: inline-flex; width: 24px; height: 24px; flex: none; align-items: center; justify-content: center; border-radius: 6px; background: var(--stern-accent); color: #fff; font-weight: 700; font-size: 13px; }
 .stern-brand strong { color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; }
@@ -387,8 +388,8 @@ textarea:focus-visible,
 .stern-rail nav a:hover, .stern-rail-back:hover { background: rgba(255,255,255,.06); color: #fff; }
 .stern-rail nav a.active { border-left-color: var(--stern-rail-active); background: rgba(255,255,255,.06); color: #fff; font-weight: 600; }
 .stern-rail-back { margin: 8px 0 12px; font-size: 13px; color: var(--stern-text-faint); }
-.stern-rail-collapsed .stern-rail nav a span, .stern-rail-collapsed .stern-rail-back span, .stern-rail-collapsed .stern-brand strong { display: none; }
-.stern-rail-collapsed .stern-rail nav a, .stern-rail-collapsed .stern-rail-back { padding-left: 20px; justify-content: flex-start; }
+.stern-rail-collapsed .stern-desktop-rail .stern-rail nav a span, .stern-rail-collapsed .stern-desktop-rail .stern-rail-back span, .stern-rail-collapsed .stern-desktop-rail .stern-brand strong { display: none; }
+.stern-rail-collapsed .stern-desktop-rail .stern-rail nav a, .stern-rail-collapsed .stern-desktop-rail .stern-rail-back { padding-left: 20px; justify-content: flex-start; }
 .stern-rail-toggle { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0 auto 8px; border-radius: 6px; color: var(--stern-text-faint); }
 .stern-rail-toggle:hover { background: rgba(255,255,255,.08); color: #fff; }
 .stern-rail-close { display: grid; width: 40px; height: 40px; margin-left: auto; place-items: center; color: var(--stern-rail-text); }
@@ -588,7 +589,7 @@ textarea:focus-visible,
   .stern-mode .stern-network-search { margin-left:0; }
 }
 .stern-mode .stern-network-rail-count { margin-left:auto; border-radius:5px; background:var(--stern-accent); color:white; padding:1px 6px; font-size:11px; }
-.stern-mode.stern-rail-collapsed .stern-network-rail-count { display:none; }
+.stern-mode.stern-rail-collapsed .stern-desktop-rail .stern-network-rail-count { display:none; }
 /* Shared Button utility classes carry dark-theme colors; Stern controls own their colors. */
 .stern-mode .stern-btn { background:var(--stern-surface) !important; color:var(--stern-text) !important; border-color:var(--stern-border) !important; }
 .stern-mode .stern-btn:hover { background:var(--stern-surface-2) !important; }

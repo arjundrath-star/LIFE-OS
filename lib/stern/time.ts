@@ -71,3 +71,19 @@ export function validDate(value: string): boolean {
   if (value.length < 11 || !/^\d{4}-\d{2}-\d{2}T/.test(value) || !validDate(value.slice(0, 10))) return false;
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 }
+
+/**
+ * SQL predicate for "column falls inside [start day, end day]" where the column may hold either a
+ * date-only key (YYYY-MM-DD, meaning that whole New York day) or a full ISO instant with any offset.
+ * Bind params in this order: startKey, endKey, startIso, endIso (endIso exclusive).
+ */
+export function dayWindowSql(col: string): string {
+  return `(${col} <> '' AND ((length(${col}) = 10 AND ${col} >= ? AND ${col} <= ?) OR (length(${col}) > 10 AND julianday(${col}) >= julianday(?) AND julianday(${col}) < julianday(?))))`;
+}
+export function dayWindowParams(start: DayBounds, end: DayBounds): [string, string, string, string] {
+  return [start.dateKey, end.dateKey, start.startIso, end.endIso];
+}
+/** SQL predicate for "column is before the given day" with the same date-only / instant split. Bind: dateKey, startIso. */
+export function beforeDaySql(col: string): string {
+  return `(${col} <> '' AND ((length(${col}) = 10 AND ${col} < ?) OR (length(${col}) > 10 AND julianday(${col}) < julianday(?))))`;
+}

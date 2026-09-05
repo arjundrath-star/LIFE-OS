@@ -256,3 +256,68 @@ test("sternSnapshot counts from SQL and nyDayBounds respects America/New_York mi
   assert.deepEqual(snap.needsYou, []);
   assert.ok(snap.updatedAt);
 });
+
+test("undoBatch refuses cascade deletes from other batches, skips stale updates, and restores NULL", async () => {
+  const { getDb, audit, errors } = await setup();
+  const db = getDb();
+  // Batch A creates a person; batch B adds a touchpoint later. Undoing A alone must not cascade B away.
+  const A = audit.newBatchId("a");
+  const pid = Number(db.prepare("INSERT INTO people (dedupe_key, display_name, status) VALUES (?, ?, 'met')").run("name:undo test person:placeholder club", "Undo Test Person").lastInsertRowid);
+  audit.logCreate("person", pid, { id: pid, display_name: "Undo Test Person" }, { batchId: A, source: "imessage" });
+  const B = audit.newBatchId("b");
+  const tid = Number(db.prepare("INSERT INTO people_touchpoints (person_id, kind, source, gmail_message_id, summary) VALUES (?, 'note', 'manual', 'local:undo-test-1', 'later note')").run(pid).lastInsertRowid);
+  audit.logCreate("touchpoint", tid, { id: tid }, { batchId: B, source: "manual" });
+  assert.throws(() => audit.undoBatch(A), (e: any) => e instanceof errors.SternError && e.status === 409, "cascade refused with 409");
+  assert.ok(db.prepare("SELECT id FROM people WHERE id = ?").get(pid), "person survives the refused undo");
+  assert.ok(db.prepare("SELECT id FROM people_touchpoints WHERE id = ?").get(tid), "child survives the refused undo");
+  assert.equal((db.prepare("SELECT undone_at FROM stern_audit_log WHERE batch_id = ? AND action = 'create'").get(A) as any).undone_at, "", "refused row not stamped");
+  assert.equal(audit.undoBatch(B).reverted, 1);
+  assert.equal(audit.undoBatch(A).reverted, 1);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM people WHERE id = ?").get(pid) as any).n, 0);
+
+  // Batch C changes status met -> replied, batch D replied -> chatted. Undoing C first is a no-op skip.
+  const pid2 = Number(db.prepare("INSERT INTO people (dedupe_key, display_name, status) VALUES (?, ?, 'met')").run("name:stale update person:placeholder club", "Stale Update Person").lastInsertRowid);
+  const C = audit.newBatchId("c");
+  db.prepare("UPDATE people SET status = 'replied' WHERE id = ?").run(pid2);
+  audit.logChange({ entityType: "person", entityId: pid2, action: "update", field: "status", before: "met", after: "replied", batchId: C, source: "auto_email" });
+  const D = audit.newBatchId("d");
+  db.prepare("UPDATE people SET status = 'chatted' WHERE id = ?").run(pid2);
+  audit.logChange({ entityType: "person", entityId: pid2, action: "update", field: "status", before: "replied", after: "chatted", batchId: D, source: "manual" });
+  const stale = audit.undoBatch(C);
+  assert.deepEqual([stale.reverted, stale.skipped], [0, 1]);
+  assert.equal((db.prepare("SELECT status FROM people WHERE id = ?").get(pid2) as any).status, "chatted", "later change wins");
+  assert.equal((db.prepare("SELECT undone_at FROM stern_audit_log WHERE batch_id = ?").get(C) as any).undone_at, "", "skipped row stays eligible");
+  assert.equal(audit.undoBatch(D).reverted, 1);
+  assert.equal(audit.undoBatch(C).reverted, 1);
+  assert.equal((db.prepare("SELECT status FROM people WHERE id = ?").get(pid2) as any).status, "met");
+
+  // Nullable REAL: a grade set from NULL to 18 restores to NULL, not ''.
+  const cid = Number(db.prepare("INSERT INTO courses (code, title, term) VALUES ('TEST-UB 1', 'Placeholder course', 'Test term')").run().lastInsertRowid);
+  const aid = Number(db.prepare("INSERT INTO assignments (course_id, title, dedupe_key) VALUES (?, 'Quiz 0', 'test-ub 1:quiz 0')").run(cid).lastInsertRowid);
+  const E = audit.newBatchId("e");
+  db.prepare("UPDATE assignments SET points_earned = 18 WHERE id = ?").run(aid);
+  audit.logChange({ entityType: "assignment", entityId: aid, action: "update", field: "points_earned", before: null, after: 18, batchId: E, source: "auto_email" });
+  assert.equal(audit.undoBatch(E).reverted, 1);
+  assert.equal((db.prepare("SELECT points_earned FROM assignments WHERE id = ?").get(aid) as any).points_earned, null);
+  assert.throws(() => audit.logChange({ entityType: "person", entityId: pid2, action: "update", field: "id", before: 1, after: 2, batchId: E }), (e: any) => e instanceof errors.SternError && e.status === 400, "id is never an updatable field");
+});
+
+test("date-only due dates count as due today, not overdue, in the New York day", async () => {
+  const { getDb } = await setup();
+  const db = getDb();
+  const { sternSnapshot } = await import("@/lib/stern/snapshot");
+  const { nyDayBounds } = await import("@/lib/stern/time");
+  const now = new Date();
+  const today = nyDayBounds(now);
+  const yesterday = nyDayBounds(now, -1);
+  const before = sternSnapshot(now).counts;
+  const insert = db.prepare("INSERT INTO stern_tasks (title, due_at, status, dedupe_key) VALUES (?, ?, 'open', ?)");
+  insert.run("Date-only due today", today.dateKey, "test:date-only-today");
+  insert.run("Date-only due yesterday", yesterday.dateKey, "test:date-only-yesterday");
+  insert.run("Instant due today", new Date(Date.parse(today.startIso) + 60 * 60 * 1000).toISOString(), "test:instant-today");
+  insert.run("Instant with offset due today", new Date(Date.parse(today.endIso) - 30 * 60 * 1000).toISOString().replace("Z", "+00:00"), "test:instant-offset-today");
+  const after = sternSnapshot(now).counts;
+  assert.equal(after.tasksDueToday - before.tasksDueToday, 3, "two instants and the date-only key are due today");
+  assert.equal(after.tasksOverdue - before.tasksOverdue, 1, "only yesterday's date-only task is overdue");
+  db.prepare("DELETE FROM stern_tasks WHERE dedupe_key LIKE 'test:%'").run();
+});
