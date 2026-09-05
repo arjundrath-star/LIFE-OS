@@ -202,6 +202,8 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     const totalChanges = () => Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
     const checkedReminderIds = new Set<number>();
     for (const row of rows) {
+      // Legacy WP3 bookkeeping is evidence, not a reversible domain change.
+      if (row.entity_type === "email_message") continue;
       const table = entityTable(row.entity_type);
       if (row.entity_type === "person") personIds.add(row.entity_id);
       if (row.entity_type === "touchpoint") {
@@ -347,7 +349,7 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
 /** Live tail of the audit log (newest N, returned oldest-first for rendering). */
 export function auditTail(limit = 50): AuditRow[] {
   const n = Math.max(1, Math.min(500, Math.floor(limit)));
-  const rows = getDb().prepare("SELECT * FROM stern_audit_log ORDER BY id DESC LIMIT ?").all(n) as AuditRow[];
+  const rows = getDb().prepare("SELECT * FROM stern_audit_log WHERE entity_type<>'email_message' ORDER BY id DESC LIMIT ?").all(n) as AuditRow[];
   rows.reverse();
   return rows;
 }

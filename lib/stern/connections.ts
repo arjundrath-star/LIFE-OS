@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { getDb } from "@/db";
+import { getDb, kvGet } from "@/db";
 import { accountScopes, SCOPE_SETS } from "@/lib/sources/google";
 import type { ConnectionDef } from "@/lib/connections/registry";
 type Account = { email: string; enabled: number; last_error: string; refresh_token_enc: string };
@@ -21,10 +21,12 @@ export function codexProbe() {
 }
 export const sternConnections: ConnectionDef[] = [true, false].map((stern): ConnectionDef => ({
   id: stern ? "stern-google-stern" : "stern-google-nyu", label: stern ? "Stern Google · Stern" : "Stern Google · NYU",
-  surfaces: ["dashboard"], reconnect: "oauth", defaultEnabled: true,
+  surfaces: ["dashboard"], reconnect: "oauth", defaultEnabled: false,
   configured: () => !!account(stern), note: "Gmail read and draft creation; Calendar read and event creation. Never sends email.",
   check: async () => {
     const a = account(stern);
+    const error = kvGet<string>(`stern.google.${stern ? "stern" : "nyu"}_error`);
+    if (error) return { ok: false, detail: error };
     if (!a) return { ok: false, detail: `Connect an @${stern ? "stern.nyu.edu" : "nyu.edu"} account` };
     if (!a.enabled) return { ok: false, detail: "Account is disabled" };
     if (!a.refresh_token_enc || a.last_error) return { ok: false, detail: "Google account needs re-auth" };
@@ -34,12 +36,11 @@ export const sternConnections: ConnectionDef[] = [true, false].map((stern): Conn
     return missing.length ? { ok: false, detail: `Partial scopes: reconnect with Stern permissions (${missing.map(s => s.split("/").pop()).join(", ")})` } : { ok: true, detail: "Stern Gmail and Calendar permissions granted" };
   },
 }));
-sternConnections.push({ id: "stern-llm-codex", label: "Stern classifier · Codex", surfaces: ["dashboard"], reconnect: "device_code", defaultEnabled: true, configured: () => codexProbe().ok, check: async () => codexProbe(), note: "Cached CLI/version and subscription login probe; no LLM request" });
+sternConnections.push({ id: "stern-llm-codex", label: "Stern classifier · Codex", surfaces: ["dashboard"], reconnect: "device_code", defaultEnabled: false, configured: () => codexProbe().ok, check: async () => codexProbe(), note: "Cached CLI/version and subscription login probe; no LLM request" });
 export async function sternConnectionSummary() {
   return Promise.all(sternConnections.map(async def => {
     const setting = getDb().prepare("SELECT enabled FROM connections WHERE service=? AND surface='dashboard'").get(def.id) as { enabled: number } | undefined;
-    if (setting?.enabled === 0) return { id: def.id, state: "off", detail: "Disabled by user" };
-    if (!def.configured()) return { id: def.id, state: "off", detail: def.id === "stern-llm-codex" ? codexProbe().detail : "Google account not connected" };
+    if (!(setting ? setting.enabled === 1 : def.defaultEnabled)) return { id: def.id, state: "off", detail: "Disabled by user" };
     const health = await def.check();
     return { id: def.id, state: health.ok ? "on_healthy" : "on_broken", detail: health.detail };
   }));

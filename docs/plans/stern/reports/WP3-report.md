@@ -1,5 +1,7 @@
 # WP3 report: Email and Calendar automation
 
+Current status: the fix round below supersedes the original delivery details where noted. Commit `8af68cf` passes the full gate: **285 tests passed, 0 failed**, including **34 automation tests**.
+
 ## Summary
 
 Implemented the Stern email/calendar pipeline on `stern/wp3`, reusing WP0 audit/snapshot infrastructure and WP1/WP2 domain modules. The scanner discovers enabled NYU accounts and configured extras, ingests INBOX/SENT, deduplicates messages, classifies untrusted email, and applies or suggests audited effects. Draft generation, Google draft creation, calendar synchronization, batch undo, connection rows, authenticated API actions, scheduler jobs, and CLI scripts are wired.
@@ -189,3 +191,112 @@ Additional decisions:
 3. WP6: consume `GET /api/stern/automation`, the shared `stern` live payload, and all eight actions. Expose pending calendar retry effects after reconnect and batch undo with its local-only semantics.
 4. At deployment, connect the two NYU accounts via the Stern/NYU connection links, verify granted scopes and run an explicitly reviewed live classifier/provider smoke. Keep `STERN_LLM_MODE=off` until live automation should run; use fixture mode only with isolated data.
 5. WP5 retains reminders/memo/iMessage ownership; this work package introduces no messaging delivery or outreach sender.
+
+## Fix round
+
+### Summary
+
+Resumed from `ad35e02`, then ran `git merge feature/stern-tab` as instructed. The merge fast-forwarded to `a602073`, including the orchestrator's WP4 helper integration. Fix implementation and regressions are committed in `8af68cf`. This section supersedes the original delivery's temporary-helper, OAuth-default, bookkeeping-audit, connection-default, and argv descriptions above.
+
+All confirmed findings are addressed. Repeated findings 1/6/7 share the retry fix; 2/10/11 share the explicit scope fix; 3/14 were already integrated by the orchestrator and were retained and regression-tested. No changes were made to the people, recruiting, coffee, tasks, or classes domain modules in this fix round. No migration was added.
+
+### Files changed
+
+| Path | Fix and acceptance evidence |
+| --- | --- |
+| `lib/stern/gmail-scan.ts:38` | Union pending/error message IDs with Gmail results independently of the cursor. Per-message fetch/date failures create retryable error records; one malformed email cannot halt the account. Classification errors skip policy, retain `applied='error'`, and carry attempt counts. |
+| `lib/stern/gmail-scan.ts:68` | IMMEDIATE per-message claims prevent a competing scanner from applying the same pending message. Ten-minute stale claims recover after process failure. |
+| `lib/stern/gmail-scan.ts:80` | Classification bookkeeping uses direct SQL instead of domain audit entries. Scan diagnostics report outstanding errors; message-level degradation completes with error counts, while account failures report failed. |
+| `lib/stern/gmail-scan.ts:12` | Forwarded envelopes use the original From address for dedupe only; actual headers still determine direction. Already-duplicate rows cannot suppress the surviving original. |
+| `lib/stern/automation-source.ts:6`, `lib/stern/calendar-sync.ts:16` | Enabled connection rows gate account discovery, including the Stern write account. Empty discovery exits before reads, rules, or agent work. Configured extra accounts use the NYU connection switch. |
+| `lib/stern/apply.ts:100` | New requests/follow-ups exclude terminal chats; other categories retain historical matching. Meetings use the New York date. WP4 task validation/upserts and canonical assignment dedupe/grade exports remain intact. |
+| `lib/stern/apply.ts:188` | Daily calendar-write suggestions use `nyDateKey()`. A new intent reopens an accepted/dismissed suggestion through the audit writer; pending suggestions append distinct intents. |
+| `lib/stern/apply.ts:232`, `lib/stern/audit.ts:197`, `lib/stern/snapshot.ts:70` | Direct message status bookkeeping; legacy bookkeeping is excluded from undo and domain tails. Undo preserves classification/category/confidence and still marks the source message ignored. |
+| `lib/stern/automation-snapshot.ts:7`, `lib/stern-types.ts:360` | API exposes grouped outstanding message-error counts; recent message error text includes attempt count. Message type includes the processed timestamp. |
+| `lib/sources/google/index.ts:639` | Numeric HTML entities validate integer/range before `String.fromCodePoint`; malformed values produce an empty replacement. Existing Google helpers/scopes remain additive. |
+| `app/api/google/connect/route.ts:21` | Only `set=stern` requests Stern permissions. Career NYU, generic and implicit Stern targets retain readonly. Flow scope is preserved in an HTTP-only cookie for callback routing. |
+| `app/api/google/callback/route.ts:22` | Stern-specific OAuth diagnostic keys, tenant-approval detail for either NYU target, state validation before recording denial, and clear-on-success. Career reconnect does not enable Stern automation. |
+| `lib/stern/connections.ts:22`, `lib/connections/index.ts:79` | All three Stern rows default disabled; remove the shared engine's special off override. Enabled missing accounts remain broken across refreshes. Stern summaries show saved consent errors. Codex is enabled manually. |
+| `lib/stern/llm.ts:57` | Prompt on stdin; reduced email headers; minimal child environment (`NODE_ENV`, `PATH`, `HOME`, `LANG`, `TMPDIR`, isolated `CODEX_HOME`). Fixture/off paths stay local; a disabled live classifier never launches Codex. Draft sign-off permits `Arjun.`. |
+| `lib/stern/drafts.ts:13`, `lib/stern/rules-pass.ts:9` | Six-hour failed-generation cooldown in operational KV, with no fabricated draft. Live rules honor the classifier switch. |
+| `tests/stern-automation.test.ts:502` | Thirteen additional regressions, covering all fixes above, plus updated connection setup and course-error assertion. Total: 34 automation tests. |
+
+### How verified
+
+Standalone verification:
+
+```text
+$ npm run test:stern-automation
+1..34
+# tests 34
+# pass 34
+# fail 0
+# duration_ms 9556.602987
+
+$ npm run typecheck
+> tsc --noEmit
+(exit 0)
+
+$ git diff --check
+(exit 0)
+```
+
+The classifier execution regression runs a **local executable stub**, not the installed Codex or any LLM service. It verifies a stdin prompt over 128 KiB, no email in argv, omission of raw headers, absence of a synthetic secret in the child environment, isolated configuration cleanup, and the optional sign-off period. Other fixtures use in-memory Gmail/Calendar and OAuth stubs; test teardown asserts zero unexpected fetch attempts. Claim contention is exercised with two independent scanner entry points bypassing the process queue against the same SQLite database.
+
+Read-only inspection of the assigned DB copy returned:
+
+```json
+{"assignments":0,"automationAssignments":0}
+```
+
+There are no WP3-era assignment keys to backfill in this copy. The merged WP4 `assignmentKey()` is tested against punctuated and unpunctuated titles. No production/shared data was inspected or edited.
+
+Full gate on implementation commit `8af68cf`:
+
+```text
+$ STERN_LLM_MODE=fixture STERN_VAULT_WRITE=0 bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp3 /home/Arjun/stern-build/db/wp3.db wp3
+--- typecheck rc=0
+# tests 285
+# pass 285
+# fail 0
+--- tests rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp3.db
+--- migrate-1 rc=0
+[db] migrations up to date at /home/Arjun/stern-build/db/wp3.db
+--- migrate-2 rc=0
+✓ Compiled successfully in 19.5s
+--- build rc=0
+GATE wp3 result=PASS log=/home/Arjun/stern-build/logs/gate-wp3-20260905T033850Z.log
+```
+
+SQLite-only lifecycle CLI smoke against the assigned copy:
+
+```text
+{"eventId":6022,"run":"platform-dev-wp3-fix-20260905","agent":"rathworkspace-platform-developer","status":"running"}
+{"eventId":6023,"run":"platform-dev-wp3-fix-20260905","agent":"rathworkspace-platform-developer","status":"completed","artifactId":76}
+```
+
+The only post-gate tracked change is this report. Final handoff requires an empty `git status --short` after the report commit.
+
+### Decisions made
+
+- Policy thresholds remain **auto >= 0.85**, **suggest >= 0.60 and < 0.85**, otherwise ignore. The complete category/effect inventory under the original Decisions made section remains the rule inventory, with bookkeeping now excluded from audit and task/assignment writes using WP4.
+- Retry errors remain recoverable indefinitely. Attempts 1–3 can run on consecutive scans; after that each failed retry waits six hours. Never convert a classifier failure into an intentional ignore. The timestamp/error-prefix fields provide cooldown and diagnostics without a schema change.
+- A live classifier switch defaults off. Gmail can retain retryable messages while it is off; the explicit `STERN_LLM_MODE=off` no-source scheduler path stays a complete scan no-op. Fixture mode is the test-only bypass of the live classifier switch.
+- Calendar suggestion reopening replaces the reviewed effect list with the new intent. Prior accepted/dismissed intent history remains in audit. Pending rows continue to accumulate distinct intents for the same New York day.
+- Preserve historical `email_message` audit records, but exclude them from undo and domain tails. New bookkeeping creates no audit rows. Domain effects still share a message batch and remain undoable.
+- Explicit `set=stern` is the only consent escalation. A Stern consent attempt is user intent to connect, so an OAuth denial enables its row as broken with a durable error; success clears the error. Ordinary Career consent never enables Stern readers/writers.
+- The claim test exercises the database claim path with independent entry points; it does not claim a real two-OS-process integration run. Claims expire after ten minutes, exceeding the classifier's two 120-second execution attempts.
+- Runtime logs emitted by the mandatory gate use its prescribed shared build-log directory. Application writes use the assigned DB copy; disposable test files stay inside this worktree. No deployment, service restart, push, email, messaging, calendar provider write, or live classification ran.
+
+### Known gaps
+
+- Installed Codex support for `web_search="disabled"` and `features.shell_tool=false`, actual subscription auth, and Google tenant consent still require the orchestrator's authorized live smoke. The executable-stub test proves invocation/environment behavior, not the installed CLI's configuration semantics. Failures now remain visible and retryable.
+- Existing production/shared WP3 assignment keys, if any, were outside this run's authorized data scope. The assigned copy contains none. Existing messages intentionally marked ignored are not automatically reclassified; the new retry handling applies to pending/error messages and future failures.
+- The optional first-live-success `classifier_smoke` event was not added; scan lifecycle events, per-message errors, account error counts and connection health provide the failure diagnostics.
+
+### Follow-ups for the orchestrator
+
+1. Merge `stern/wp3` after review. The WP4 helper reconciliation is complete; do not replace it with the old temporary implementations.
+2. Connect the two Google accounts with explicit Stern links and enable the Codex connection when live automation is intended. Confirm tenant consent, granted scopes, the installed CLI's config keys, and a live classification under the existing deployment plan.
+3. If the deployment database contains old ignored messages with classifier error text, selectively requeue only those failed classifications before the next scan; do not reset intentional ignores or undone messages. Check old assignment keys before deployment if that database ever ran the temporary WP3 helpers.

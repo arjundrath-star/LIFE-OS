@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const target = Object.hasOwn(TARGETS, requested) ? requested : "generic";
   const state = crypto.randomBytes(16).toString("hex");
   const set = new URL(req.url).searchParams.get("set");
-  const scopeSet = set === "readonly" ? "readonly" : set === "stern" || target === "stern" || target === "nyu" || target === "generic" && /@(?:[^@]+\.)?nyu\.edu$/i.test(user.email) ? "stern" : "readonly";
+  const scopeSet = set === "stern" ? "stern" : "readonly";
   const url = connectUrl(state, { ...TARGETS[target], scopeSet });
   const res = NextResponse.redirect(url);
   res.cookies.set("rw_g_state", state, {
@@ -29,5 +29,6 @@ export async function GET(req: Request) {
     path: "/",
   });
   res.cookies.set("rw_g_target", target, { httpOnly:true, sameSite:"lax", secure:(process.env.NEXTAUTH_URL || "").startsWith("https://"), maxAge:600, path:"/" });
+  res.cookies.set("rw_g_scope_set", scopeSet, { httpOnly:true, sameSite:"lax", secure:(process.env.NEXTAUTH_URL || "").startsWith("https://"), maxAge:600, path:"/" });
   return res;
 }

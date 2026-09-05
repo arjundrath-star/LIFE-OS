@@ -2,11 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { getDb, kvGet } from "@/db";
 import { gmailFetchFull, gmailListSince, calendarCreateEvent, calendarEventsBetween, gmailCreateDraft, type GmailFullMessage } from "@/lib/sources/google";
+import { isConnectionEnabled } from "@/lib/connections/enabled";
 export const NYU_ACCOUNT = /@(?:[^@]+\.)?nyu\.edu$/i;
 export function accountsToScan(): string[] {
   const extra = kvGet<unknown>("stern.extra_accounts");
   const extras = Array.isArray(extra) ? extra.filter((v): v is string => typeof v === "string").map(v => v.toLowerCase()) : [];
-  return (getDb().prepare("SELECT email FROM google_accounts WHERE enabled=1 ORDER BY (lower(email) LIKE '%@stern.nyu.edu') DESC,email").all() as { email: string }[]).map(a => a.email.toLowerCase()).filter(email => NYU_ACCOUNT.test(email) || extras.includes(email));
+  return (getDb().prepare("SELECT email FROM google_accounts WHERE enabled=1 ORDER BY (lower(email) LIKE '%@stern.nyu.edu') DESC,email").all() as { email: string }[]).map(a => a.email.toLowerCase()).filter(email => (NYU_ACCOUNT.test(email) || extras.includes(email)) && isConnectionEnabled(/@stern\.nyu\.edu$/i.test(email) ? "stern-google-stern" : "stern-google-nyu"));
 }
 export function sternAccount(): string {
   return accountsToScan().find(email => /@stern\.nyu\.edu$/i.test(email)) || "";

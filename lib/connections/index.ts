@@ -76,7 +76,7 @@ export async function refreshAll(definitions:ConnectionDef[]=REGISTRY, options: 
         surface
       );
       const enabled = row ? !!row.enabled : def.defaultEnabled;
-      const state = def.id.startsWith("stern-") && !def.configured() ? "off" : deriveState(enabled, health);
+      const state = deriveState(enabled, health);
       run(
         `UPDATE connections SET health=?, state=?, detail=?, last_checked=?,
            last_ok_at=CASE WHEN ?='ok' THEN ? ELSE last_ok_at END, updated_at=?

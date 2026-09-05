@@ -11,7 +11,7 @@ import { setInterested, upsertProgram, observeProgramStatus, reconcileThankYous 
 import { automationSource, dryRunDefault, sternAccount, type AutomationSource } from "./automation-source";
 import { ScopeMissing } from "@/lib/sources/google";
 import { SternError } from "./errors";
-import { nyDayBounds } from "./time";
+import { nyDayBounds, nyDateKey } from "./time";
 
 export function addresses(value: string): string[] { return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(s => s.toLowerCase()))]; }
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -96,7 +96,8 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
     if (!person) person = createPerson({ display_name: extracted?.name || email, email, org: club?.name || extracted?.club_or_org || "", how_met: "email", relationship_type: club ? "club_connect" : "general_connect", source: "auto_email" }, audit).person;
     if (person.archived) throw new SternError(409, "Person is archived");
     if (club) addAffiliation(person.id, { club_id: club.id, role: extracted?.role || "", is_eboard: !!extracted?.is_eboard, relevant_for_recruiting: true }, audit);
-    let chat = db.prepare("SELECT * FROM coffee_chats WHERE person_id=? AND (?=0 OR club_id=?) ORDER BY (gmail_thread_id=?) DESC,id DESC LIMIT 1").get(person.id, club?.id || 0, club?.id || 0, message.gmail_thread_id) as CoffeeChat | undefined;
+    const newRequest = ["coffee_chat_request_sent", "follow_up_sent"].includes(cls.category);
+    let chat = db.prepare("SELECT * FROM coffee_chats WHERE person_id=? AND (?=0 OR club_id=?) AND (?=0 OR state NOT IN ('thank_you_sent','declined')) ORDER BY (gmail_thread_id=?) DESC,id DESC LIMIT 1").get(person.id, club?.id || 0, club?.id || 0, Number(newRequest), message.gmail_thread_id) as CoffeeChat | undefined;
     if (!chat) {
       if (!club) throw new SternError(409, "No club or existing coffee chat matches");
       chat = row<CoffeeChat>("coffee_chat", createCoffeeChat(person.id, club.id, 0, audit));
@@ -170,7 +171,7 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
       }
     } else if (effect.kind === "meeting") {
       if (!club) throw new SternError(409, "Unknown club");
-      const date = cls.confirmed_time?.slice(0, 10) || deadlines[0]?.date;
+      const date = cls.confirmed_time ? nyDateKey(cls.confirmed_time) : deadlines[0]?.date;
       if (!date) throw new SternError(409, "Meeting date missing");
       upsertAutomationTask({ title: `Attend ${club.name} general meeting`, club_id: club.id, due_at: date, domain: "campus", dedupe_key: `meeting:${club.id}:${date}` }, audit);
     } else if (effect.kind === "academic") {
@@ -197,11 +198,13 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
   } catch (error) {
     if (retry) throw error; // Keep the reviewed suggestion pending until its write succeeds.
     getDb().transaction(() => {
-      const key = `calendar-write:${account}:${nowIso().slice(0, 10)}`;
+      const key = `calendar-write:${account}:${nyDateKey()}`;
       const effect: Effect = { kind: "calendar_create", intent };
       const existing = getDb().prepare("SELECT id,proposed_data,state FROM stern_suggestions WHERE dedupe_key=?").get(key) as { id: number; proposed_data: string; state: string } | undefined;
       if (!existing) suggest(key, [effect], message, audit, error instanceof ScopeMissing ? "connect calendar write" : "calendar write failed; retry after reconnect");
-      else if (existing.state === "pending") {
+      else if (existing.state !== "pending") {
+        patch("suggestion", existing.id, { state: "pending", reviewed_at: "", proposed_data: JSON.stringify([effect]) }, audit);
+      } else {
         const effects = JSON.parse(existing.proposed_data) as Effect[];
         if (!effects.some(e => e.kind === "calendar_create" && e.intent.hash === intent.hash)) patch("suggestion", existing.id, { proposed_data: JSON.stringify([...effects, effect]) }, audit);
       }
@@ -226,7 +229,7 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
   }
   const retryCalendarOnly = !!options.accept && effects.every(effect => effect.kind === "calendar_create");
   for (const intent of intents) await calendarIntent(intent, message, audit, options.source || automationSource(), dryRunDefault(options.dryRun), retryCalendarOnly);
-  getDb().transaction(() => patch("email_message", message.id, { applied, processed_at: nowIso() }, audit)).immediate();
+  getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
   return { applied, batchId: audit.batchId, calendarIntents: intents };
 }
 export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource } = {}) {
