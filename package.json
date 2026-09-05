@@ -45,7 +45,8 @@
     "e2e:vending-service": "tsx scripts/vending-service-e2e.ts",
     "test:stern-recruiting": "tsx --test tests/stern-recruiting.test.ts",
     "seed:stern": "tsx scripts/seed-stern.ts",
-    "stern:recruiting-deadlines": "tsx scripts/stern-recruiting-deadlines.ts"
+    "stern:recruiting-deadlines": "tsx scripts/stern-recruiting-deadlines.ts",
+    "e2e:stern-recruiting": "tsx scripts/stern-recruiting-e2e.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

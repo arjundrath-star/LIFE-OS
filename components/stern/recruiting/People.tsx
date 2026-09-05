@@ -10,7 +10,7 @@ import type { RecruitingMutation } from "./useRecruiting";
 export function CoffeeChatChip({ chat }: { chat: CoffeeChat | null }) {
   return <span data-component="CoffeeChatChip" data-testid="stern-chat-chip">{chat ? <StatusChip value={chat.state}/> : <span className="stern-muted">No chat tracked</span>}</span>;
 }
-export function People({ club, disabled, draftsAvailable, mutate, compact = false }: { club: RecruitingClubDetail; disabled: boolean; draftsAvailable: boolean; mutate: RecruitingMutation; compact?: boolean }) {
+export function People({ club, disabled, draftsAvailable, mutate, compact = false, error }: { error?: string; club: RecruitingClubDetail; disabled: boolean; draftsAvailable: boolean; mutate: RecruitingMutation; compact?: boolean }) {
   const [scheduling, setScheduling] = useState<number | null>(null); const [notice, setNotice] = useState(""); const [draftBusy, setDraftBusy] = useState(false);
   return <>
     {notice && <p role="status" className="stern-muted">{notice}</p>}
@@ -32,6 +32,6 @@ export function People({ club, disabled, draftsAvailable, mutate, compact = fals
         </form>
       </>}
     </article>)}</div>}
-    <RecruitingDialog title="Record scheduled coffee chat" open={scheduling !== null} onOpenChange={open => { if (!open) setScheduling(null); }}><p>Record the agreed time in New York. This does not send an invitation.</p><form className="stern-form-stack" onSubmit={async e => { e.preventDefault(); const form = new FormData(e.currentTarget); if (await mutate({ action: "chat.transition", chatId: scheduling, state: "scheduled", meta: { scheduled_at: form.get("scheduled_at"), location: form.get("location") } })) setScheduling(null); }}><Field label="Date and time with timezone"><input required className="stern-input stern-mono" name="scheduled_at" data-testid="stern-chat-scheduled-at" placeholder="2026-09-08T14:00:00-04:00"/></Field><Field label="Location"><input className="stern-input" name="location" data-testid="stern-chat-scheduled-location"/></Field><RecruitingButton primary data-testid="stern-chat-schedule-save" disabled={disabled} type="submit">Save scheduled chat</RecruitingButton></form></RecruitingDialog>
+    <RecruitingDialog error={error} title="Record scheduled coffee chat" open={scheduling !== null} onOpenChange={open => { if (!open) setScheduling(null); }}><p>Record the agreed time in New York. This does not send an invitation.</p><form className="stern-form-stack" onSubmit={async e => { e.preventDefault(); const form = new FormData(e.currentTarget); if (await mutate({ action: "chat.transition", chatId: scheduling, state: "scheduled", meta: { scheduled_at: form.get("scheduled_at"), location: form.get("location") } })) setScheduling(null); }}><Field label="Date and time with timezone"><input required className="stern-input stern-mono" name="scheduled_at" data-testid="stern-chat-scheduled-at" placeholder="2026-09-08T14:00:00-04:00"/></Field><Field label="Location"><input className="stern-input" name="location" data-testid="stern-chat-scheduled-location"/></Field><RecruitingButton primary data-testid="stern-chat-schedule-save" disabled={disabled} type="submit">Save scheduled chat</RecruitingButton></form></RecruitingDialog>
   </>;
 }

@@ -636,3 +636,11 @@ textarea:focus-visible,
   .stern-mode .stern-window-legend > div { flex-direction: column; }
   .stern-mode .stern-page-header h1 { font-size: 21px; }
 }
+/* Shared cyan primitives include utility classes with WP0's !important remaps. Keep
+   those remaps from overriding recruiting button intent and inactive tab backgrounds. */
+.stern-mode .stern-btn { background: var(--stern-surface) !important; color: var(--stern-text) !important; border-color: var(--stern-border) !important; }
+.stern-mode .stern-btn:hover { background: var(--stern-surface-2) !important; }
+.stern-mode .stern-btn.primary { background: var(--stern-accent) !important; color: var(--stern-on-accent) !important; border-color: var(--stern-accent) !important; }
+.stern-mode .stern-btn.primary:hover { background: var(--stern-accent-hover) !important; }
+.stern-mode .stern-detail-tabs > [role="tablist"], .stern-mode .stern-detail-tabs [role="tab"] { background: transparent !important; }
+.stern-mode .stern-detail-tabs [role="tab"][data-state="active"] { color: var(--stern-accent) !important; }

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getDb, nowIso } from "@/db";
 import {
-  CLUB_CATEGORIES, CLUB_TRANSITIONS, PROGRAM_TRACKS, PROGRAM_TRANSITIONS, CHECKLIST_KEYS, CHECKLIST_LABELS,
+  CLUB_CATEGORIES, CLUB_TRANSITIONS, PROGRAM_TRACKS, PROGRAM_TRANSITIONS, CHECKLIST_KEYS, CHECKLIST_LABELS, statusLabel,
   type ClubStatus, type ProgramStatus, type RecruitingClub, type RecruitingProcess, type RecruitingProgram,
   type RecruitingSnapshot, type RecruitingWindow, type RecruitingClubDetail, type RecruitingDeadline,
   type RecruitingActivity, type RecruitingPerson, type CoffeeChat, type InterviewPrep,
@@ -196,19 +196,30 @@ export function upsertPrep(input: Record<string, unknown>, options: ChangeMeta =
 function clubTimeline(clubId: number): RecruitingActivity[] {
   const db = getDb();
   const audit = db.prepare(`SELECT a.id, a.created_at at, a.source, a.batch_id, a.undone_at,
-    a.entity_type || ' ' || a.action || CASE WHEN a.field <> '' THEN ': ' || a.field || ' → ' || a.after_value ELSE '' END summary
-    FROM stern_audit_log a WHERE
+    a.entity_type, a.action, a.field, a.after_value
+    FROM stern_audit_log a WHERE a.field <> 'updated_at' AND (
     (a.entity_type = 'club' AND a.entity_id = ?) OR
     (a.entity_type = 'program' AND a.entity_id IN (SELECT id FROM stern_programs WHERE club_id = ?)) OR
     (a.entity_type = 'checklist_item' AND a.entity_id IN (SELECT id FROM stern_checklist_items WHERE club_id = ?)) OR
     (a.entity_type = 'coffee_chat' AND a.entity_id IN (SELECT id FROM coffee_chats WHERE club_id = ?)) OR
     (a.entity_type = 'interview_prep' AND a.entity_id IN (SELECT i.id FROM stern_interview_prep i JOIN stern_programs p ON p.id = i.program_id WHERE p.club_id = ?))
-    ORDER BY a.id DESC LIMIT 100`).all(clubId, clubId, clubId, clubId, clubId) as Omit<RecruitingActivity, "key">[];
+    ) ORDER BY a.id DESC LIMIT 100`).all(clubId, clubId, clubId, clubId, clubId) as (Omit<RecruitingActivity, "key" | "summary"> & { entity_type: string; action: string; field: string; after_value: string })[];
   audit.reverse();
   const touches = db.prepare(`SELECT t.id, t.occurred_at at, t.source, t.summary, '' batch_id, '' undone_at FROM people_touchpoints t
     WHERE t.person_id IN (SELECT person_id FROM people_affiliations WHERE club_id = ?) ORDER BY t.id DESC LIMIT 100`).all(clubId) as Omit<RecruitingActivity, "key">[];
   touches.reverse();
-  return [...audit.map(a => ({ ...a, key: `audit-${a.id}` })), ...touches.map(t => ({ ...t, key: `touch-${t.id}` }))]
+  const labels: Record<string, string> = { club: "Club", program: "Program", coffee_chat: "Coffee chat", checklist_item: "Checklist item", interview_prep: "Interview prep" };
+  const summaries = audit.map(a => {
+    const entity = labels[a.entity_type] || statusLabel(a.entity_type);
+    const field = statusLabel(a.field);
+    const summary = a.action === "create" ? `${entity} added` : a.action === "undo" ? `${entity}: change undone`
+      : a.field === "status" || a.field === "state" ? `${entity}: ${statusLabel(a.after_value)}`
+      : a.field === "done_at" ? `Checklist item ${a.after_value ? "completed" : "reopened"}`
+      : a.field === "interested" ? `Club ${a.after_value === "1" ? "added to" : "removed from"} board`
+      : `${entity}: ${field.toLowerCase()} updated`;
+    return { key: `audit-${a.id}`, id: a.id, at: a.at, source: a.source, summary, batch_id: a.batch_id, undone_at: a.undone_at };
+  });
+  return [...summaries, ...touches.map(t => ({ ...t, key: `touch-${t.id}` }))]
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id - a.id).slice(0, 100);
 }
 export function recruitingSnapshot(now: Date = new Date()): RecruitingSnapshot {
