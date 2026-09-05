@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Boot or stop an isolated production-mode server for one worktree on its own port with its own DB copy.
 # Requires a prior `next build` in that worktree (gate.sh does it). Usage:
-#   scripts/stern-build/isolated-server.sh start <worktree-dir> <db-copy-path> <port>
+#   scripts/stern-build/isolated-server.sh start <worktree-dir> <db-copy-path> <port> ["KEY=VALUE KEY2=VALUE2"]
 #   scripts/stern-build/isolated-server.sh stop <port>
+# The optional fourth start argument adds environment overrides (for example NEXTAUTH_URL=http://127.0.0.1:3190 so a
+# headless browser can send a plain http session cookie). Every isolated boot forces STERN_NOTIFY_DRY_RUN=1 and
+# STERN_LLM_MODE=off unless the overrides say otherwise: an isolated copy must never text, email, or call Codex.
 #   scripts/stern-build/isolated-server.sh cookie   # prints a session cookie value via scripts/pokemon-ops-mint-session.ts
 # The server runs in its own session (setsid) with stdio detached, so `start` returns as soon as the port answers
 # even when its output is piped, and `stop` kills the whole process group (npx, sh, node), not just the launcher.
@@ -18,7 +21,8 @@ kill_port() { # kill anything still listening on the port (belt and braces after
 }
 case "$CMD" in
   start)
-    WT="${2:?worktree}"; DB="${3:?db copy}"; PORT="${4:?port}"
+    WT="${2:?worktree}"; DB="${3:?db copy}"; PORT="${4:?port}"; EXTRA="${5:-}"
+    SAFE="STERN_NOTIFY_DRY_RUN=1 STERN_LLM_MODE=off"
     case "$DB" in "$STERN_MAIN_REPO"/*) echo "refusing to boot against the prod DB"; exit 2;; esac
     [ "$PORT" = "3000" ] && { echo "port 3000 is prod"; exit 2; }
     [ -d "$WT/.next" ] || { echo "no .next build in $WT; run gate.sh first"; exit 2; }
@@ -26,7 +30,7 @@ case "$CMD" in
     PIDF="$STERN_LOGS/server-$PORT.pid"; LOG="$STERN_LOGS/server-$PORT.log"
     if [ -f "$PIDF" ]; then OLD=$(cat "$PIDF"); kill -TERM -- -"$OLD" 2>/dev/null || kill -TERM "$OLD" 2>/dev/null; fi
     kill_port "$PORT"; sleep 1
-    setsid bash -c "cd '$WT' && set -a && . '$SECRETS' && set +a && exec env NODE_ENV=production PORT='$PORT' HOST=127.0.0.1 RATHWORKSPACE_DB='$DB' npx tsx server.ts" >"$LOG" 2>&1 </dev/null &
+    setsid bash -c "cd '$WT' && set -a && . '$SECRETS' && set +a && exec env NODE_ENV=production PORT='$PORT' HOST=127.0.0.1 RATHWORKSPACE_DB='$DB' $SAFE $EXTRA npx tsx server.ts" >"$LOG" 2>&1 </dev/null &
     echo $! >"$PIDF"
     for i in $(seq 1 60); do
       if curl -s -m 5 -o /dev/null "http://127.0.0.1:$PORT/signin"; then echo "up on $PORT pid $(cat "$PIDF") log $LOG"; exit 0; fi
