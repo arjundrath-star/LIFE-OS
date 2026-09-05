@@ -32,3 +32,24 @@ test('muted tokens pass 4.5:1 on both light surfaces and chip colors use tokens'
  const css=fs.readFileSync('app/globals.css','utf8');assert.ok(css.includes(`--stern-text-faint: ${value('text-faint')}`));
  for(const line of css.split('\n').filter(l=>l.startsWith('.stern-chip[')||l.startsWith('.stern-source-badge[')))assert.doesNotMatch(line,/#|rgba\(/);
 });
+test('search API preserves requireUser and returns only bounded search results',async()=>{
+ const ts=await import('typescript'),{createRequire}=await import('node:module');const require=createRequire(import.meta.url);
+ const {searchStern}=await setup;let authorized=false;
+ const modules:Record<string,unknown>={'@/lib/guard':{requireUser:async()=>authorized?{email:'student@example.com'}:null},'@/lib/stern/search':{searchStern},'@/lib/stern/snapshot':{sternSnapshot:()=>({marker:'snapshot'})}};
+ const compiled=ts.transpileModule(fs.readFileSync('app/api/stern/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const route={} as {GET:(req:Request)=>Promise<Response>};new Function('require','exports',compiled)((id:string)=>modules[id]||require(id),route);
+ const request=(q:string)=>route.GET(new Request(`http://localhost:3160/api/stern${q}`));
+ assert.equal((await request('?q=example')).status,401);authorized=true;
+ const result=await (await request('?q=example')).json();assert.ok(Array.isArray(result.results));assert.ok(result.results.length<=24);assert.equal(result.marker,undefined);
+ assert.deepEqual(await (await request('')).json(),{marker:'snapshot'});
+});
+test('Google reconnect forwards a valid login_hint without changing the Stern scope set or auth gate',async()=>{
+ const ts=await import('typescript'),{createRequire}=await import('node:module');const require=createRequire(import.meta.url);let authorized=false;let options:Record<string,unknown>={};
+ const modules:Record<string,unknown>={'@/lib/guard':{requireUser:async()=>authorized?{email:'student@stern.nyu.edu'}:null},'@/lib/sources/google':{connectUrl:(_state:string,o:Record<string,unknown>)=>{options=o;return 'https://accounts.google.com/example';}}};
+ const compiled=ts.transpileModule(fs.readFileSync('app/api/google/connect/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
+ const route={} as {GET:(req:Request)=>Promise<Response>};new Function('require','exports',compiled)((id:string)=>modules[id]||require(id),route);
+ const request=(hint:string)=>route.GET(new Request(`http://localhost:3160/api/google/connect?set=stern&target=stern&login_hint=${encodeURIComponent(hint)}`));
+ const blocked=await request('student@stern.nyu.edu');assert.match(blocked.headers.get('location')!,/signin/);assert.deepEqual(options,{});
+ authorized=true;const ok=await request('student@stern.nyu.edu');assert.equal(ok.status,307);assert.equal(options.loginHint,'student@stern.nyu.edu');assert.equal(options.scopeSet,'stern');assert.ok(ok.headers.get('set-cookie')?.includes('rw_g_state'));
+ await request('invalid\nheader');assert.equal(options.loginHint,undefined);
+});

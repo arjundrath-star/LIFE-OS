@@ -27,6 +27,8 @@ export type ConnectionDef = {
   // cheap check that proves the credential / endpoint works
   check: (options?: { force?: boolean }) => Promise<HealthResult>;
   note?: string;
+  /** Canonical account identity for account-specific Google cards. */
+  googleAccountHint?: () => string;
 };
 
 const HIGGS_CREDS = path.join(os.homedir(), ".config", "higgsfield", "credentials.json");
@@ -153,6 +155,7 @@ export const REGISTRY: ConnectionDef[] = [
     surfaces:["dashboard"],
     reconnect:"oauth",
     defaultEnabled:false,
+    googleAccountHint: () => account.exact,
     configured:() => hasSecret("GOOGLE_CLIENT_ID") && hasSecret("GOOGLE_CLIENT_SECRET"),
     note:"Gmail read-only for Career status suggestions; no send scope",
     check:async () => {

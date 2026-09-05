@@ -8,7 +8,7 @@ export function todaySchedule(now = new Date()): SternScheduleItem[] {
   const weekday = new Date(`${day.dateKey}T12:00Z`).getUTCDay();
   const meetings = db.prepare(`SELECT m.*, c.code, c.title, COALESCE(NULLIF(m.room,''),c.room) location
     FROM course_meetings m JOIN courses c ON c.id=m.course_id WHERE c.archived=0 AND m.weekday=?`).all(weekday) as (CourseMeeting & {code:string;title:string;location:string})[];
-  const rows: SternScheduleItem[] = meetings.map(m => ({ key:`course-${m.id}`, title:`${m.code} · ${m.title}`,
+  const rows: SternScheduleItem[] = meetings.filter(m => /^([01]\d|2[0-3]):[0-5]\d$/.test(m.start_time)).map(m => ({ key:`course-${m.id}`, title:`${m.code} · ${m.title}`,
     startAt:nyWallTime(day.dateKey,m.start_time).toISOString(), location:m.location, kind:m.kind,
     href:`/stern/classes/${m.course_id}`, prepHref:'' }));
   const events = db.prepare(`SELECT e.*, COALESCE(NULLIF(ch.club_id,0),p.club_id,0) club_id
@@ -18,7 +18,7 @@ export function todaySchedule(now = new Date()): SternScheduleItem[] {
   // The same Google event may be visible in both connected accounts. Keep one occurrence.
   const seen = new Set<string>();
   for (const e of events) {
-    const key = `${e.event_id || e.id}:${e.start_at}`;
+    const key = `${e.event_id || e.id}:${Date.parse(e.start_at)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({key:`calendar-${e.id}`, title:e.title || 'Untitled calendar event',startAt:e.start_at,

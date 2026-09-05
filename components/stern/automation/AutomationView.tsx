@@ -17,7 +17,7 @@ export function ConnectionCard({card}:{card:SternConnectionCard}) {
     <p className="stern-muted">{card.account||(google?'No account connected':card.id==='hermes'?'Hermes gateway':'ChatGPT subscription')}</p>
     <div className="stern-scope-list" data-testid={`stern-scopes-${card.id}`}>{card.scopes.length?card.scopes.map(s=><span className="stern-mono" key={s}>{s}</span>):<span className="stern-muted">{google?'No scopes granted':card.id==='hermes'?'Agent gateway health':'Local Codex CLI'}</span>}</div>
     <p className="stern-muted">{card.detail}</p>
-    <footer><span className="stern-muted">{google?'Last scan':'Last checked'} <span className="stern-mono">{card.lastScan?dateLabel(card.lastScan,true):'Never'}</span></span><a className="stern-btn" data-testid={`stern-reconnect-${card.id}`} href={card.reconnectHref}>{google?(card.account?'Reconnect':'Connect'):'Manage'}</a></footer>
+    <footer><span className="stern-muted">{card.id==='career-google-personal'?'Last inbox sync':google?'Last scan':'Last checked'} <span className="stern-mono">{card.lastScan?dateLabel(card.lastScan,true):'Never'}</span></span><a className="stern-btn" data-testid={`stern-reconnect-${card.id}`} href={card.reconnectHref}>{google?(card.account?'Reconnect':'Connect'):'Manage'}</a></footer>
   </article>;
 }
 function reminderText(row:SternReminder) { try {const m=JSON.parse(row.message);return {subject:String(m.subject||statusLabel(row.rule_key)),body:String(m.body||'')};} catch {return {subject:statusLabel(row.rule_key),body:row.message};} }

@@ -5,7 +5,7 @@ import { SternPage, SternSection, StatusChip, SourceBadge, StrengthDots, StatTil
 import * as T from '@/lib/stern-types';
 import { ConnectionCard } from './AutomationView';
 import { SternDialog } from './shared';
-const groups=[['Club',T.CLUB_STATUSES],['Program',T.PROGRAM_STATUSES],['Coffee chat',T.COFFEE_CHAT_STATES],['Person',T.PERSON_STATUSES],['Relationship',T.RELATIONSHIP_TYPES],['Task',T.TASK_STATUSES],['Assignment',T.ASSIGNMENT_STATUSES],['Draft',T.DRAFT_STATES],['Suggestion',T.SUGGESTION_STATES],['Email',T.EMAIL_APPLIED_STATES],['Reminder',T.REMINDER_DELIVERY_STATUSES]] as const;
+const groups=[['Process',T.PROCESS_STATUSES],['Club',T.CLUB_STATUSES],['Program',T.PROGRAM_STATUSES],['Coffee chat',T.COFFEE_CHAT_STATES],['Person',T.PERSON_STATUSES],['Relationship',T.RELATIONSHIP_TYPES],['Task',T.TASK_STATUSES],['Assignment',T.ASSIGNMENT_STATUSES],['Draft',T.DRAFT_STATES],['Suggestion',T.SUGGESTION_STATES],['Email',T.EMAIL_APPLIED_STATES],['Reminder',T.REMINDER_DELIVERY_STATUSES]] as const;
 export function ComponentSheet(){
   const [dialog,setDialog]=useState(false),[strength,setStrength]=useState(3),[toast,setToast]=useState(false);
   return <SternPage title="Component sheet" subtitle="Development preview · placeholder data only" testId="stern-component-sheet">

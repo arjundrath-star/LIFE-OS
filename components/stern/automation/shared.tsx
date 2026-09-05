@@ -19,7 +19,7 @@ export function useAutomationAction(onSaved?:(response:any)=>void) {
     setBusy(true);setError('');setMessage('');
     try { const response=await apiPost('/api/stern/automation',body);onSaved?.(response);
       const result=response.result;
-      setMessage(typeof result?.reverted==='number'?`Undid ${result.reverted} changes. ${result.skipped} skipped because later changes won.`:result?.error==='dry-run'||result?.dryRun?'Dry run completed. Nothing was delivered.':result?.delivery_status?`Delivery: ${result.delivery_status}${result.error?` · ${result.error}`:''}`:'Saved.');
+      setMessage(typeof result?.reverted==='number'?`Undid ${result.reverted} changes. ${result.skipped} skipped because later changes won.`:result?.error==='dry-run'||result?.dryRun?'Dry run completed. Nothing was delivered.':result?.delivery_status?`Delivery: ${result.delivery_status}${result.error?` · ${result.error}`:''}`:typeof result?.accounts==='number'?`${body.action==='scan.now'?'Scan':'Calendar sync'} complete: ${result.accounts} accounts, ${result.messages??result.events??0} ${body.action==='scan.now'?'messages':'events'}, ${result.failures??0} account failures${typeof result.errors==='number'?`, ${result.errors} message errors`:''}.`:'Saved.');
       return response;
     } catch(e){setError(e instanceof Error?e.message:'Action failed');return null;} finally{setBusy(false);}
   }

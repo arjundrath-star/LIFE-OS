@@ -16,7 +16,7 @@ test('schedule merges recurring courses and calendars on the EDT date, sorts ins
  const insert=db.prepare('INSERT INTO stern_calendar_events(account,event_id,title,start_at,kind,program_id) VALUES(?,?,?,?,?,?)');
  const fixtures=JSON.parse(fs.readFileSync('tests/fixtures/stern/wp6-schedule.json','utf8'));
  for(const e of fixtures)insert.run('student@example.com',e.event_id,e.title,e.start_at,e.kind,program);
- insert.run('other@example.com',fixtures[0].event_id,fixtures[0].title,fixtures[0].start_at,fixtures[0].kind,program);
+ insert.run('other@example.com',fixtures[0].event_id,fixtures[0].title,'2026-09-04T21:00:00-04:00',fixtures[0].kind,program);
  const rows=todaySchedule(new Date('2026-09-05T03:30Z'));
  assert.deepEqual(rows.map(r=>r.title),['Morning interview','TEST-UB 1 · Example course','Example coffee chat']);
  assert.equal(rows[1].startAt,'2026-09-04T13:30:00.000Z');assert.equal(rows[1].location,'Example room');
