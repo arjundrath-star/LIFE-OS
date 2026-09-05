@@ -51,7 +51,8 @@
     "e2e:stern-recruiting": "tsx scripts/stern-recruiting-e2e.ts",
     "test:stern-tasks": "tsx --test tests/stern-tasks.test.ts",
     "test:stern-classes": "tsx --test tests/stern-classes.test.ts",
-    "seed:stern-courses": "tsx scripts/seed-stern-courses.ts"
+    "seed:stern-courses": "tsx scripts/seed-stern-courses.ts",
+    "e2e:stern-wp4": "tsx scripts/stern-wp4-e2e.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

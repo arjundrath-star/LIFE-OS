@@ -1,2 +1,2 @@
 import { CourseDetail } from '@/components/stern/classes/CourseDetail';
-export default async function CoursePage({params}:{params:Promise<{courseId:string}>}){const {courseId}=await params;return <CourseDetail courseId={Number(courseId)}/>;}
+export default async function CoursePage({params}:{params:Promise<{courseId:string}>}){const {courseId}=await params;return <CourseDetail key={courseId} courseId={Number(courseId)}/>;}

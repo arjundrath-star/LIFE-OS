@@ -243,11 +243,13 @@ test("sternSnapshot counts from SQL and nyDayBounds respects America/New_York mi
   const { getDb } = await setup();
   const db = getDb();
   db.prepare("UPDATE people SET status = 'follow_up_owed' WHERE display_name = 'Test Person'").run();
+  // WP4 migrates the legacy seed todos too; assert the delta from that real baseline.
+  const overdueBefore = sternSnapshot(new Date("2026-09-05T03:30:00Z")).counts.tasksOverdue;
   db.prepare("INSERT INTO stern_tasks (title, domain, source, dedupe_key, due_at) VALUES ('Overdue placeholder', 'academic', 'manual', 'test:overdue', '2026-01-01T12:00:00-05:00')").run();
   const snap = sternSnapshot(new Date("2026-09-05T03:30:00Z"));
   assert.equal(snap.counts.followUpsOwed, 1);
   assert.ok(snap.counts.people >= 2);
-  assert.equal(snap.counts.tasksOverdue, 1);
+  assert.equal(snap.counts.tasksOverdue, overdueBefore + 1);
   assert.equal(snap.counts.tasksDueToday, 0);
   assert.equal(snap.counts.suggestionsPending, 0);
   assert.equal(snap.automation.lastScanAt, "");

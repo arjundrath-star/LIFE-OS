@@ -820,3 +820,11 @@ textarea:focus-visible,
 .stern-mode .stern-week .stern-meeting-block { position:absolute;left:4px;right:4px; }
 .stern-mode .stern-week-axis > div { border:0; }
 .stern-mode .stern-week-axis span { position:absolute;left:0;font-size:10px;color:var(--stern-text-muted); }
+/* Empty due groups retain the compact row rhythm of the Tasks handoff. */
+.stern-mode .stern-task-groups .stern-row-surface > .stern-empty { min-height:48px; padding:12px 16px; border:0; border-radius:0; align-items:flex-start; text-align:left; }
+.stern-mode .stern-task-groups .stern-row-surface > .stern-empty strong { font-size:13px; font-weight:400; color:var(--stern-text-muted); }
+.stern-mode .stern-group-switch input { appearance:none; width:32px; height:18px; border-radius:999px; background:var(--stern-off); position:relative; cursor:pointer; flex:none; }
+.stern-mode .stern-group-switch input:checked { background:var(--stern-accent); }
+.stern-mode .stern-group-switch input::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; }
+.stern-mode .stern-group-switch input:checked::after { left:16px; }
+.stern-mode [data-testid="stern-course-detail"] .stern-page-subtitle { font-size:12px; }
