@@ -209,6 +209,11 @@ test("stern-cli add-person round trip: create, dedupe, audit rows, search, statu
   const statusAudit = db.prepare("SELECT source, before_value, after_value FROM stern_audit_log WHERE batch_id = ?").get(status.json.batchId) as any;
   assert.deepEqual(statusAudit, { source: "agent", before_value: "met", after_value: "need_to_reach_out" });
 
+  const skippedStatus = cli(["set-person-status", "--source", "agent", "--json", JSON.stringify({ person: created.json.id, status: "chatted" })]);
+  assert.equal(skippedStatus.code, 1);
+  assert.match(skippedStatus.json.error, /Cannot change/);
+  assert.equal((db.prepare("SELECT status FROM people WHERE id=?").get(created.json.id) as any).status, "need_to_reach_out");
+
   const invalid = cli(["set-person-status", "--source", "agent", "--json", JSON.stringify({ person: created.json.id, status: "ghosted" })]);
   assert.equal(invalid.code, 1);
   assert.equal(invalid.json.ok, false);

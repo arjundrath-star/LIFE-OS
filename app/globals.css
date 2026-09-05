@@ -589,12 +589,6 @@ textarea:focus-visible,
 }
 .stern-mode .stern-network-rail-count { margin-left:auto; border-radius:5px; background:var(--stern-accent); color:white; padding:1px 6px; font-size:11px; }
 .stern-mode.stern-rail-collapsed .stern-desktop-rail .stern-network-rail-count { display:none; }
-/* Shared Button utility classes carry dark-theme colors; Stern controls own their colors. */
-.stern-mode .stern-btn { background:var(--stern-surface) !important; color:var(--stern-text) !important; border-color:var(--stern-border) !important; }
-.stern-mode .stern-btn:hover { background:var(--stern-surface-2) !important; }
-.stern-mode .stern-btn.primary { background:var(--stern-accent) !important; color:var(--stern-on-accent) !important; border-color:var(--stern-accent) !important; }
-.stern-mode .stern-btn.primary:hover { background:var(--stern-accent-hover) !important; }
-.stern-mode .stern-btn.ghost { background:transparent !important; border-color:transparent !important; color:var(--stern-text-muted) !important; }
 .stern-mode .stern-btn svg { flex-shrink:0; }
 .stern-mode .stern-network-dialog-title button { padding:0; }
 @media(max-width:639px) {
@@ -828,3 +822,15 @@ textarea:focus-visible,
 .stern-mode .stern-group-switch input::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; }
 .stern-mode .stern-group-switch input:checked::after { left:16px; }
 .stern-mode [data-testid="stern-course-detail"] .stern-page-subtitle { font-size:12px; }
+
+.stern-mode .stern-network-row-actions { display:inline-flex; gap:4px; margin-left:8px; opacity:0; }
+.stern-mode .stern-network-table tr:hover .stern-network-row-actions,
+.stern-mode .stern-network-table tr:focus-within .stern-network-row-actions { opacity:1; }
+.stern-mode .stern-add-fields fieldset { border:0; padding:0; margin:0; display:grid; gap:14px; min-width:0; }
+@media(hover:none) { .stern-mode .stern-network-row-actions { opacity:1; } }
+
+/* Recruiting still uses the shared Button primitive; its remaps must preserve Network ghost states. */
+.stern-mode .stern-network-dialog .stern-btn.ghost,
+.stern-mode .stern-network-pagination .stern-btn.ghost { background:transparent !important; border-color:transparent !important; color:var(--stern-text-muted) !important; }
+.stern-mode .stern-network-dialog .stern-btn.ghost:hover,
+.stern-mode .stern-network-pagination .stern-btn.ghost:hover { background:var(--stern-surface-2) !important; color:var(--stern-text) !important; }

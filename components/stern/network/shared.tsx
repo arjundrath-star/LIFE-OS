@@ -1,10 +1,19 @@
 "use client";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Dialog, Button } from "@/components/ui";
+import { Dialog } from "@/components/ui";
 import { X } from "lucide-react";
 import { apiPost } from "@/hooks/useApi";
 import { PERSON_STATUSES, type PersonStatus } from "@/lib/stern-types";
+/** Only a changed network marker invalidates HTTP queries, not every Stern tick. */
+export function useNetworkVersion(version: string | undefined, refetch: () => void) {
+  const lastVersion = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (version === undefined || lastVersion.current === version) return;
+    lastVersion.current = version;
+    refetch();
+  }, [version, refetch]);
+}
 export const networkAction = (body: Record<string, unknown>) => apiPost("/api/stern/network", body);
 export const statusAllowed = (from: PersonStatus, to: PersonStatus) => from === to || to === "need_to_reach_out" || to === "dormant" || PERSON_STATUSES.indexOf(to) === PERSON_STATUSES.indexOf(from) + 1;
 export function NetworkDialog({ open, onClose, title, children, sheet = false, testId }: { open: boolean; onClose: () => void; title: string; children: ReactNode; sheet?: boolean; testId: string }) {
@@ -12,7 +21,7 @@ export function NetworkDialog({ open, onClose, title, children, sheet = false, t
   return <Dialog open={open} onOpenChange={value => { if (!value) onClose(); }}>
     <DialogPrimitive.Overlay className="stern-network-scrim" />
     <DialogPrimitive.Content aria-describedby={undefined} className={sheet ? "stern-network-dialog stern-add-sheet" : "stern-network-dialog stern-person-panel"} data-testid={testId}>
-      <header className="stern-network-dialog-title"><DialogPrimitive.Title>{title}</DialogPrimitive.Title><Button type="button" className="stern-btn ghost" size="icon" aria-label="Close" data-testid={`${testId}-close`} onClick={onClose}><X size={18} /></Button></header>
+      <header className="stern-network-dialog-title"><DialogPrimitive.Title>{title}</DialogPrimitive.Title><button type="button" className="stern-btn ghost" aria-label="Close" data-testid={`${testId}-close`} onClick={onClose}><X size={18} /></button></header>
       {children}
     </DialogPrimitive.Content>
   </Dialog>;

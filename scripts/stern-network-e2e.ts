@@ -1,5 +1,5 @@
 // Local-only UI verification. Start Next (without the scheduler) on 127.0.0.1:3120
-// with the fixture identity/secret below. Never run against production or a real vault.
+// with HOSTNAME=127.0.0.1 and a runtime-generated NEXTAUTH_SECRET. Never run against production or a real vault.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,8 +7,9 @@ import puppeteer from "puppeteer-core";
 import { encode } from "next-auth/jwt";
 const origin = "http://127.0.0.1:3120";
 const artifactDir = path.join(process.cwd(), ".stern-network-e2e");
-const secret = "stern-network-local-browser-fixture-only";
+const secret = process.env.NEXTAUTH_SECRET;
 async function main() {
+  assert.ok(secret, "NEXTAUTH_SECRET must match the isolated loopback server");
   assert.equal(process.env.RATHWORKSPACE_DB, "/home/Arjun/stern-build/db/wp2.db", "Use the assigned WP2 DB");
   fs.mkdirSync(artifactDir, { recursive: true });
   const browser = await puppeteer.launch({ executablePath: "/usr/bin/chromium", headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking"] });
@@ -16,12 +17,41 @@ async function main() {
   page.setDefaultNavigationTimeout(120000);
   page.setDefaultTimeout(60000);
   await page.setRequestInterception(true);
-  page.on("request", request => { if (request.url().startsWith(origin) || request.url().startsWith("data:")) void request.continue(); else void request.abort(); });
+  let tasksMissing = false;
+  let networkGets = 0;
+  const pendingNetwork = new Set<unknown>();
+  const settleNetwork = async () => {
+    let stable = 0, last = -1;
+    for (let i = 0; i < 300; i++) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      stable = pendingNetwork.size === 0 && last === networkGets ? stable + 1 : 0;
+      last = networkGets;
+      if (stable >= 10) return;
+    }
+    throw new Error(`Network queries did not settle (${pendingNetwork.size} pending)`);
+  };
+  page.on("requestfinished", r => pendingNetwork.delete(r));
+  page.on("requestfailed", r => pendingNetwork.delete(r));
+  page.on("request", request => {
+    if (request.url().includes("/api/stern/network") && request.method() === "GET") { networkGets++; pendingNetwork.add(request); }
+    if (tasksMissing && request.url().includes("/api/stern/tasks")) { void request.respond({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not found" }) }); return; }
+    if (request.url().startsWith(origin) || request.url().startsWith("data:")) void request.continue(); else void request.abort();
+  });
+  // Drive the real LiveProvider with deterministic local snapshots, without starting a scheduler.
+  await page.evaluateOnNewDocument(`
+    window.WebSocket = class {
+      constructor() {
+        window.__sternPush = payload => this.onmessage?.({ data: JSON.stringify({ channel: "stern", payload }) });
+        setTimeout(() => this.onopen?.(), 0);
+      }
+      close() {}
+    };
+  `);
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(String(e)));
   const batches: string[] = [];
   page.on("response", async response => {
-    if (response.url().includes("/api/stern/network") && response.request().method() === "POST" && response.ok()) {
+    if (/\/api\/stern\/(network|tasks)/.test(response.url()) && response.request().method() === "POST" && response.ok()) {
       const value = await response.json().catch(() => null); if (value?.batchId) batches.push(value.batchId);
     }
   });
@@ -39,15 +69,32 @@ async function main() {
     await page.type('[data-testid="stern-quick-add-role"]', "Member");
     await page.type('[data-testid="stern-quick-add-email"]', "browser.student@example.test");
     await page.click('[data-testid="stern-quick-add-eboard"]');
-    await page.click('[data-testid="stern-quick-add-reach-out"]');
     await Promise.all([page.waitForResponse(r => r.url().includes("/api/stern/network") && r.request().method() === "POST"), page.click('[data-testid="stern-quick-add-save"]')]);
     await page.waitForSelector('[data-testid="stern-quick-add"]', { hidden: true });
     await page.waitForFunction(() => document.querySelector('[data-testid="stern-network-table"]')?.textContent?.includes("Browser Example Student"));
     const personId = await page.$eval('[data-testid="stern-network-row"]', el => el.getAttribute("data-person-id"));
     assert.ok(personId);
-    await page.click(`[data-testid="stern-network-open-${personId}"]`);
+    await page.click('[data-testid="stern-network-add"]');
+    await page.type('[data-testid="stern-quick-add-name"]', "Browser Example Student");
+    await page.type('[data-testid="stern-quick-add-email"]', "browser.student@example.test");
+    await page.click('[data-testid="stern-quick-add-relationship-mentor"]');
+    await page.click('[data-testid="stern-quick-add-reach-out"]');
+    await page.click('[data-testid="stern-quick-add-save"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="stern-quick-add-notice"]')?.textContent?.includes("Matched existing person"));
+    await page.click('[data-testid="stern-quick-add-matched-person"]');
     await page.waitForSelector('[data-testid="stern-person-notes"]');
     assert.match(page.url(), /person=/);
+    assert.equal(await page.$eval('[data-testid="stern-person-status"]', el => (el as HTMLSelectElement).value), "need_to_reach_out");
+    const liveSnapshot = await page.evaluate(async () => (await fetch("/api/stern")).json());
+    await page.evaluate(snapshot => (window as any).__sternPush(snapshot), liveSnapshot);
+    await settleNetwork();
+    const idleGets = networkGets;
+    for (let i = 0; i < 3; i++) await page.evaluate(({ snapshot, tick }) => (window as any).__sternPush({ ...snapshot, updatedAt: `fixture-tick-${tick}` }), { snapshot: liveSnapshot, tick: i });
+    await settleNetwork();
+    assert.equal(networkGets, idleGets, "idle/unrelated Stern snapshots must not refetch table or drawer");
+    await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, network: { ...snapshot.network, version: "fixture-external-change" } }), liveSnapshot);
+    await settleNetwork();
+    assert.equal(networkGets, idleGets + 2, "changed network snapshot refreshes table and drawer once");
     const drawerWidth = await page.$eval('[data-testid="stern-person-drawer"]', el => el.getBoundingClientRect().width); assert.equal(drawerWidth, 440);
     for (const section of ["contacts", "affiliations", "coffee-chats", "drafts", "touchpoints"]) assert.ok(await page.$(`[data-testid="stern-person-${section}"]`));
     await page.type('[data-testid="stern-person-notes"]', "Browser fixture note autosaved.");
@@ -73,21 +120,35 @@ async function main() {
     const rect = await page.$eval('[data-testid="stern-quick-add"]', el => { const r = el.getBoundingClientRect(); return { x: r.x, width: r.width, bottom: r.bottom }; });
     assert.equal(rect.width, 390); assert.equal(rect.x, 0); assert.ok(rect.bottom <= 845);
     await page.waitForSelector('[data-testid="stern-quick-add-club"]');
+    const sheetSnapshot = await page.evaluate(async () => (await fetch("/api/stern")).json());
+    await page.evaluate(snapshot => (window as any).__sternPush(snapshot), sheetSnapshot);
+    await settleNetwork();
+    const sheetGets = networkGets;
+    await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, updatedAt: "fixture-sheet-tick" }), sheetSnapshot);
+    await settleNetwork(); assert.equal(networkGets, sheetGets);
+    await page.evaluate(snapshot => (window as any).__sternPush({ ...snapshot, network: { ...snapshot.network, version: "fixture-sheet-change" } }), sheetSnapshot);
+    await settleNetwork(); assert.equal(networkGets, sheetGets + 2, "changed marker refreshes table and open sheet");
     await page.screenshot({ path: path.join(artifactDir, "phone-quick-add.png") });
     await page.setViewport({ width: 390, height: 520, isMobile: true, hasTouch: true });
     await page.waitForFunction(() => (document.querySelector('[data-testid="stern-quick-add-save"]')?.getBoundingClientRect().bottom || 1000) <= 520);
+    tasksMissing = true;
     await page.click('[data-testid="stern-quick-add-task"]');
-    await page.type('[data-testid="stern-quick-add-task-title"]', "Example follow-up task");
-    await page.click('[data-testid="stern-quick-add-save"]');
-    await page.waitForFunction(() => document.querySelector('[data-testid="stern-quick-add-notice"]')?.textContent?.includes("Tasks arrive with the next package"));
+    await page.waitForSelector('[data-testid="stern-quick-add-tasks-unavailable"]');
+    assert.equal(await page.$eval('[data-testid="stern-quick-add-save"]', el => (el as HTMLButtonElement).disabled), true);
     await page.click('[data-testid="stern-quick-add-note"]');
     await page.select('[data-testid="stern-quick-add-person-select"]', String(personId));
     await page.type('[data-testid="stern-quick-add-note-summary"]', "Example quick note");
     await page.click('[data-testid="stern-quick-add-save"]');
     await page.waitForSelector('[data-testid="stern-quick-add"]', { hidden: true });
     await page.waitForFunction(() => !new URL(window.location.href).searchParams.has("add"));
+    tasksMissing = false;
+    await page.evaluate(id => window.dispatchEvent(new CustomEvent("stern:quick-add", { detail: { segment: "Task", personId: Number(id) } })), personId);
+    await page.waitForSelector('[data-testid="stern-quick-add-task-title"]');
+    await page.type('[data-testid="stern-quick-add-task-title"]', "Browser Example Follow-up Task");
+    await page.click('[data-testid="stern-quick-add-save"]');
+    await page.waitForSelector('[data-testid="stern-quick-add"]', { hidden: true });
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ anonymousStatus: 401, desktopTable: true, drawerWidth, deepLink: true, escape: true, notesAutosave: true, relationshipAndStrength: true, phoneSheet: rect, task404Fallback: true, quickNote: true, keyboardViewportSaveVisible: true, browserErrors: errors.length }));
+    console.log(JSON.stringify({ anonymousStatus: 401, duplicateCaptureNotice: true, unchangedLiveGets: 0, changedLiveGets: 2, unchangedSheetGets: 0, changedSheetGets: 2, desktopTable: true, drawerWidth, deepLink: true, escape: true, notesAutosave: true, relationshipAndStrength: true, phoneSheet: rect, task404Fallback: true, taskCreate: true, quickNote: true, keyboardViewportSaveVisible: true, browserErrors: errors.length }));
   } finally {
     // Undo only this journey's mutation batches, in reverse order, through the gated audit API.
     for (const batchId of batches.reverse()) {

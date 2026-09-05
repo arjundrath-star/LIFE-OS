@@ -14,6 +14,9 @@
 //   stern-cli add-task         --source ... --json '{title, domain?, due_at?, priority?, notes?, dedupe_key?, person?, club?}'
 //   stern-cli add-touchpoint   --source ... --json '{person: id|name|email, kind, summary, detail?, occurred_at?}'
 //   stern-cli set-person-status --source ... --json '{person, status}'
+//     Uses the same transitions as the dashboard: met -> need_to_reach_out -> reached_out
+//     -> replied -> chatted -> follow_up_owed -> dormant; any -> need_to_reach_out or dormant.
+//     Non-adjacent transitions return an error without writes; trusted callers do not bypass it.
 //   stern-cli list-people      [--q <text>] [--limit <n>]
 //
 // Output: exactly one JSON object on stdout ({ ok:true, ... } or { ok:false, error }).
