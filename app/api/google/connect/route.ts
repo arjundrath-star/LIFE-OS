@@ -8,15 +8,18 @@ export const dynamic = "force-dynamic";
 // Starts the "+ Add Google account" reader flow. Same Google client as the gate,
 // but a separate flow requesting gmail.readonly + calendar.readonly + offline.
 const TARGETS: Record<string,{ loginHint?:string; hostedDomain?:string }> = {
-  generic:{}, klade:{ loginHint:"arjun@kladeai.com" }, personal:{ loginHint:"arjundrath@gmail.com" }, nyu:{ hostedDomain:"nyu.edu" },
+  generic:{}, stern:{ hostedDomain:"stern.nyu.edu" }, klade:{ loginHint:"arjun@kladeai.com" }, personal:{ loginHint:"arjundrath@gmail.com" }, nyu:{ hostedDomain:"nyu.edu" },
 };
 
 export async function GET(req: Request) {
-  if (!(await requireUser())) return NextResponse.redirect(new URL("/signin", process.env.NEXTAUTH_URL || "http://localhost:3000"));
+  const user = await requireUser();
+  if (!user) return NextResponse.redirect(new URL("/signin", process.env.NEXTAUTH_URL || "http://localhost:3000"));
   const requested = new URL(req.url).searchParams.get("target") || "generic";
   const target = Object.hasOwn(TARGETS, requested) ? requested : "generic";
   const state = crypto.randomBytes(16).toString("hex");
-  const url = connectUrl(state, TARGETS[target]);
+  const set = new URL(req.url).searchParams.get("set");
+  const scopeSet = set === "readonly" ? "readonly" : set === "stern" || target === "stern" || target === "nyu" || target === "generic" && /@(?:[^@]+\.)?nyu\.edu$/i.test(user.email) ? "stern" : "readonly";
+  const url = connectUrl(state, { ...TARGETS[target], scopeSet });
   const res = NextResponse.redirect(url);
   res.cookies.set("rw_g_state", state, {
     httpOnly: true,

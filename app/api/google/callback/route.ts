@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
   const cookieState = req.headers.get("cookie")?.match(/rw_g_state=([a-f0-9]+)/)?.[1];
-  const target = req.headers.get("cookie")?.match(/rw_g_target=(generic|klade|personal|nyu)/)?.[1] || "generic";
+  const target = req.headers.get("cookie")?.match(/rw_g_target=(generic|klade|personal|nyu|stern)/)?.[1] || "generic";
 
   if (error) {
     if (target !== "generic") kvSet(`career.google.${target}_error`, target === "nyu" && error === "access_denied" ? "connect blocked — needs NYU tenant approval" : error);
@@ -34,8 +34,10 @@ export async function GET(req: Request) {
     // connecting an account IS the user enabling the Google reader — flip it on so the
     // Connections panel shows healthy (not a misleading "off") now that mail is flowing.
     setEnabled("google", "dashboard", true);
-    const careerService = target === "generic" ? null : `career-google-${target}`;
+    const careerService = target === "generic" || target === "stern" ? null : `career-google-${target}`;
     if (careerService) setEnabled(careerService, "dashboard", true);
+    const sternService = /@stern\.nyu\.edu$/i.test(email) ? "stern-google-stern" : /@nyu\.edu$/i.test(email) ? "stern-google-nyu" : null;
+    if (sternService) setEnabled(sternService, "dashboard", true);
     // refresh connection states + email immediately
     const states = await refreshAll();
     getHub().broadcast("connections", states);

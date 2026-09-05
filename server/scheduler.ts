@@ -278,6 +278,17 @@ async function tickStern() {
   broadcastStern();
 }
 
+async function tickSternEmail() {
+  const { runSternEmailScan } = await import("@/lib/stern/gmail-scan");
+  await runSternEmailScan();
+  await tickStern();
+}
+async function tickSternCalendar() {
+  const { runSternCalendarSync } = await import("@/lib/stern/calendar-sync");
+  await runSternCalendarSync();
+  await tickStern();
+}
+
 export function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -312,6 +323,8 @@ export function startScheduler() {
   const careerEmail = guarded("careerEmail", tickCareerEmail);
   const careerHunter = guarded("careerHunter", tickCareerHunter);
   const stern = guarded("stern", tickStern);
+  const sternEmail = guarded("sternEmail", tickSternEmail);
+  const sternCalendar = guarded("sternCalendar", tickSternCalendar);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -329,6 +342,8 @@ export function startScheduler() {
   career();
   careerEmail();
   stern();
+  sternEmail();
+  sternCalendar();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -346,6 +361,8 @@ export function startScheduler() {
     setInterval(career, 15000), // canonical SQLite snapshot; writes also broadcast immediately
     setInterval(careerEmail, 30 * 60 * 1000), // approved Gmail metadata only; review-gated suggestions
     setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
+    setInterval(sternEmail, 10 * 60 * 1000),
+    setInterval(sternCalendar, 5 * 60 * 1000),
     setInterval(stern, 15000), // Stern tab snapshot: SQL counts + broadcast, cheap and bounded
   ];
 

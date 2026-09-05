@@ -302,3 +302,35 @@ export function recruitingSnapshot(now: Date = new Date()): RecruitingSnapshot {
         AND julianday(p.app_deadline_at) < julianday(?)))`).get(PROCESS_SLUG, today.dateKey, in14.dateKey, now.toISOString(), in14.endIso) as { n: number }).n;
   return { updatedAt: now.toISOString(), today: nyDateKey(now), process: process ?? null, catalog, clubs, deadlines, windows: catalogSeed().program_windows, counts };
 }
+
+/** Apply an observed milestone directly; manual transition controls remain unchanged. */
+export function observeProgramStatus(programId: number, next: "submitted" | "interview_invited" | "accepted" | "rejected", options: ChangeMeta) {
+  return getDb().transaction(() => {
+    const program = row<RecruitingProgram>("program", programId), club = activeClub(program.club_id), audit = meta(options);
+    if (!["auto_email", "suggestion_accept"].includes(String(audit.source))) throw new SternError(400, "Observed milestone requires email evidence");
+    const rank = ["not_open", "open", "drafting", "submitted", "interview_invited", "interview_done", "accepted", "rejected"];
+    if (["accepted", "rejected", "declined", "withdrawn", "missed"].includes(program.status) || rank.indexOf(program.status) > rank.indexOf(next)) return programId;
+    patch("program", programId, { status: next }, audit);
+    if (next === "submitted") {
+      const item = getDb().prepare("SELECT id FROM stern_checklist_items WHERE club_id=? AND key='submit' AND program_id IN (0,?) ORDER BY program_id DESC LIMIT 1").get(club.id, programId) as { id: number } | undefined;
+      if (item) toggleChecklist(item.id, true, audit);
+    }
+    const undecided = (getDb().prepare("SELECT COUNT(*) n FROM stern_programs WHERE club_id=? AND status NOT IN ('accepted','rejected','declined','withdrawn')").get(club.id) as { n: number }).n;
+    if (!undecided) {
+      const accepted = getDb().prepare("SELECT 1 FROM stern_programs WHERE club_id=? AND status='accepted'").get(club.id);
+      patch("club", club.id, { status: accepted ? "accepted" : "rejected" }, audit);
+    } else if (!["accepted", "rejected", "declined"].includes(club.status)) patch("club", club.id, { status: next === "interview_invited" ? "interviewing" : club.status === "considering" ? "applying" : club.status }, audit);
+    return programId;
+  }).immediate();
+}
+export function reconcileThankYous(clubId: number, options: ChangeMeta) {
+  return getDb().transaction(() => {
+    activeClub(clubId);
+    const completed = (getDb().prepare("SELECT COUNT(*) n FROM coffee_chats WHERE club_id=? AND state='thank_you_sent'").get(clubId) as { n: number }).n;
+    const owed = (getDb().prepare("SELECT COUNT(*) n FROM coffee_chats WHERE club_id=? AND state='done'").get(clubId) as { n: number }).n;
+    if (completed && !owed) {
+      const item = getDb().prepare("SELECT id FROM stern_checklist_items WHERE club_id=? AND key='thank_yous' AND program_id=0").get(clubId) as { id: number } | undefined;
+      if (item) toggleChecklist(item.id, true, options);
+    }
+  }).immediate();
+}
