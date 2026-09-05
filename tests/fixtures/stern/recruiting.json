@@ -1,0 +1,7 @@
+{
+  "person": { "display_name": "Placeholder Student", "email": "student@example.com" },
+  "now": "2026-09-05T03:30:00Z",
+  "scheduled_at": "2026-09-08T14:00:00-04:00",
+  "question": "Why this program?",
+  "answer": "Practice answer for the placeholder application."
+}

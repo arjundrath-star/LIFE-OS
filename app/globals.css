@@ -600,3 +600,145 @@ textarea:focus-visible,
 @media(max-width:639px) {
   .stern-mode .stern-add-fields .stern-network-two:has(input[type=datetime-local]) { grid-template-columns:1fr; }
 }
+
+/* Stern recruiting — screens 02/03 from the design handoff. */
+.stern-mode .stern-mono { font-family: var(--stern-font-mono); font-variant-numeric: tabular-nums; }
+.stern-mode .stern-muted { color: var(--stern-text-muted); font-size: 13px; }
+.stern-mode .stern-stack { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.stern-mode .stern-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.stern-mode .stern-filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.stern-mode .stern-filter-chips button { height: 28px; padding: 0 10px; border: 1px solid var(--stern-border); border-radius: 999px; background: var(--stern-surface); font-size: 12px; }
+.stern-mode .stern-filter-chips button.active { color: var(--stern-accent); border-color: var(--stern-accent-soft); background: var(--stern-accent-soft); }
+.stern-mode .stern-filter-chips button span { margin-left: 4px; }
+.stern-mode .stern-timeline-toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.stern-mode input[type="checkbox"] { accent-color: var(--stern-accent); width: 16px; height: 16px; flex: none; }
+.stern-mode button:focus-visible, .stern-mode a:focus-visible, .stern-mode input:focus-visible, .stern-mode select:focus-visible, .stern-mode textarea:focus-visible { outline: 2px solid var(--stern-accent); outline-offset: 3px; }
+.stern-mode .stern-btn { box-shadow: none; font-family: var(--stern-font); transition: background-color .15s; }
+.stern-mode .stern-btn:hover { box-shadow: none; }
+.stern-mode .stern-btn:disabled, .stern-mode fieldset:disabled { opacity: .65; }
+.stern-mode .stern-club-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.stern-mode .stern-club-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.stern-mode .stern-club-card.archived { background: var(--stern-surface-2); color: var(--stern-text-muted); }
+.stern-mode .stern-club-card.archived .stern-card-heading a { color: var(--stern-text-muted); }
+.stern-mode .stern-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.stern-mode .stern-card-heading > div { min-width: 0; }
+.stern-mode .stern-card-heading a { font-size: 16px; font-weight: 600; color: var(--stern-text); }
+.stern-mode .stern-card-heading a:hover { color: var(--stern-accent); }
+.stern-mode .stern-priority-stars { display: inline-flex; color: var(--stern-accent); }
+.stern-mode .stern-priority-stars button { padding: 3px; background: transparent; border: 0; }
+.stern-mode .stern-priority-stars button:disabled { cursor: default; }
+.stern-mode .stern-club-metrics { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 13px; margin-top: auto; }
+.stern-mode .stern-club-metrics dt { color: var(--stern-text-muted); }
+.stern-mode .stern-club-metrics dd { text-align: right; }
+.stern-mode .stern-checklist-progress { appearance: none; width: 100%; height: 4px; border: 0; border-radius: 999px; overflow: hidden; background: var(--stern-surface-2); }
+.stern-mode .stern-checklist-progress::-webkit-progress-bar { background: var(--stern-surface-2); }
+.stern-mode .stern-checklist-progress::-webkit-progress-value { background: var(--stern-accent); }
+.stern-mode .stern-checklist-progress::-moz-progress-bar { background: var(--stern-accent); }
+.stern-mode .stern-club-eboard { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-avatars { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.stern-mode .stern-avatar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; border: 2px solid var(--stern-surface); border-radius: 999px; color: var(--stern-accent); background: var(--stern-accent-soft); font-size: 10px; font-weight: 600; }
+.stern-mode .stern-avatars .stern-avatar + .stern-avatar { margin-left: -6px; }
+.stern-mode .stern-process-timeline { padding: 16px 20px; }
+.stern-mode .stern-process-axis { position: relative; padding-top: 24px; margin: 0 30px 12px; }
+.stern-mode .stern-process-lane { position: relative; height: 30px; border-bottom: 1px solid var(--stern-border); }
+.stern-mode .stern-application-window { position: absolute; top: 7px; height: 10px; border-radius: 999px; background: var(--stern-accent); }
+.stern-mode .stern-application-window.teams { background: var(--stern-accent-soft); border: 1px solid var(--stern-accent); }
+.stern-mode .stern-interview-window { position: absolute; height: 3px; top: 21px; background: var(--stern-info); }
+.stern-mode .stern-decision-marker { position: absolute; width: 2px; height: 20px; top: 4px; background: var(--stern-ok); }
+.stern-mode .stern-today-marker { position: absolute; top: 20px; bottom: 0; width: 2px; background: var(--stern-error); z-index: 1; }
+.stern-mode .stern-today-marker > span { position: absolute; top: -20px; left: -24px; white-space: nowrap; font: 500 11px var(--stern-font-mono); color: var(--stern-error); }
+.stern-mode .stern-window-legend { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.stern-mode .stern-window-legend > div { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-window-legend strong { color: var(--stern-text); }
+.stern-mode .stern-deadline-strip h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.stern-mode .stern-deadline-strip .stern-empty { min-height: 80px; padding: 14px; }
+.stern-mode .stern-deadline-cards { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.stern-mode .stern-deadline-card { display: flex; flex-direction: column; gap: 4px; flex: 0 0 225px; padding: 12px; border: 1px solid var(--stern-border); border-radius: 12px; background: var(--stern-surface); }
+.stern-mode .stern-deadline-card > span { font-size: 16px; font-weight: 600; }
+.stern-mode .stern-deadline-card strong { font-size: 13px; }
+.stern-mode .stern-deadline-card small, .stern-mode .stern-deadline-card time { font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-deadline-card[data-tone="warn"] { border-color: var(--stern-warn); }
+.stern-mode .stern-deadline-card[data-tone="warn"] > span { color: #B45309; }
+.stern-mode .stern-deadline-card[data-tone="error"] { border-color: var(--stern-error); }
+.stern-mode .stern-deadline-card[data-tone="error"] > span { color: #B91C1C; }
+.stern-mode .stern-recruiting-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--stern-text-muted); font-size: 13px; }
+.stern-recruiting-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(20,20,31,.45); }
+.stern-mode.stern-recruiting-dialog { position: fixed; display: flex; flex-direction: column; inset: auto; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 61; width: min(620px,94vw); height: auto; min-height: 0; max-height: 88vh; border: 1px solid var(--stern-border); border-radius: 12px; background: var(--stern-surface); overflow: hidden; box-shadow: 0 10px 40px rgba(20,20,31,.2); }
+.stern-mode.stern-recruiting-dialog > header { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--stern-border); }
+.stern-mode.stern-recruiting-dialog h2 { font-size: 18px; font-weight: 600; }
+.stern-mode .stern-recruiting-dialog-body { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.stern-mode .stern-catalog-search { display: flex; align-items: center; gap: 8px; }
+.stern-mode .stern-catalog-list { display: flex; flex-direction: column; }
+.stern-mode .stern-catalog-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--stern-border); }
+.stern-mode .stern-catalog-row > div { display: flex; flex-direction: column; gap: 4px; }
+.stern-mode .stern-catalog-row strong { font-size: 14px; font-weight: 500; }
+.stern-mode .stern-catalog-row small { color: var(--stern-text-muted); font-size: 12px; }
+.stern-mode .stern-recruiting-error { color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.stern-mode .stern-recruiting-saved { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--stern-text-muted); }
+.stern-mode .stern-club-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; }
+.stern-mode .stern-club-links a, .stern-mode .stern-recruiting-link { display: inline-flex; align-items: center; gap: 4px; color: var(--stern-accent); }
+.stern-mode .stern-status-select { width: auto; max-width: 100%; min-height: 30px; font-size: 12px; }
+.stern-mode .stern-detail-tabs > [role="tablist"] { display: flex; border: 0; border-bottom: 1px solid var(--stern-border); border-radius: 0; background: transparent; padding: 0; gap: 4px; overflow-x: auto; }
+.stern-mode .stern-detail-tabs [role="tab"] { border-radius: 0; border-bottom: 2px solid transparent; padding: 8px 12px; color: var(--stern-text-muted); background: transparent; font: 500 13px var(--stern-font); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.stern-mode .stern-detail-tabs [role="tab"][data-state="active"] { border-color: var(--stern-accent); color: var(--stern-accent); font-weight: 600; }
+.stern-mode .stern-detail-tabs [role="tabpanel"] { margin-top: 24px; }
+.stern-mode .stern-detail-columns { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 24px; align-items: start; }
+.stern-mode .stern-program-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; }
+.stern-mode .stern-program-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stern-mode .stern-program-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.stern-mode .stern-program-card h3 { font-weight: 600; font-size: 15px; }
+.stern-mode .stern-program-facts { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px 16px; font-size: 13px; }
+.stern-mode .stern-program-facts dt { color: var(--stern-text-muted); }
+.stern-mode .stern-program-facts dd { overflow-wrap: anywhere; }
+.stern-mode .stern-requirements { border-top: 1px solid var(--stern-border); padding-top: 12px; font-size: 13px; }
+.stern-mode .stern-requirements strong { font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-requirements ul { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.stern-mode .stern-checklist-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--stern-border); font-size: 13px; }
+.stern-mode .stern-checklist-item:last-child { border: 0; }
+.stern-mode .stern-checklist-item .done { text-decoration: line-through; color: var(--stern-text-muted); }
+.stern-mode .stern-checklist-item time { margin-left: auto; font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-form-stack, .stern-mode .stern-form-stack fieldset, .stern-mode .stern-prep-row fieldset { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stern-mode .stern-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-field > span { font-weight: 500; }
+.stern-mode .stern-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.stern-mode .stern-people-list { display: flex; flex-direction: column; gap: 16px; }
+.stern-mode .stern-person-row { display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--stern-border); }
+.stern-mode .stern-person-row:last-child { padding-bottom: 0; border: 0; }
+.stern-mode .stern-person-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stern-mode .stern-person-heading > div { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.stern-mode .stern-person-heading strong { font-size: 13px; font-weight: 600; }
+.stern-mode .stern-person-heading small { font-size: 12px; color: var(--stern-text-muted); }
+.stern-mode .stern-person-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.stern-mode .stern-chat-dates { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; }
+.stern-mode .stern-chat-dates dt { color: var(--stern-text-muted); }
+.stern-mode .stern-activity-list { display: flex; flex-direction: column; gap: 16px; }
+.stern-mode .stern-activity-list li { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding-left: 12px; border-left: 2px solid var(--stern-border); }
+.stern-mode .stern-activity-list li > div { flex: 1; min-width: 0; }
+.stern-mode .stern-activity-list strong { display: block; font-size: 13px; font-weight: 400; overflow-wrap: anywhere; white-space: pre-wrap; }
+.stern-mode .stern-activity-list span { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.stern-mode .stern-activity-list time { color: var(--stern-text-muted); font-size: 11px; }
+.stern-mode .stern-prep-row { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--stern-border); }
+.stern-mode .stern-inline-form { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 16px; }
+.stern-mode .stern-inline-form .stern-field { flex: 1; }
+.stern-mode .stern-quotes { display: flex; flex-direction: column; gap: 16px; }
+.stern-mode .stern-quotes blockquote { border-left: 3px solid var(--stern-accent-soft); padding-left: 12px; font-size: 13px; }
+.stern-mode .stern-quotes p { white-space: pre-wrap; }
+.stern-mode .stern-quotes footer { color: var(--stern-text-muted); font-size: 12px; margin-top: 8px; }
+@media (max-width: 1200px) {
+  .stern-mode .stern-club-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stern-mode .stern-detail-columns { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 650px) {
+  .stern-mode .stern-club-grid, .stern-mode .stern-program-grid, .stern-mode .stern-form-grid { grid-template-columns: minmax(0,1fr); }
+  .stern-mode .stern-process-timeline { padding: 12px; }
+  .stern-mode .stern-window-legend > div { flex-direction: column; }
+  .stern-mode .stern-page-header h1 { font-size: 21px; }
+}
+/* Shared cyan primitives include utility classes with WP0's !important remaps. Keep
+   those remaps from overriding recruiting button intent and inactive tab backgrounds. */
+.stern-mode .stern-btn { background: var(--stern-surface) !important; color: var(--stern-text) !important; border-color: var(--stern-border) !important; }
+.stern-mode .stern-btn:hover { background: var(--stern-surface-2) !important; }
+.stern-mode .stern-btn.primary { background: var(--stern-accent) !important; color: var(--stern-on-accent) !important; border-color: var(--stern-accent) !important; }
+.stern-mode .stern-btn.primary:hover { background: var(--stern-accent-hover) !important; }
+.stern-mode .stern-detail-tabs > [role="tablist"], .stern-mode .stern-detail-tabs [role="tab"] { background: transparent !important; }
+.stern-mode .stern-detail-tabs [role="tab"][data-state="active"] { color: var(--stern-accent) !important; }

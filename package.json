@@ -44,7 +44,11 @@
     "e2e:pokemon-ops": "tsx scripts/pokemon-ops-e2e.ts",
     "e2e:vending-service": "tsx scripts/vending-service-e2e.ts",
     "test:stern-network": "tsx --test tests/stern-network.test.ts",
-    "e2e:stern-network": "tsx scripts/stern-network-e2e.ts"
+    "e2e:stern-network": "tsx scripts/stern-network-e2e.ts",
+    "test:stern-recruiting": "tsx --test tests/stern-recruiting.test.ts",
+    "seed:stern": "tsx scripts/seed-stern.ts",
+    "stern:recruiting-deadlines": "tsx scripts/stern-recruiting-deadlines.ts",
+    "e2e:stern-recruiting": "tsx scripts/stern-recruiting-e2e.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
