@@ -9,11 +9,13 @@ import crypto from "node:crypto";
 import { writePersonNote } from "./people-note";
 import type { Person } from "@/lib/stern-types";
 import { getDb, nowIso } from "@/db";
-import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
+import { STERN_NOTIFICATION_KEYS, AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, type AuditEntityType, type AuditSource } from "@/lib/stern-types";
 import { SternError } from "@/lib/stern/errors";
 
 export const ENTITY_TABLES: Record<AuditEntityType, string> = {
   email_message: "stern_email_messages",
+  reminder: "stern_reminders",
+  notification_setting: "kv",
   process: "stern_processes",
   interview_prep: "stern_interview_prep",
   person: "people",
@@ -110,6 +112,10 @@ export function entityTable(entityType: string): string {
 }
 
 function assertField(entityType: string, field: string) {
+  if (entityType === "notification_setting") {
+    if (!(STERN_NOTIFICATION_KEYS as readonly string[]).includes(field)) throw new SternError(400, "Unknown notification setting");
+    return;
+  }
   if (!field) return;
   const table = entityTable(entityType);
   if (field === "id" || !/^[a-z_][a-z0-9_]*$/.test(field) || !tableColumns(table).has(field)) {
@@ -195,7 +201,12 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     for (const row of rows) {
       const table = entityTable(row.entity_type);
       let changes = 0;
-      if (row.action === "update") {
+      if (row.entity_type === "notification_setting") {
+        assertField(row.entity_type, row.field);
+        if (row.action !== "update") throw new SternError(400, "Settings support update undo only");
+        if (row.before_value === "") changes = db.prepare("DELETE FROM kv WHERE k=? AND v=?").run(row.field, row.after_value).changes;
+        else changes = db.prepare("UPDATE kv SET v=?, updated_at=? WHERE k=? AND v=?").run(row.before_value, ts, row.field, row.after_value).changes;
+      } else if (row.action === "update") {
         assertField(row.entity_type, row.field);
         if (row.field) {
           // Restore only when the row still holds the value this batch wrote; a later change

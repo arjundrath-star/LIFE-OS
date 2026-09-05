@@ -55,7 +55,7 @@ export const EVIDENCE_TYPES = ["gmail", "calendar", "imessage", "web", "manual"]
 export const SUGGESTION_STATES = ["pending", "accepted", "dismissed"] as const;
 export const AUDIT_ACTIONS = ["create", "update", "delete", "undo"] as const;
 export const AUDIT_SOURCES = ["manual", "auto_email", "auto_calendar", "imessage", "suggestion_accept", "seed", "agent", "undo"] as const;
-export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep", "course_meeting", "grade_category", "email_message"] as const;
+export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep", "course_meeting", "grade_category", "email_message", "reminder", "notification_setting"] as const;
 export const REMINDER_RULES = ["deadline_t7", "deadline_t3", "deadline_t1", "deadline_day", "reply_owed", "thank_you_due", "no_reply_3d", "interview_eve", "task_due", "suggestions_pending", "memo"] as const;
 export const REMINDER_CHANNELS = ["imessage", "email", "both", "dashboard"] as const;
 export const REMINDER_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped", "snoozed"] as const;
@@ -206,6 +206,8 @@ export type SternSnapshot = {
     suggestions: unknown[];
     drafts: unknown[];
     audit: unknown[];
+    reminders: SternReminder[];
+    notificationSettings: SternNotificationSettings;
     llmMode: string;           // STERN_LLM_MODE or 'live'
   };
   recruiting: RecruitingSnapshot;
@@ -361,3 +363,10 @@ export type SternEmailMessage = {
   internal_date: number; snippet: string; content_hash: string; classification: string;
   category: string; confidence: number; applied: string; error: string;
 };
+
+// WP5 delivery read model. message contains a version-independent JSON envelope; body is display text.
+export const STERN_NOTIFICATION_KEYS = ["stern.hermes_alias", "stern.imessage_target", "stern.memo_email", "stern.quiet_hours_start", "stern.quiet_hours_end", "stern.memo_last_date"] as const;
+export type SternNotificationSettings = Record<Exclude<(typeof STERN_NOTIFICATION_KEYS)[number], "stern.memo_last_date">, string>;
+export type ReminderMessage = { key: string; subject: string; body: string; urgent: boolean; scheduledAt: string; validUntil?: string; fingerprint?: string };
+export type SternReminder = { id: number; rule_key: string; entity_type: string; entity_id: number; fire_at: string; channel: ReminderChannel; message: string; delivery_status: (typeof REMINDER_DELIVERY_STATUSES)[number]; sent_at: string; error: string; created_at: string };
+export type SternMemo = { date: string; subject: string; imessage: string; email: string };

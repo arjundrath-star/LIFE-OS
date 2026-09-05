@@ -87,3 +87,15 @@ export function dayWindowParams(start: DayBounds, end: DayBounds): [string, stri
 export function beforeDaySql(col: string): string {
   return `(${col} <> '' AND ((length(${col}) = 10 AND ${col} < ?) OR (length(${col}) > 10 AND julianday(${col}) < julianday(?))))`;
 }
+
+/** Resolve a New York wall time on a calendar date, correcting the offset across DST. */
+export function nyWallTime(dateKey: string, time = "08:00"): Date {
+  const wall = Date.parse(`${dateKey}T${time}:00Z`);
+  let instant = wall - zoneOffsetMs(new Date(wall), STERN_TIMEZONE);
+  instant = wall - zoneOffsetMs(new Date(instant), STERN_TIMEZONE);
+  return new Date(instant);
+}
+export function nyClock(now: Date): string {
+  const parts = tzParts(now, STERN_TIMEZONE);
+  return `${String(parts.h).padStart(2, "0")}:${String(parts.mi).padStart(2, "0")}`;
+}
