@@ -158,3 +158,40 @@ No remaining local WP6 acceptance blockers. Real Google/OAuth completion, subscr
 - Review the screenshot set and run the existing adversarial acceptance review.
 - In WP7, connect the intended Google accounts and verify the signed-in banner, extended Stern scopes, reconnect return path, provider health refresh and actual reminder delivery. Validate real scheduling data after WP8 loads it.
 - To recapture the component sheet, use an authenticated development instance at `/stern/automation?components=1`; it intentionally returns 404 in production.
+
+## Fix round
+
+### Summary
+
+Merged `feature/stern-tab` into `stern/wp6` first (fast-forward to `c99eff4`, including WP3/WP5 corrections). Addressed findings A/B and 1–10; findings 1 and 2 described the same timestamp-driven refetch. Also addressed the optional Overview Undo route, archived-person counts, queue bounds, portable browser harness, ignored test directories, duplicate shell snapshot requests, mono locations, and phone sync indicator.
+
+### Files changed
+
+- `components/stern/overview/Overview.tsx`: warn only for positive counts; display obligation age; mono schedule locations with “Unconfirmed”; use `/api/stern` `audit.undo`; disclose the number omitted from bounded previews.
+- `components/stern/automation/AutomationView.tsx`: remove all automatic REST refetch effects; consume connection cards from the live snapshot; editable confidence inputs through WP5 `settings.update`; inline server validation; show proposed change, evidence source/account, date and confidence.
+- `lib/stern/automation-connections.ts`, `lib/stern/automation-snapshot.ts`, `lib/stern-types.ts`: cached connection cards in live payloads; no health probes on snapshot/GET; typed suggestion summaries and evidence metadata.
+- `lib/stern/display.ts`, `lib/stern/audit.ts`, `lib/stern/snapshot.ts`, `components/stern/automation/shared.tsx`: resolve entity names in audit read models, label enum changes, preserve raw stored evidence and Undo semantics, summarize both legacy object suggestions and actual WP3 effect arrays.
+- `lib/stern/overview.ts`, `lib/stern/snapshot.ts`: omit calendar class copies; exclude archived people from tile/badge obligations; cap each needs-you source at 100 and compute the true total with SQL.
+- `components/home/Home.tsx`: reuse the date-only-aware New York deadline formatter.
+- `components/stern/Search.tsx`: prevent mousedown from blurring the search input before link activation; preserve keyboard navigation.
+- `components/stern/SternShell.tsx`: shell indicators consume the live snapshot without their own full-snapshot GETs; show connecting until replay arrives.
+- `components/stern/recruiting/People.tsx`, `components/stern/classes/AssignmentRow.tsx`, `components/stern/classes/CourseDetail.tsx`: extract and reuse the actual PersonRow and AssignmentRow layouts in production and the component sheet.
+- `components/stern/automation/ComponentSheet.tsx`, `app/globals.css`: Task domain vocabulary, real rows with normal/selected/hover examples, every coffee chat and assignment status, status dots, E-board/category badges, ghost/small buttons, focused/invalid inputs, select, Radix switches/tabs, checkbox and styled Undo notice. Responsive needs-you age column and compact phone sync dot.
+- `tests/stern-overview.test.ts`, `tests/stern-search.test.ts`: regression tests for the read models, bounded totals, cached health, EDT/winter deadline labels and calendar class exclusion.
+- `scripts/stern-wp6-e2e.ts`: derive app root from the script; require an explicit isolated DB and reject production/data paths; test live cards without REST refetch, threshold validation/editing, pointer result activation, zero tones, canonical Overview Undo, and real component rows. All browser provider actions remain intercepted.
+- `.gitignore`: disposable WP6 search/overview DB directories.
+- `docs/plans/stern/reports/wp6-screenshots/`: refreshed application captures using synthetic records only.
+
+### Decisions made
+
+- Connection cards now arrive with `stern.automation.connections`; the scheduler remains the only health poller. Cached timestamps may update via WebSocket, but cannot trigger REST or provider probes. The signed-in connect banner remains initial API metadata and is recalculated after returning from OAuth.
+- Confidence settings use WP5's audited string-valued kv writer and its atomic pair validation. The defaults remain visible; the previous report's read-only-threshold decision is superseded.
+- Names are resolved at read time. Deleted/unresolvable entities retain a humanized type plus `#id`; raw audit values remain untouched for Undo. Unknown suggestion shapes fall back to their type label and retain inspectable JSON.
+- The queue uses bounded source previews plus a SQL total instead of implying that a truncated list is complete. The badge remains the full count. Archived people do not create active obligations.
+- The phone keeps the 8px sync dot in the header with explanatory title text; the longer mono sync wording remains desktop-only to preserve usable search width. This is the intentional handoff delta.
+- The component sheet uses the repository's native checkbox and Radix switch/tabs, matching production primitives. Focus/hover/selection examples are explicit preview states; no provider action is available from them.
+- Reused `dateLabel()` rather than adding a second deadline-date field or formatter. Both Home and DeadlineStrip now use the same New York rule.
+
+### Known gaps and follow-ups
+
+No provider scan, OAuth completion, outbound delivery, deployment, service restart, or push was performed. Browser verification uses Chromium with explicit mousedown default-prevention assertions; native macOS/iOS Safari remains a WP7 device check. Merge this fix round through the orchestrator's integration flow and retain WP7's connected-account checks.
