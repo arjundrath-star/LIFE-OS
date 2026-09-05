@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/guard";
 import { broadcastStern } from "@/lib/stern/snapshot";
 import { SternError, toErrorResponse } from "@/lib/stern/errors";
 import { recruitingSnapshot, seedClubCatalog, setInterested, updateClub, setClubStatus, archiveClub, archiveProcess, upsertProgram, setProgramStatus, toggleChecklist, upsertPrep } from "@/lib/stern/recruiting";
-import { createCoffeeChat, transition, updateCoffeeChat, type ChatTransitionMeta } from "@/lib/stern/coffee";
+import { createCoffeeChat, transition, updateCoffeeChat, manualChatTransitionMeta } from "@/lib/stern/coffee";
 import { newBatchId } from "@/lib/stern/audit";
 
 export const dynamic = "force-dynamic";
@@ -35,9 +35,7 @@ export async function POST(req: Request) {
       case "chat.create": result = createCoffeeChat(body.personId as number, body.clubId as number, body.programId as number | undefined, audit); break;
       case "chat.transition": {
         const supplied = body.meta === undefined ? {} : object(body.meta);
-        const allowed = ["at", "scheduled_at", "location", "reply_needs_me", "calendar_event_id", "gmail_thread_id"];
-        if (Object.keys(supplied).some(key => !allowed.includes(key))) throw new SternError(400, "Unknown chat transition metadata");
-        result = transition(body.chatId as number, body.state as Parameters<typeof transition>[1], { ...supplied, ...audit } as ChatTransitionMeta); break;
+        result = transition(body.chatId as number, body.state as Parameters<typeof transition>[1], { ...manualChatTransitionMeta(supplied), ...audit }); break;
       }
       case "chat.update": result = updateCoffeeChat(body.chatId as number, object(body.patch), audit); break;
       case "prep.upsert": result = upsertPrep(object(body.prep), audit); break;

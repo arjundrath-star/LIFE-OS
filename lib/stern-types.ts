@@ -276,7 +276,7 @@ export const PROGRAM_TRANSITIONS: Record<ProgramStatus, readonly ProgramStatus[]
   not_open: ["open"], open: ["drafting", "declined", "withdrawn"], drafting: ["submitted", "declined", "withdrawn"],
   submitted: ["interview_invited", "declined", "withdrawn"], interview_invited: ["interview_done", "declined", "withdrawn"],
   interview_done: ["accepted", "rejected", "declined", "withdrawn"], accepted: ["declined", "withdrawn"], rejected: ["declined", "withdrawn"],
-  declined: [], withdrawn: [], missed: [],
+  declined: [], withdrawn: [], missed: ["submitted", "declined", "withdrawn"],
 };
 export const CHAT_TRANSITIONS: Record<CoffeeChatState, readonly CoffeeChatState[]> = {
   to_request: ["requested"], requested: ["reply_received", "no_reply", "declined"],
@@ -303,7 +303,7 @@ export type CoffeeChat = {
 };
 export type RecruitingPerson = { id: number; display_name: string; email: string; year: string; title: string; role: string; chat: CoffeeChat | null };
 export type InterviewPrep = { id: number; program_id: number; question: string; answer: string; sort: number; updated_at: string };
-export type RecruitingActivity = { key: string; id: number; at: string; source: string; summary: string; batch_id: string; undone_at: string };
+export type RecruitingActivity = { key: string; id: number; at: string; source: string; summary: string; batch_id: string; undone_at: string; undoSummary?: string };
 export type RecruitingDeadline = { id: number; clubId: number; club: string; name: string; deadlineAt: string; days: number; status: ProgramStatus; track: ProgramTrack };
 export type RecruitingClubDetail = RecruitingClub & {
   programs: RecruitingProgram[]; checklist: RecruitingChecklistItem[]; checklistDone: number; checklistTotal: number;

@@ -22,6 +22,12 @@ export function createCoffeeChat(personId: number, clubId: number, programId = 0
   }).immediate();
 }
 export type ChatTransitionMeta = ChangeMeta & { at?: string; scheduled_at?: string; location?: string; reply_needs_me?: boolean; calendar_event_id?: string; gmail_thread_id?: string };
+/** Browser controls cannot supply Gmail/calendar identity or automation provenance. */
+export function manualChatTransitionMeta(input: Record<string, unknown>): ChatTransitionMeta {
+  const allowed = ["at", "scheduled_at", "location", "reply_needs_me"];
+  if (Object.keys(input).some(key => !allowed.includes(key))) throw new SternError(400, "Unknown chat transition metadata");
+  return input as ChatTransitionMeta;
+}
 export function transition(chatId: number, next: CoffeeChatState, options: ChatTransitionMeta = {}): number {
   return getDb().transaction(() => {
     const db = getDb();
@@ -49,8 +55,13 @@ export function transition(chatId: number, next: CoffeeChatState, options: ChatT
     const source = audit.source === "auto_email" ? "gmail" : audit.source === "auto_calendar" ? "calendar" : audit.source === "imessage" ? "imessage" : audit.source === "seed" ? "seed" : "manual";
     // The schema's non-null UNIQUE key also covers manual events. A namespaced local ID
     // avoids collapsing repeated manual touches, without pretending they came from Gmail.
-    insert("touchpoint", { person_id: chat.person_id, kind, occurred_at: at, source,
-      gmail_account: audit.gmailAccount || "", gmail_message_id: audit.gmailMessageId || `local:${audit.batchId}:${chatId}:${next}`,
+    const messageId = audit.gmailMessageId || `local:${audit.batchId}:${chatId}:${next}`;
+    const existingTouchpoint = db.prepare(`SELECT id FROM people_touchpoints
+      WHERE person_id = ? AND gmail_account = ? AND gmail_message_id = ? AND kind = ?`)
+      .get(chat.person_id, audit.gmailAccount || "", messageId, kind);
+    // Reclassification of the same reply still changes chat state, but keeps the shared evidence.
+    if (!existingTouchpoint) insert("touchpoint", { person_id: chat.person_id, kind, occurred_at: at, source,
+      gmail_account: audit.gmailAccount || "", gmail_message_id: messageId,
       summary: `Coffee chat: ${COFFEE_CHAT_LABELS[next]}`, detail: JSON.stringify({ coffee_chat_id: chatId, club_id: chat.club_id, from: chat.state, to: next }) }, audit);
     if (retry) {
       fields.last_follow_up_at = at;

@@ -202,6 +202,19 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
       } else if (row.action === "create") {
         // Foreign keys cascade on delete. Refuse when the delete would take dependent rows
         // this batch did not create (they would vanish with no audit snapshot to restore).
+        // Recruiting links in 0029 deliberately use sentinel IDs rather than foreign keys.
+        // They must be protected too: SQLite cannot detect these would-be orphans.
+        if (row.entity_type === "program" || row.entity_type === "club") {
+          const current = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(row.entity_id) as Record<string, unknown> | undefined;
+          const created = JSON.parse(row.after_value || "{}") as Record<string, unknown>;
+          if (current && Object.entries(created).some(([key, value]) => key !== "updated_at" && current[key] !== value)) {
+            throw new SternError(409, `${row.entity_type} ${row.entity_id} has later edits; undo the newer batches first`);
+          }
+          const key = row.entity_type === "program" ? "program_id" : "club_id";
+          if (db.prepare(`SELECT 1 FROM coffee_chats WHERE ${key} = ? LIMIT 1`).get(row.entity_id)) {
+            throw new SternError(409, `${row.entity_type} ${row.entity_id} has linked coffee chats; undo the newer batches first`);
+          }
+        }
         const before = totalChanges();
         changes = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(row.entity_id).changes;
         const cascaded = totalChanges() - before - changes;

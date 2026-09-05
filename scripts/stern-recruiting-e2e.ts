@@ -120,7 +120,7 @@ async function main() {
     const personId = db.transaction(() => { const id = insert("person",{display_name:"Placeholder Officer",email:"officer@example.com"},fixtureMeta); insert("affiliation",{person_id:id,club_id:club.id,is_eboard:1,relevant_for_recruiting:1,role:"Placeholder role"},fixtureMeta); return id; }).immediate();
     const chat = await post({ action: "chat.create", personId, clubId: club.id });
     await click("stern-club-tab-people"); await waitText("stern-club-people-list","Placeholder Officer");
-    assert.equal(await page.$eval(selector(`stern-chat-draft-${personId}`),el => (el as HTMLButtonElement).disabled),true);
+    assert.equal(await page.$eval(selector(`stern-chat-draft-${personId}`),el => (el as HTMLButtonElement).disabled),false,"Merged network route enables the optional draft action");
     await page.select(selector(`stern-chat-state-${chat.result}`),"requested");
     await page.waitForFunction(s => (document.querySelector(s) as HTMLSelectElement)?.value === "requested",{},selector(`stern-chat-state-${chat.result}`));
     await post({action:"chat.transition",chatId:chat.result,state:"reply_received"});
@@ -134,6 +134,35 @@ async function main() {
     await page.waitForFunction(s => !(document.querySelector(s) as HTMLButtonElement)?.disabled,{},selector(`stern-chat-save-${chat.result}`));
     await click("stern-club-tab-prep"); await waitText("stern-prep-quotes","Prepare the case discussion.");
     await click("stern-club-tab-timeline"); await waitText("stern-club-activity-list","Coffee chat: Done");
+    // Timeline seed rows are informational, and ordinary undo requires a reviewable confirmation.
+    snap = await (await request()).json() as RecruitingSnapshot;
+    const seedRow = snap.clubs[0].timeline.find(a => a.source === "seed")!;
+    assert.equal(seedRow.batch_id, "");
+    assert.equal(await page.$(selector(`stern-activity-undo-${seedRow.id}`)), null);
+    await post({ action: "club.update", clubId: club.id, patch: { notes: "Placeholder undo verification" } });
+    snap = await (await request()).json() as RecruitingSnapshot;
+    const noteRow = snap.clubs[0].timeline.find(a => a.summary === "Club: notes updated" && !a.undone_at)!;
+    await click(`stern-activity-undo-${noteRow.id}`);
+    await waitText("stern-activity-undo-summary", "club field change");
+    assert.equal(((await (await request()).json()) as RecruitingSnapshot).clubs[0].notes, "Placeholder undo verification");
+    await click("stern-recruiting-dialog-close");
+    assert.equal(((await (await request()).json()) as RecruitingSnapshot).clubs[0].notes, "Placeholder undo verification");
+    await click(`stern-activity-undo-${noteRow.id}`); await click("stern-activity-undo-confirm");
+    await page.waitForSelector(selector("stern-activity-undo-confirm"), { hidden: true });
+    snap = await (await request()).json() as RecruitingSnapshot;
+    assert.notEqual(snap.clubs[0].notes, "Placeholder undo verification");
+    for (const row of snap.clubs[0].timeline.filter(a => a.source === "undo")) {
+      assert.equal(row.batch_id, "");
+      assert.equal(await page.$(selector(`stern-activity-undo-${row.id}`)), null);
+    }
+    const createRow = snap.clubs[0].timeline.find(a => a.summary === "Program added" && !a.undone_at)!;
+    await click(`stern-activity-undo-${createRow.id}`);
+    await waitText("stern-activity-undo-summary", "Exploratory program");
+    await click("stern-activity-undo-confirm");
+    await page.waitForFunction(() => document.querySelector('[role="dialog"] [role="alert"]')?.textContent?.includes("undo the newer batches first"));
+    assert.equal(((await (await request()).json()) as RecruitingSnapshot).clubs[0].prep.length, 1);
+    await click("stern-recruiting-dialog-close");
+    for (const key of ["gmail_thread_id", "calendar_event_id"]) assert.equal((await request({ action: "chat.transition", chatId: chat.result, state: "thank_you_sent", meta: { [key]: "spoofed" } })).status, 400);
     await click("stern-club-tab-overview");
     await page.screenshot({path:path.join(root,"shots/stern-wp1-detail.png"),fullPage:true});
     await page.setViewport({width:390,height:844});
@@ -151,7 +180,7 @@ async function main() {
     await page.waitForFunction(() => !(document.querySelector('[data-testid="stern-process-archive"]') as HTMLButtonElement)?.disabled);
     assert.ok(wsMessages >= 10,`Expected mutation broadcasts, got ${wsMessages}`);
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({auth:"401 anonymous API, 307 anonymous page, 200 placeholder session",catalog:32,tabs:5,checklist:7,programSaved:true,prepPersisted:true,chatTransitions:true,liveMessages:wsMessages,archiveUndo:true,phoneFits:true,browserErrors:0}));
+    console.log(JSON.stringify({auth:"401 anonymous API, 307 anonymous page, 200 placeholder session",catalog:32,tabs:5,checklist:7,programSaved:true,prepPersisted:true,chatTransitions:true,liveMessages:wsMessages,archiveUndo:true,timelineUndoConfirmed:true,unsafeUndoBlocked:true,provenanceRejected:true,phoneFits:true,browserErrors:0}));
   } finally {
     observer?.close(); await browser?.close();
     for (const client of wss.clients) client.terminate();
