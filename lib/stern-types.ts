@@ -361,5 +361,5 @@ export type SternEmailMessage = {
   id: number; gmail_account: string; gmail_message_id: string; gmail_thread_id: string;
   direction: "inbound" | "outbound"; from_addr: string; to_addrs: string; subject: string;
   internal_date: number; snippet: string; content_hash: string; classification: string;
-  category: string; confidence: number; applied: string; error: string;
+  category: string; confidence: number; applied: string; error: string; processed_at: string;
 };

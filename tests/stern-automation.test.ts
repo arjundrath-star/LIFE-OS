@@ -51,6 +51,7 @@ function reset() {
     for (const t of ["stern_audit_log", "stern_suggestions", "stern_drafts", "stern_calendar_events", "stern_email_messages", "stern_scan_state", "stern_tasks", "assignments", "courses", "coffee_chats", "people", "stern_processes", "google_accounts", "kv", "connections"]) db.prepare(`DELETE FROM ${t}`).run();
     for (const email of ["netid@stern.nyu.edu", "netid@nyu.edu"]) db.prepare("INSERT INTO google_accounts(email,enabled,scopes,refresh_token_enc) VALUES (?,1,?,'stub')").run(email, "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events");
   }).immediate();
+  for (const service of ["stern-google-stern", "stern-google-nyu"]) db.prepare("INSERT INTO connections(service,surface,enabled) VALUES (?,'dashboard',1)").run(service);
   recruiting.seedClubCatalog();
   for (const c of all("SELECT id FROM stern_clubs")) recruiting.setInterested(c.id, true);
   for (const code of ["STAT-UB 103", "MKTG-UB 1", "TECH-UB 1", "CAMS-UA 110"]) db.prepare("INSERT INTO courses(code,title) VALUES (?,?)").run(code, `Placeholder ${code}`);
@@ -197,7 +198,7 @@ test("account failure is isolated; watermark survives a failed fetch; off mode w
 test("unknown course becomes a suggestion; confidence boundaries and direction come from headers", async () => {
   reset(); db.prepare("DELETE FROM courses WHERE code='STAT-UB 103'").run();
   await feed("fx-014"); assert.equal(msg("fx-014").applied, "suggested");
-  assert.match(q("SELECT suggestion_type FROM stern_suggestions WHERE gmail_message_id='fx-014'").suggestion_type, /Unknown/);
+  assert.match(q("SELECT suggestion_type FROM stern_suggestions WHERE gmail_message_id='fx-014'").suggestion_type, /course/i);
   reset(); await feed("fx-001");
   const original = msg("fx-001"), cls = fixture("fx-001").expected as EmailClassification;
   const synth = (name: string, confidence: number) => {
@@ -249,7 +250,7 @@ test("connection summaries distinguish unconnected, partial scopes, healthy, and
   assert.equal(summary.find(s => s.id === "stern-google-stern")!.state, "on_broken");
   assert.match(summary.find(s => s.id === "stern-google-stern")!.detail, /Partial scopes/);
   db.prepare("DELETE FROM google_accounts WHERE email='netid@nyu.edu'").run();
-  assert.equal((await connections.sternConnectionSummary()).find(s => s.id === "stern-google-nyu")!.state, "off");
+  assert.equal((await connections.sternConnectionSummary()).find(s => s.id === "stern-google-nyu")!.state, "on_broken");
   db.prepare("INSERT OR REPLACE INTO connections(service,surface,enabled) VALUES ('stern-google-stern','dashboard',0)").run();
   assert.equal((await connections.sternConnectionSummary()).find(s => s.id === "stern-google-stern")!.state, "off");
 });
@@ -335,7 +336,7 @@ test("Automation API authenticates, dispatches all actions, broadcasts snapshots
     "@/lib/sources/google": await import("@/lib/sources/google"),
   };
   const code = fs.readFileSync("app/api/stern/automation/route.ts", "utf8");
-  const compiled = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const compiled = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const route = {} as { GET: () => Promise<Response>; POST: (req: Request) => Promise<Response> };
   new Function("require", "exports", compiled)((id: string) => modules[id] || require(id), route);
   const post = (body: unknown) => route.POST(new Request("http://localhost:3130/api/stern/automation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
@@ -487,4 +488,283 @@ test("notification-sender invites link by attendee identity; outbound CC recipie
   await scan.runSternEmailScan({ source: { ...source, list: async (account: string) => account === fixture("fx-001").account ? ["fx-001"] : [], full: async () => request }, dryRun: true });
   assert.match(msg("fx-001").to_addrs, /cc.placeholder@example.com/);
   assert.equal(q("SELECT COUNT(*) n FROM people").n, 2);
+});
+
+// Load the real boundary with only its external dependencies replaced; no provider calls.
+function loadTs<T>(file: string, replacements: Record<string, unknown>): T {
+  const require = createRequire(path.resolve(file));
+  const compiled = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  const exports = {};
+  new Function("require", "exports", compiled)((id: string) => replacements[id] || require(id), exports);
+  return exports as T;
+}
+
+test("classifier failures retry behind the watermark, stay visible, cool down and recover without losing evidence", async () => {
+  reset(); available.add("fx-001"); available.add("fx-003");
+  let broken = true, attempts = 0;
+  const retryScan = loadTs<typeof scan>("lib/stern/gmail-scan.ts", {
+    "./llm": { ...llm, classifyEmail: async (m: Parameters<typeof llm.classifyEmail>[0]) => {
+      if (m.id === "fx-001") { attempts++; if (broken) return { classification: { ...fixture("fx-001").expected, category: "irrelevant", confidence: 0 }, error: "Stub transient classifier timeout" }; }
+      return llm.classifyEmail(m);
+    } },
+  });
+  const options = { source, dryRun: true, now: new Date("2026-09-05T12:00:00Z") };
+  const first = await retryScan.runSternEmailScan(options);
+  assert.equal(first.errors, 1); assert.equal(first.failures, 0);
+  assert.equal(msg("fx-001").applied, "error"); assert.match(msg("fx-001").error, /attempt 1/);
+  assert.ok(q("SELECT last_internal_date FROM stern_scan_state WHERE account=?", fixture("fx-001").account).last_internal_date > msg("fx-001").internal_date);
+  assert.match(q("SELECT last_error FROM stern_scan_state WHERE account=?", fixture("fx-001").account).last_error, /1 message/);
+  const summary = await (await import("@/lib/stern/connections")).sternConnectionSummary();
+  assert.equal(summary.find(s => s.id === "stern-google-stern")!.state, "on_broken");
+  assert.equal((await import("@/lib/stern/automation-snapshot")).automationDetails().messageErrors.length, 1);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_audit_log WHERE gmail_message_id='fx-001'").n, 0);
+  await retryScan.runSternEmailScan(options); await retryScan.runSternEmailScan(options);
+  assert.equal(attempts, 3); assert.match(msg("fx-001").error, /attempt 3/);
+  await retryScan.runSternEmailScan(options); assert.equal(attempts, 3);
+  broken = false;
+  db.prepare("UPDATE stern_email_messages SET processed_at=? WHERE gmail_message_id='fx-001'").run(new Date(Date.now() - 7 * 3600000).toISOString());
+  await retryScan.runSternEmailScan(options);
+  assert.equal(attempts, 4); assert.equal(msg("fx-001").applied, "auto_applied"); assert.equal(msg("fx-001").error, "");
+  assert.equal(q("SELECT last_error FROM stern_scan_state WHERE account=?", fixture("fx-001").account).last_error, "");
+  assert.equal((await import("@/lib/stern/automation-snapshot")).automationDetails().messageErrors.length, 0);
+});
+
+test("malformed full messages cannot block later mail, and failed fetches retry after the cursor advances", async () => {
+  reset(); available.add("fx-001"); available.add("fx-003"); let fail = true;
+  const flaky = { ...source, full: async (account: string, id: string) => {
+    if (id === "fx-001" && fail) throw new Error("Stub message cannot be decoded");
+    return source.full(account, id);
+  } };
+  const result = await scan.runSternEmailScan({ source: flaky, dryRun: true });
+  assert.equal(result.failures, 0); assert.equal(result.errors, 1);
+  assert.equal(msg("fx-001").applied, "error"); assert.equal(msg("fx-003").applied, "auto_applied");
+  assert.match(msg("fx-001").error, /cannot be decoded/);
+  fail = false; await scan.runSternEmailScan({ source: flaky, dryRun: true });
+  assert.equal(msg("fx-001").applied, "auto_applied"); assert.equal(msg("fx-001").internal_date, Date.parse(fixture("fx-001").date));
+  const google = await import("@/lib/sources/google");
+  const body = "&#1114112;&#9999999999999999999999999999999999999;&#65;&#128512;";
+  assert.equal(google.decodeGmailBody({ mimeType: "text/html", body: { data: Buffer.from(body).toString("base64url") } }), "A😀");
+});
+
+test("disabled Google rows stop scans, calendar reads and writes, rules and Gmail draft creation", async () => {
+  reset(); available.add("fx-001");
+  db.prepare("UPDATE connections SET enabled=0").run();
+  const forbidden = async (): Promise<never> => { throw new Error("Disabled source was called"); };
+  const disabled: AutomationSource = { list: forbidden, full: forbidden, calendar: forbidden, createEvent: forbidden, createDraft: forbidden };
+  assert.equal((await scan.runSternEmailScan({ source: disabled })).accounts, 0);
+  assert.equal((await calendar.runSternCalendarSync({ source: disabled })).accounts, 0);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_email_messages").n, 0);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_scan_state").n, 0);
+  assert.equal(sourceMod.sternAccount(), "");
+  db.prepare("UPDATE connections SET enabled=1 WHERE service='stern-google-stern'").run();
+  await feed("fx-001", "fx-002");
+  await policy.acceptSuggestion(q("SELECT id FROM stern_suggestions WHERE gmail_message_id='fx-002'").id, { source, dryRun: true });
+  await feed(); const draft = q("SELECT id FROM stern_drafts LIMIT 1"); assert.ok(draft);
+  db.prepare("UPDATE connections SET enabled=0").run();
+  await assert.rejects(drafts.createGmailDraft(draft.id, { source: disabled, dryRun: true }), /Connect a Stern/);
+  const cls = fixture("fx-003").expected as EmailClassification;
+  await policy.applyClassification(msg("fx-001"), cls, { source: disabled, dryRun: true });
+  assert.equal(q("SELECT COUNT(*) n FROM stern_calendar_events").n, 0);
+  assert.ok(q("SELECT id FROM stern_suggestions WHERE suggestion_type='connect calendar write'"));
+});
+
+test("undo keeps classifier evidence and audit tails contain only domain effects, including legacy batches", async () => {
+  reset(); await feed("fx-001", "fx-019");
+  const before = msg("fx-001"); const batch = q("SELECT batch_id FROM stern_audit_log WHERE gmail_message_id='fx-001'").batch_id;
+  assert.equal(q("SELECT COUNT(*) n FROM stern_audit_log WHERE entity_type='email_message'").n, 0);
+  // A pre-fix bookkeeping row must not erase evidence when its legacy batch is undone.
+  audit.logChange({ entityType: "email_message", entityId: before.id, action: "update", field: "classification", before: "", after: before.classification, source: "auto_email", batchId: batch });
+  assert.equal(audit.auditTail(500).filter(a => a.entity_type === "email_message").length, 0);
+  assert.equal((await import("@/lib/stern/snapshot")).sternSnapshot().autoAppliedToday.filter(a => (a as { entity_type: string }).entity_type === "email_message").length, 0);
+  audit.undoBatch(batch);
+  assert.equal(msg("fx-001").applied, "ignored");
+  assert.equal(msg("fx-001").classification, before.classification); assert.equal(msg("fx-001").category, before.category); assert.equal(msg("fx-001").confidence, before.confidence);
+  assert.equal(q("SELECT COUNT(*) n FROM people").n, 0);
+});
+
+test("calendar permission suggestions reopen after dismissal or acceptance and use the New York day", async () => {
+  reset(); await feed("fx-001"); const { ScopeMissing } = await import("@/lib/sources/google");
+  const noScope = { ...source, createEvent: async () => { throw new ScopeMissing("calendar.events"); } };
+  const fixed = new Date("2026-09-06T01:30:00Z");
+  const dateDb = await import("@/db");
+  const nyPolicy = loadTs<typeof policy>("lib/stern/apply.ts", {
+    "./time": { ...await import("@/lib/stern/time"), nyDateKey: () => "2026-09-05" },
+    "@/db": { ...dateDb, nowIso: () => fixed.toISOString() },
+  });
+  const cls = fixture("fx-003").expected as EmailClassification;
+  const message = { ...msg("fx-001"), classification: JSON.stringify(cls) };
+  await nyPolicy.applyClassification(message, cls, { source: noScope, dryRun: true });
+  let suggestion = q("SELECT * FROM stern_suggestions WHERE suggestion_type='connect calendar write'");
+  assert.match(suggestion.dedupe_key, /:2026-09-05$/);
+  nyPolicy.dismissSuggestion(suggestion.id);
+  const next = { ...cls, confirmed_time: "2026-09-12T15:00:00-04:00" };
+  await nyPolicy.applyClassification(message, next, { source: noScope, dryRun: true });
+  suggestion = q("SELECT * FROM stern_suggestions WHERE id=?", suggestion.id);
+  assert.equal(suggestion.state, "pending"); assert.equal(suggestion.reviewed_at, "");
+  assert.equal(JSON.parse(suggestion.proposed_data)[0].intent.start, next.confirmed_time);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_suggestions WHERE suggestion_type='connect calendar write'").n, 1);
+  db.prepare("UPDATE stern_suggestions SET state='accepted' WHERE id=?").run(suggestion.id);
+  await nyPolicy.applyClassification(message, { ...next, confirmed_time: "2026-09-13T15:00:00-04:00" }, { source: noScope, dryRun: true });
+  assert.equal(q("SELECT state FROM stern_suggestions WHERE id=?", suggestion.id).state, "pending");
+  assert.ok((await import("@/lib/stern/time")).nyDateKey(fixed) === "2026-09-05");
+});
+
+test("explicit Stern OAuth scope choice preserves Career readonly and surfaces tenant denial in Stern only", async () => {
+  reset(); const google = await import("@/lib/sources/google"); const dbModule = await import("@/db");
+  let chosen = "", authorized = true;
+  const route = loadTs<{ GET: (r: Request) => Promise<Response> }>("app/api/google/connect/route.ts", {
+    "@/lib/guard": { requireUser: async () => authorized ? { email: "netid@nyu.edu" } : null },
+    "@/lib/sources/google": { connectUrl: (_state: string, options: { scopeSet: string }) => { chosen = options.scopeSet; return "https://example.com/consent"; } },
+  });
+  for (const [query, want] of [["target=nyu", "readonly"], ["target=generic", "readonly"], ["target=stern", "readonly"], ["target=nyu&set=stern", "stern"], ["target=stern&set=stern", "stern"], ["target=stern&set=readonly", "readonly"]]) {
+    const res = await route.GET(new Request(`http://localhost:3130/api/google/connect?${query}`));
+    assert.equal(chosen, want); assert.match(res.headers.get("set-cookie")!, new RegExp(`rw_g_scope_set=${want}`));
+  }
+  authorized = false; chosen = "";
+  await route.GET(new Request("http://localhost:3130/api/google/connect?set=stern")); assert.equal(chosen, ""); authorized = true;
+  const enabled: string[] = [];
+  const callback = loadTs<{ GET: (r: Request) => Promise<Response> }>("app/api/google/callback/route.ts", {
+    "@/lib/guard": { requireUser: async () => ({ email: "netid@nyu.edu" }) },
+    "@/lib/connections": { ensureSeeded: () => {}, refreshAll: async () => [], setEnabled: (id: string) => enabled.push(id) },
+    "@/server/live": { getHub: () => ({ broadcast: () => {} }) },
+    "@/db": dbModule,
+    "@/lib/sources/google": { ...google, handleCallback: async () => ({ email: "netid@stern.nyu.edu" }), pollEmailAccounts: async () => {}, emailSnapshots: () => [] },
+  });
+  for (const target of ["stern", "nyu"]) {
+    await callback.GET(new Request("http://localhost:3130/api/google/callback?error=access_denied&state=abc", { headers: { cookie: `rw_g_state=abc; rw_g_target=${target}; rw_g_scope_set=stern` } }));
+    assert.match(dbModule.kvGet<string>(`stern.google.${target}_error`)!, /NYU tenant approval/);
+    assert.equal(dbModule.kvGet(`career.google.${target}_error`), undefined);
+    db.prepare("DELETE FROM google_accounts WHERE email=?").run(`netid@${target === "stern" ? "stern." : ""}nyu.edu`);
+  }
+  const states = await (await import("@/lib/stern/connections")).sternConnectionSummary();
+  for (const state of states.filter(s => s.id.startsWith("stern-google"))) { assert.equal(state.state, "on_broken"); assert.match(state.detail, /tenant approval/); }
+  await callback.GET(new Request("http://localhost:3130/api/google/callback?code=stub&state=abc", { headers: { cookie: "rw_g_state=abc; rw_g_target=stern; rw_g_scope_set=stern" } }));
+  assert.equal(dbModule.kvGet("stern.google.stern_error"), ""); assert.equal(dbModule.kvGet("career.google.stern_error"), undefined);
+  assert.ok(enabled.includes("stern-google-stern")); assert.ok(!enabled.includes("career-google-stern"));
+});
+
+test("fresh connections seed disabled; enabled missing accounts stay broken consistently through refresh", async () => {
+  reset(); db.prepare("DELETE FROM connections").run(); db.prepare("DELETE FROM google_accounts").run();
+  const { sternConnections } = await import("@/lib/stern/connections");
+  const connections = loadTs<typeof import("@/lib/connections")>("lib/connections/index.ts", {
+    "@/lib/connections/registry": { REGISTRY: sternConnections, getDef: (id: string) => sternConnections.find(d => d.id === id) },
+  });
+  connections.ensureSeeded();
+  for (const state of connections.getStates()) { assert.equal(state.enabled, false); assert.equal(state.state, "off"); }
+  connections.setEnabled("stern-google-stern", "dashboard", true);
+  const first = (await connections.refreshAll(sternConnections)).find(s => s.service === "stern-google-stern")!;
+  assert.equal(first.enabled, true); assert.equal(first.state, "on_broken"); assert.match(first.detail!, /Connect an/);
+  const second = (await connections.refreshAll(sternConnections)).find(s => s.service === "stern-google-stern")!;
+  assert.equal(second.state, first.state);
+});
+
+test("Codex boundary uses stdin, a minimal environment, isolated config and a local executable stub", async () => {
+  reset();
+  const saved = Object.fromEntries(["STERN_LLM_MODE", "STERN_CODEX_BIN", "CODEX_HOME", "TMPDIR", "GOOGLE_CLIENT_SECRET"].map(k => [k, process.env[k]]));
+  const bin = path.join(tmp, "codex-stub.cjs"), capture = path.join(tmp, "codex-capture.json");
+  const authDir = path.join(tmp, "fake-auth"); fs.mkdirSync(authDir, { recursive: true });
+  fs.writeFileSync(path.join(authDir, "auth.json"), "{}");
+  fs.writeFileSync(bin, `#!/usr/bin/env node
+const fs = require('node:fs');
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => input += chunk);
+process.stdin.on('end', () => {
+  const args = process.argv.slice(2);
+  fs.writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args, input, keys: Object.keys(process.env), home: process.env.CODEX_HOME }));
+  const result = input.startsWith('Write ') ? {subject:'Follow up',body:'Hi Placeholder,\\nCould we speak about the club next week?\\nArjun.'} : ${JSON.stringify(fixture("fx-001").expected)};
+  fs.writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify(result));
+});
+`, { mode: 0o700 });
+  db.prepare("INSERT INTO connections(service,surface,enabled) VALUES ('stern-llm-codex','dashboard',1)").run();
+  process.env.STERN_LLM_MODE = "live"; process.env.STERN_CODEX_BIN = bin; process.env.CODEX_HOME = authDir; process.env.TMPDIR = tmp;
+  process.env.GOOGLE_CLIENT_SECRET = "synthetic-must-not-reach-child";
+  try {
+    const result = await llm.classifyEmail({ ...sourceMod.fixtureMessage(fixture("fx-001")), account: fixture("fx-001").account,
+      text: "漢".repeat(30000), from: "x".repeat(60000) + " <placeholder@example.com>", headers: [{ name: "X-Private", value: "omit-raw-headers" }] });
+    assert.equal(result.error, ""); assert.equal(result.classification.category, "coffee_chat_request_sent");
+    const ran = JSON.parse(fs.readFileSync(capture, "utf8"));
+    assert.equal(ran.args.at(-1), "-"); assert.ok(Buffer.byteLength(ran.input) > 131072);
+    assert.ok(!ran.args.some((arg: string) => arg.includes("漢"))); assert.doesNotMatch(ran.input, /omit-raw-headers/);
+    assert.ok(!ran.keys.includes("GOOGLE_CLIENT_SECRET"));
+    assert.ok(ran.keys.every((key: string) => ["NODE_ENV", "PATH", "HOME", "LANG", "TMPDIR", "CODEX_HOME"].includes(key)));
+    assert.ok(!fs.existsSync(ran.home)); // isolated runtime removed after the call
+    const draft = await llm.generateDraft("follow_up", {}); assert.match(draft.body, /Arjun\.$/);
+    db.prepare("UPDATE connections SET enabled=0 WHERE service='stern-llm-codex'").run();
+    const denied = await llm.classifyEmail({ ...sourceMod.fixtureMessage(fixture("fx-001")), account: fixture("fx-001").account });
+    assert.match(denied.error, /disabled/);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+});
+
+test("message claims exclude a competing scanner and stale claims recover", async () => {
+  reset(); available.add("fx-001");
+  let announce!: () => void, release!: () => void, calls = 0;
+  const started = new Promise<void>(resolve => { announce = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const competing = loadTs<typeof scan>("lib/stern/gmail-scan.ts", {
+    "./automation-source": { ...sourceMod, automationJob: (fn: () => Promise<unknown>) => fn() },
+    "./llm": { ...llm, classifyEmail: async (m: Parameters<typeof llm.classifyEmail>[0]) => { calls++; announce(); await held; return llm.classifyEmail(m); } },
+  });
+  const first = competing.runSternEmailScan({ source, dryRun: true });
+  await started;
+  try {
+    assert.equal(msg("fx-001").applied, "pending"); assert.ok(msg("fx-001").processed_at);
+    assert.equal((await scan.runSternEmailScan({ source, dryRun: true })).messages, 0);
+  } finally { release(); }
+  await first; assert.equal(calls, 1);
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id='fx-001'").n, 1);
+  db.prepare("UPDATE stern_email_messages SET applied='pending',processed_at=? WHERE gmail_message_id='fx-001'").run(new Date(Date.now() - 11 * 60000).toISOString());
+  await competing.runSternEmailScan({ source, dryRun: true });
+  assert.equal(calls, 2); assert.equal(msg("fx-001").applied, "auto_applied");
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id='fx-001'").n, 1);
+});
+
+test("manual forwarded envelopes collapse by original sender and duplicate rows cannot suppress the original", async () => {
+  reset();
+  const original = { from: "Sender <sender@example.com>", subject: "Club update", text: "Same content" };
+  const forward = { from: "netid@nyu.edu", subject: "Fwd: Club update", text: "---------- Forwarded message ----------\nFrom: Sender <sender@example.com>\nDate: Tue\nSubject: Club update\nTo: netid@nyu.edu\n\nSame content" };
+  assert.equal(scan.contentHash(original), scan.contentHash(forward));
+  const full = sourceMod.fixtureMessage(fixture("fx-001"));
+  db.prepare("INSERT INTO stern_email_messages(gmail_account,gmail_message_id,content_hash,internal_date,applied) VALUES ('netid@nyu.edu','old-duplicate',?,?,'duplicate')").run(scan.contentHash(full), full.internalDate);
+  await feed("fx-001"); assert.equal(msg("fx-001").applied, "auto_applied");
+});
+
+test("new requests get a new chat after terminal outcomes; meetings dedupe on New York dates", async () => {
+  reset(); await feed("fx-001", "fx-003", "fx-007");
+  const finished = chatFor("fx-001"), message = msg("fx-001");
+  const next = { ...message, gmail_message_id: "new-request", gmail_thread_id: "new-thread", internal_date: Date.parse("2026-09-15T12:00:00Z") };
+  await policy.applyClassification(next, fixture("fx-001").expected as EmailClassification, { source, dryRun: true });
+  assert.notEqual(chatFor("fx-001").id, finished.id); assert.equal(chatFor("fx-001").state, "requested");
+  assert.equal(q("SELECT state FROM coffee_chats WHERE id=?", finished.id).state, "thank_you_sent");
+  const meeting = { ...fixture("fx-001").expected, category: "club_general_meeting", confirmed_time: "2026-09-08T01:00:00Z" } as EmailClassification;
+  await policy.applyClassification(message, meeting, { source, dryRun: true });
+  await policy.applyClassification(message, { ...meeting, confirmed_time: "2026-09-07T21:00:00-04:00" }, { source, dryRun: true });
+  const meetings = all("SELECT * FROM stern_tasks WHERE dedupe_key LIKE 'meeting:%'");
+  assert.equal(meetings.length, 1); assert.equal(meetings[0].due_at, "2026-09-07");
+});
+
+test("failed draft generation cools down for six hours and retries without inventing a draft", async () => {
+  reset(); await feed("fx-001"); let calls = 0, fails = true;
+  const cooldown = loadTs<typeof drafts>("lib/stern/drafts.ts", { "./llm": { ...llm, generateDraft: async () => { calls++; if (fails) throw new Error("Stub draft failure"); return { subject: "Hello", body: "Hi Placeholder,\nArjun" }; } } });
+  const chat = chatFor("fx-001"), meta = { source: "agent", batchId: audit.newBatchId("test") };
+  await assert.rejects(cooldown.ensureDraft(chat.id, "request", meta), /Stub draft failure/);
+  assert.equal(await cooldown.ensureDraft(chat.id, "request", meta), null); assert.equal(calls, 1);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_drafts WHERE kind='request'").n, 0);
+  (await import("@/db")).kvSet(`stern.draft_fail:${chat.id}:request`, { at: Date.now() - 7 * 3600000, error: "Stub failure" });
+  fails = false; assert.ok(await cooldown.ensureDraft(chat.id, "request", meta)); assert.equal(calls, 2);
+});
+
+test("merged WP4 helpers dedupe assignment punctuation, record grades and reject malformed task dates", async () => {
+  reset(); await feed("fx-014");
+  const message = msg("fx-014"), cls = JSON.parse(message.classification) as EmailClassification;
+  const assignment = { ...cls, assignment: { ...cls.assignment!, title: "HW #3: Regression" } };
+  await policy.applyClassification(message, assignment, { source, dryRun: true });
+  await policy.applyClassification(message, { ...assignment, assignment: { ...assignment.assignment, title: "HW 3 Regression" } }, { source, dryRun: true });
+  const classes = await import("@/lib/stern/classes");
+  assert.equal(q("SELECT COUNT(*) n FROM assignments WHERE dedupe_key=?", classes.assignmentKey(cls.course_code!, "HW 3 Regression")).n, 1);
+  const invalid = { ...cls, category: "icc_newsletter", deadline_mentions: [{ label: "Malformed deadline", date: "next Friday" }] } as EmailClassification;
+  assert.equal((await policy.applyClassification(message, invalid, { source, dryRun: true })).applied, "suggested");
+  assert.equal(q("SELECT COUNT(*) n FROM stern_tasks WHERE due_at='next Friday'").n, 0);
 });

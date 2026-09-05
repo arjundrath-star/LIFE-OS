@@ -1,4 +1,4 @@
-import { getDb, nowIso } from "@/db";
+import { getDb, nowIso, kvGet, kvSet } from "@/db";
 import type { DraftKind, Person, CoffeeChat } from "@/lib/stern-types";
 import { newBatchId, type AuditMeta } from "./audit";
 import { row, patch, insert, type Row } from "./recruiting-write";
@@ -9,7 +9,16 @@ export async function ensureDraft(chatId: number, kind: DraftKind, audit: AuditM
   const prior = getDb().prepare("SELECT id FROM stern_drafts WHERE coffee_chat_id=? AND kind=? AND state<>'discarded' ORDER BY id DESC LIMIT 1").get(chatId, kind) as { id: number } | undefined;
   if (prior) return prior.id;
   const chat = row<CoffeeChat>("coffee_chat", chatId), person = row<Person>("person", chat.person_id);
-  const draft = await generateDraft(kind, { person, chat });
+  const failureKey = `stern.draft_fail:${chatId}:${kind}`;
+  const failure = kvGet<{ at: number; error: string }>(failureKey);
+  if (failure && Date.now() - failure.at < 6 * 3600000) return null;
+  let draft: { subject: string; body: string };
+  try { draft = await generateDraft(kind, { person, chat }); }
+  catch (error) {
+    getDb().transaction(() => kvSet(failureKey, { at: Date.now(), error: error instanceof Error ? error.message.slice(0, 200) : "Draft generation failed" })).immediate();
+    throw error;
+  }
+  getDb().transaction(() => kvSet(failureKey, null)).immediate();
   return getDb().transaction(() => insert("draft", { person_id: person.id, coffee_chat_id: chatId, kind, to_email: person.email, ...draft }, audit)).immediate();
 }
 export async function regenerateDraft(id: number) {

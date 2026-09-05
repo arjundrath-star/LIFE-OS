@@ -13,6 +13,8 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
   return automationJob(async () => {
     const counts = { accounts: 0, events: 0, failures: 0, errors: [] as string[] };
     if (process.env.STERN_LLM_MODE === "off" && !options.source) return counts;
+    const accounts = accountsToScan().filter(email => NYU_ACCOUNT.test(email));
+    if (!accounts.length) return counts;
     const db = getDb(), source = options.source || automationSource(), now = options.now || new Date();
     // Seven days of history lets missed scans complete chats; seven days ahead schedules the coming week.
     const from = new Date(now.getTime() - 7 * 86400000).toISOString(), to = new Date(now.getTime() + 7 * 86400000).toISOString();
@@ -20,7 +22,7 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
     const emit = (kind: string, status: string) => recordAgentEvent({ agent: "stern-automation", run, kind, status, summary: `Stern calendar sync ${kind}`, detail: JSON.stringify(counts), triggerType: "scheduler", triggerSource: "Stern calendar sync" });
     emit("started", "running");
     try {
-      for (const account of accountsToScan().filter(email => NYU_ACCOUNT.test(email))) {
+      for (const account of accounts) {
         counts.accounts++;
         try {
           const events = await source.calendar(account, from, to);

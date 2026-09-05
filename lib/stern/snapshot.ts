@@ -67,7 +67,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     .prepare(
       `SELECT id, entity_type, entity_id, action, field, before_value, after_value, source, confidence, batch_id, undone_at, created_at
          FROM stern_audit_log
-        WHERE source IN ('auto_email','auto_calendar','imessage') AND ${between("created_at")}
+        WHERE entity_type<>'email_message' AND source IN ('auto_email','auto_calendar','imessage') AND ${between("created_at")}
         ORDER BY id DESC LIMIT 20`
     )
     .all(...dayWindowParams(today, today)) as unknown[];
