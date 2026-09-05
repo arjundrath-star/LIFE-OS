@@ -55,7 +55,7 @@ export const EVIDENCE_TYPES = ["gmail", "calendar", "imessage", "web", "manual"]
 export const SUGGESTION_STATES = ["pending", "accepted", "dismissed"] as const;
 export const AUDIT_ACTIONS = ["create", "update", "delete", "undo"] as const;
 export const AUDIT_SOURCES = ["manual", "auto_email", "auto_calendar", "imessage", "suggestion_accept", "seed", "agent", "undo"] as const;
-export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion"] as const;
+export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep"] as const;
 export const REMINDER_RULES = ["deadline_t7", "deadline_t3", "deadline_t1", "deadline_day", "reply_owed", "thank_you_due", "no_reply_3d", "interview_eve", "task_due", "suggestions_pending", "memo"] as const;
 export const REMINDER_CHANNELS = ["imessage", "email", "both", "dashboard"] as const;
 export const REMINDER_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped", "snoozed"] as const;
@@ -203,7 +203,7 @@ export type SternSnapshot = {
     lastError: string;
     llmMode: string;           // STERN_LLM_MODE or 'live'
   };
-  recruiting: { process: Record<string, unknown> | null; clubs: unknown[]; deadlines: unknown[] };
+  recruiting: RecruitingSnapshot;
   network: { recent: unknown[] };
   tasks: { dueToday: unknown[]; overdue: unknown[] };
   classes: { nextMeeting: Record<string, unknown> | null; dueSoon: unknown[] };
@@ -245,3 +245,53 @@ export function statusLabel(value: string | null | undefined): string {
 export function statusTone(value: string | null | undefined): StatusTone {
   return (value && STATUS_TONES[value]) || "neutral";
 }
+
+// WP1 recruiting data shared by first paint and the Stern live channel.
+export const CLUB_TRANSITIONS: Record<ClubStatus, readonly ClubStatus[]> = {
+  considering: ["applying", "declined"], applying: ["interviewing", "accepted", "rejected", "declined"],
+  interviewing: ["accepted", "rejected", "declined"], accepted: ["declined"], rejected: [], declined: [], archived: [],
+};
+export const PROGRAM_TRANSITIONS: Record<ProgramStatus, readonly ProgramStatus[]> = {
+  not_open: ["open"], open: ["drafting", "declined", "withdrawn"], drafting: ["submitted", "declined", "withdrawn"],
+  submitted: ["interview_invited", "declined", "withdrawn"], interview_invited: ["interview_done", "declined", "withdrawn"],
+  interview_done: ["accepted", "rejected", "declined", "withdrawn"], accepted: ["declined", "withdrawn"], rejected: ["declined", "withdrawn"],
+  declined: [], withdrawn: [], missed: [],
+};
+export const CHAT_TRANSITIONS: Record<CoffeeChatState, readonly CoffeeChatState[]> = {
+  to_request: ["requested"], requested: ["reply_received", "no_reply", "declined"],
+  reply_received: ["scheduled", "no_reply", "declined"], scheduled: ["done"], done: ["thank_you_sent"],
+  thank_you_sent: [], no_reply: ["requested"], declined: [],
+};
+export type RecruitingProcess = { id: number; slug: string; name: string; kind: string; season: string; status: "active" | "archived"; notes: string; archived_at: string };
+export type RecruitingClub = {
+  id: number; process_id: number; name: string; short_name: string; slug: string; category: ClubCategory | "";
+  website: string; instagram: string; coffee_chat_form_url: string; email_domains: string;
+  priority: number; interested: number; status: ClubStatus; target_chats: number; notes: string;
+};
+export type RecruitingProgram = {
+  id: number; club_id: number; name: string; track: ProgramTrack; status: ProgramStatus;
+  app_opens_at: string; app_deadline_at: string; interview_start: string; interview_end: string; decision_at: string;
+  application_url: string; requirements: string; dress_code: string; interview_at: string; interview_location: string; notes: string;
+};
+export type RecruitingChecklistItem = { id: number; club_id: number; program_id: number; key: ChecklistKey; label: string; sort: number; done_at: string; source: string };
+export type CoffeeChat = {
+  id: number; person_id: number; club_id: number; program_id: number; state: CoffeeChatState;
+  requested_at: string; reply_at: string; reply_needs_me: number; scheduled_at: string; location: string;
+  calendar_event_id: string; occurred_at: string; thank_you_sent_at: string; last_follow_up_at: string;
+  follow_up_count: number; gmail_thread_id: string; prep_notes: string; takeaways: string;
+};
+export type RecruitingPerson = { id: number; display_name: string; email: string; year: string; title: string; role: string; chat: CoffeeChat | null };
+export type InterviewPrep = { id: number; program_id: number; question: string; answer: string; sort: number; updated_at: string };
+export type RecruitingActivity = { key: string; id: number; at: string; source: string; summary: string; batch_id: string; undone_at: string };
+export type RecruitingDeadline = { id: number; clubId: number; club: string; name: string; deadlineAt: string; days: number; status: ProgramStatus; track: ProgramTrack };
+export type RecruitingClubDetail = RecruitingClub & {
+  programs: RecruitingProgram[]; checklist: RecruitingChecklistItem[]; checklistDone: number; checklistTotal: number;
+  chatsDone: number; chats: CoffeeChat[]; people: RecruitingPerson[]; nextDeadline: RecruitingDeadline | null;
+  prep: InterviewPrep[]; timeline: RecruitingActivity[];
+};
+export type RecruitingWindow = { track: ProgramTrack; applications_open: string; applications_close: string; interviews_start: string; interviews_end: string; decisions: string };
+export type RecruitingSnapshot = {
+  updatedAt: string; today: string; process: RecruitingProcess | null; clubs: RecruitingClubDetail[]; catalog: RecruitingClub[];
+  deadlines: RecruitingDeadline[]; windows: RecruitingWindow[];
+  counts: { coffeeChatsOwed: number; deadlines14d: number; archived: number; interested: number; applying: number; interviewing: number };
+};

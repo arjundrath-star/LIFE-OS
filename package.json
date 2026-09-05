@@ -42,7 +42,10 @@
     "pokemon:alerts": "bash scripts/pokemon-ops-alerts.sh",
     "pokemon:source-products": "tsx scripts/pokemon-source-products-refresh.ts",
     "e2e:pokemon-ops": "tsx scripts/pokemon-ops-e2e.ts",
-    "e2e:vending-service": "tsx scripts/vending-service-e2e.ts"
+    "e2e:vending-service": "tsx scripts/vending-service-e2e.ts",
+    "test:stern-recruiting": "tsx --test tests/stern-recruiting.test.ts",
+    "seed:stern": "tsx scripts/seed-stern.ts",
+    "stern:recruiting-deadlines": "tsx scripts/stern-recruiting-deadlines.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

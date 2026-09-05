@@ -11,6 +11,8 @@ import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, AUDIT_SOURCES, type AuditAction, typ
 import { SternError } from "@/lib/stern/errors";
 
 export const ENTITY_TABLES: Record<AuditEntityType, string> = {
+  process: "stern_processes",
+  interview_prep: "stern_interview_prep",
   person: "people",
   affiliation: "people_affiliations",
   touchpoint: "people_touchpoints",

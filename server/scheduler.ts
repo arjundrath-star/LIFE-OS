@@ -271,8 +271,9 @@ async function tickCareerHunter() {
 }
 
 async function tickStern() {
-  // Stern tab snapshot (counts + automation state) on the "stern" channel. Cheap SQL read
-  // + broadcast; mutations in /api/stern* also broadcast immediately via broadcastStern().
+  // One guarded Stern tick owns deadline automation and live snapshots. No panel polls.
+  const { markMissedPrograms } = await import("@/lib/stern/recruiting");
+  markMissedPrograms();
   const { broadcastStern } = await import("@/lib/stern/snapshot");
   broadcastStern();
 }
