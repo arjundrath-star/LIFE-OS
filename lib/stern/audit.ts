@@ -181,8 +181,12 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
       .prepare("SELECT * FROM stern_audit_log WHERE batch_id = ? AND undone_at = '' AND action <> 'undo' ORDER BY id DESC")
       .all(batchId) as AuditRow[];
     if (!rows.length) throw new SternError(404, "nothing to undo for this batch");
-    // Seeds are re-runnable catalog loads, never user changes; undoing one would drop whole tables.
-    if (rows.some((r) => r.source === "seed")) throw new SternError(400, "seed batches are not undoable; re-run the seed instead");
+    // Catalog seeds (club, process, course rows) are re-runnable loads, never user changes; undoing
+    // one would drop whole tables. Row-level seeds such as the legacy todo import stay undoable.
+    const CATALOG_SEED_TYPES = new Set(["club", "process", "course"]);
+    if (rows.some((r) => r.source === "seed" && r.action === "create" && CATALOG_SEED_TYPES.has(r.entity_type))) {
+      throw new SternError(400, "catalog seed batches are not undoable; re-run the seed instead");
+    }
     let reverted = 0;
     let skipped = 0;
     const ts = nowIso();

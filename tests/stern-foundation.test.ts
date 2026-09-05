@@ -360,9 +360,15 @@ test("undoBatch refuses seed batches", async () => {
   const { getDb, audit, errors } = await setup();
   const db = getDb();
   const seed = audit.newBatchId("seed");
-  const pid = Number(db.prepare("INSERT INTO people (dedupe_key, display_name) VALUES ('name:seed probe:placeholder', 'Seed Probe')").run().lastInsertRowid);
-  audit.logCreate("person", pid, { id: pid }, { batchId: seed, source: "seed" });
-  assert.throws(() => audit.undoBatch(seed), (e: any) => e instanceof errors.SternError && e.status === 400 && /seed/.test(e.message));
-  assert.ok(db.prepare("SELECT id FROM people WHERE id = ?").get(pid), "seeded row survives");
-  db.prepare("DELETE FROM people WHERE id = ?").run(pid);
+  const cid = Number(db.prepare("INSERT INTO courses (code, title, term) VALUES ('SEED-UB 9', 'Seed probe course', 'Test term')").run().lastInsertRowid);
+  audit.logCreate("course", cid, { id: cid }, { batchId: seed, source: "seed" });
+  assert.throws(() => audit.undoBatch(seed), (e: any) => e instanceof errors.SternError && e.status === 400 && /seed/.test(e.message), "catalog seed refused");
+  assert.ok(db.prepare("SELECT id FROM courses WHERE id = ?").get(cid), "seeded course survives");
+  db.prepare("DELETE FROM courses WHERE id = ?").run(cid);
+  // Row-level seeds (for example the legacy todo import) remain undoable.
+  const rowSeed = audit.newBatchId("seedrow");
+  const tid = Number(db.prepare("INSERT INTO stern_tasks (title, source, dedupe_key) VALUES ('Legacy probe', 'seed', 'legacy-todo:probe')").run().lastInsertRowid);
+  audit.logCreate("task", tid, { id: tid }, { batchId: rowSeed, source: "seed" });
+  assert.equal(audit.undoBatch(rowSeed).reverted, 1);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM stern_tasks WHERE id = ?").get(tid) as any).n, 0);
 });
