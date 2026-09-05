@@ -1,6 +1,8 @@
 // Stern live snapshot: the payload behind GET /api/stern and the "stern" WebSocket channel.
 // Built with SQL only. WP0 fills the counts and automation block; later packages fill the
 // per-area pieces (they stay empty arrays until then, never fake data). Server-only.
+import { todaySchedule, needsYou } from './overview';
+import type { SternAuditRow } from '@/lib/stern-types';
 import { tasksSnapshot } from "./tasks";
 import { classesSnapshot } from "./classes";
 import { automationDetails } from "./automation-snapshot";
@@ -65,12 +67,12 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
 
   const autoAppliedToday = db
     .prepare(
-      `SELECT id, entity_type, entity_id, action, field, before_value, after_value, source, confidence, batch_id, undone_at, created_at
+      `SELECT *
          FROM stern_audit_log
         WHERE source IN ('auto_email','auto_calendar','imessage') AND ${between("created_at")}
         ORDER BY id DESC LIMIT 20`
     )
-    .all(...dayWindowParams(today, today)) as unknown[];
+    .all(...dayWindowParams(today, today)) as SternAuditRow[];
   autoAppliedToday.reverse();
 
   return {
@@ -81,9 +83,11 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
     network: networkSnapshot(),
     tasks: tasksSnapshot(now),
     classes: classesSnapshot(now),
-    needsYou: [],
+    needsYou: needsYou(),
+    schedule: todaySchedule(now),
+    today: today.dateKey,
     autoAppliedToday,
-    reminders: { lastMemoAt: scalar<string>("SELECT MAX(sent_at) v FROM stern_reminders WHERE rule_key = 'memo' AND sent_at <> ''") || "" },
+    reminders: { lastMemoAt: scalar<string>(`SELECT MAX(sent_at) v FROM stern_reminders WHERE rule_key = 'memo' AND delivery_status = 'sent' AND sent_at <> '' AND ${between("sent_at")}`, ...dayWindowParams(today, today)) || "" },
   };
 }
 

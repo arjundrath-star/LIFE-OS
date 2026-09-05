@@ -74,7 +74,7 @@ export function StatTile({
     <div className="stern-stat-tile" data-component="StatTile" data-tone={tone} data-testid={testId}>
       <span>{label}</span>
       <strong>{value}</strong>
-      {sub && <small>{sub}</small>}
+      {sub && <small className="stern-mono">{sub}</small>}
     </div>
   );
 }

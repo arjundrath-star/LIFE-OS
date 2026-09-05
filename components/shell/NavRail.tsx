@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { NAV, isActive, type NavItem } from "@/components/shell/nav";
 import { StatusDot, type DotState } from "@/components/StatusDot";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
+import { useApi } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { ChevronsLeft, ChevronsRight, Command } from "lucide-react";
 
@@ -85,7 +86,8 @@ export function NavRail({
   const kanban = useLiveData<any>("kanban");
   const email = useLiveData<any>("email");
   const cal = useLiveData<any>("calendar");
-  const stern = useLiveData<any>("stern");
+  const { data: sternInitial } = useApi("/api/stern");
+  const stern = useLiveData<any>("stern") || sternInitial;
   const conns = useLiveData<{ state: string }[]>("connections");
   const connStatus = useConnStatus();
 
@@ -128,6 +130,7 @@ export function NavRail({
             <Link
               key={item.key}
               href={item.href}
+              data-testid={item.key === "stern" ? "stern-home-nav" : undefined}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
               aria-current={active ? "page" : undefined}
@@ -150,6 +153,7 @@ export function NavRail({
                 )}
                 {collapsed && ind?.badge && (
                   <span
+                    data-testid={item.key === "stern" ? "stern-rail-badge" : undefined}
                     className={cn(
                       "absolute -right-2.5 -top-2 rounded-full px-1 py-px font-mono text-[8px] font-semibold leading-none",
                       ind.badgeTone === "warn" ? "bg-warn/20 text-warn" : "bg-accent/20 text-accent"
@@ -165,6 +169,7 @@ export function NavRail({
                   {ind?.dot && <StatusDot state={ind.dot.state} pulse={ind.dot.pulse} size={7} />}
                   {ind?.badge && (
                     <span
+                      data-testid={item.key === "stern" ? "stern-rail-badge" : undefined}
                       className={cn(
                         "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none",
                         ind.badgeTone === "warn" ? "bg-warn/15 text-warn" : "bg-accent/15 text-accent"

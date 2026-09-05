@@ -18,11 +18,13 @@ import { reminderMeta } from "@/lib/stern/reminder-store";
 import { updateNotificationSettings } from "@/lib/stern/notification-settings";
 export const dynamic = "force-dynamic";
 export async function GET() {
-  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  return NextResponse.json(await automationSnapshot());
+  const user = await requireUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  return NextResponse.json(await automationSnapshot(user.email));
 }
 export async function POST(req: Request) {
-  if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const user = await requireUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new SternError(400, "Expected an action object");
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
       throw new SternError(400, "Unknown automation action");
     });
     const snapshot = broadcastStern();
-    return NextResponse.json({ result, snapshot, ...(await automationSnapshot()) });
+    return NextResponse.json({ result, snapshot, ...(await automationSnapshot(user.email)) });
   } catch (error) {
     const status = error instanceof SternError || error instanceof ScopeMissing ? error.status : error instanceof SyntaxError ? 400 : 500;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Automation action failed" }, { status });

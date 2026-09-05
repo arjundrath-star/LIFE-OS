@@ -57,7 +57,9 @@
     "stern:email-scan": "tsx scripts/stern-automation.ts email",
     "stern:calendar-sync": "tsx scripts/stern-automation.ts calendar",
     "test:stern-reminders": "tsx --test tests/stern-reminders.test.ts",
-    "stern:memo": "tsx scripts/stern-memo.ts"
+    "stern:memo": "tsx scripts/stern-memo.ts",
+    "test:stern-overview": "tsx --test tests/stern-overview.test.ts",
+    "test:stern-search": "tsx --test tests/stern-search.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

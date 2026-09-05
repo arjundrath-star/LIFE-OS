@@ -201,11 +201,11 @@ export type SternSnapshot = {
     lastCalendarSyncAt: string;
     accountsScanned: number;
     lastError: string;
-    scanState: unknown[];
+    scanState: SternScanState[];
     recentMessages: unknown[];
-    suggestions: unknown[];
-    drafts: unknown[];
-    audit: unknown[];
+    suggestions: SternSuggestion[];
+    drafts: SternDraft[];
+    audit: SternAuditRow[];
     reminders: SternReminder[];
     notificationSettings: SternNotificationSettings;
     llmMode: string;           // STERN_LLM_MODE or 'live'
@@ -214,14 +214,17 @@ export type SternSnapshot = {
   network: NetworkSnapshot;
   tasks: TasksSnapshot;
   classes: ClassesSnapshot;
-  needsYou: unknown[];
-  autoAppliedToday: unknown[];
+  needsYou: SternNeed[];
+  schedule: SternScheduleItem[];
+  today: string;
+  autoAppliedToday: SternAuditRow[];
   reminders: { lastMemoAt: string };
 };
 
 // ---------- status tone (color carries meaning; mirrors the design bundle TONE map) ----------
 export type StatusTone = "ok" | "warn" | "error" | "info" | "off" | "accent" | "neutral";
 export const STATUS_TONES: Record<string, StatusTone> = {
+  on_healthy: "ok", on_broken: "warn", off: "off",
   // club
   considering: "off", applying: "accent", interviewing: "info", accepted: "ok", rejected: "error", declined: "off", archived: "off",
   // program
@@ -372,3 +375,13 @@ export type SternNotificationSettings = Record<Exclude<(typeof STERN_NOTIFICATIO
 export type ReminderMessage = { key: string; subject: string; body: string; urgent: boolean; scheduledAt: string; validUntil?: string; fingerprint?: string };
 export type SternReminder = { id: number; rule_key: string; entity_type: string; entity_id: number; fire_at: string; channel: ReminderChannel; message: string; delivery_status: (typeof REMINDER_DELIVERY_STATUSES)[number]; sent_at: string; error: string; created_at: string };
 export type SternMemo = { date: string; subject: string; imessage: string; email: string };
+
+export type SternNeed = { key:string; kind:'reply'|'thank_you'|'draft'|'suggestion'; title:string; at:string; href:string; actionLabel:string };
+export type SternScheduleItem = {key:string;title:string;startAt:string;location:string;kind:string;href:string;prepHref:string};
+export type SternSearchResult = {id:number;kind:'person'|'club'|'task';label:string;detail:string;href:string};
+export type SternAuditRow = {id:number;entity_type:string;entity_id:number;action:string;field:string;before_value:string;after_value:string;source:string;confidence:number;evidence_type:string;gmail_account:string;gmail_message_id:string;evidence_excerpt:string;batch_id:string;undone_at:string;undo_of:number;created_at:string};
+export type SternSuggestion = {id:number;suggestion_type:string;evidence_subject:string;evidence_excerpt:string;confidence:number;state:string;proposed_data:string;gmail_account:string;gmail_message_id:string};
+export type SternDraft = {id:number;person_id:number;kind:DraftKind;subject:string;body:string;state:DraftState;to_email:string;updated_at:string};
+export type SternScanState = {account:string;last_checked:string;last_error:string;messages_seen:number};
+export type SternConnectionCard = {id:string;label:string;state:string;detail:string;account:string;scopes:string[];lastScan:string;reconnectHref:string};
+export type SternAutomationResponse = Pick<SternSnapshot['automation'],'scanState'|'recentMessages'|'suggestions'|'drafts'|'audit'|'reminders'|'notificationSettings'> & {connections:SternConnectionCard[];connectHref?:string;updatedAt:string};

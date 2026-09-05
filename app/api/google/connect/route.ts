@@ -19,7 +19,9 @@ export async function GET(req: Request) {
   const state = crypto.randomBytes(16).toString("hex");
   const set = new URL(req.url).searchParams.get("set");
   const scopeSet = set === "readonly" ? "readonly" : set === "stern" || target === "stern" || target === "nyu" || target === "generic" && /@(?:[^@]+\.)?nyu\.edu$/i.test(user.email) ? "stern" : "readonly";
-  const url = connectUrl(state, { ...TARGETS[target], scopeSet });
+  const hint = new URL(req.url).searchParams.get("login_hint") || "";
+  const loginHint = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint) && hint.length <= 254 ? hint : TARGETS[target].loginHint;
+  const url = connectUrl(state, { ...TARGETS[target], loginHint, scopeSet });
   const res = NextResponse.redirect(url);
   res.cookies.set("rw_g_state", state, {
     httpOnly: true,

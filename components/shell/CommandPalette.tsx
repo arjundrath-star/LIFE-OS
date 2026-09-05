@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { STERN_ROUTES } from "@/lib/stern-types";
 import { NAV } from "@/components/shell/nav";
 import { useLiveData } from "@/hooks/useLiveData";
 import { cn } from "@/lib/cn";
@@ -95,7 +96,8 @@ export function CommandPalette({
       hint: `${p.fileCount} files`,
       run: () => go("/projects"),
     }));
-    return [...nav, ...actions, ...proj];
+    const stern: Cmd[] = STERN_ROUTES.map(r => ({ id: `stern-${r.key}`, label: `Stern · ${r.label}`, group: "Stern", Icon: FolderGit2, run: () => go(r.href) }));
+    return [...nav, ...stern, ...actions, ...proj];
   }, [projects]);
 
   const results = useMemo(() => {

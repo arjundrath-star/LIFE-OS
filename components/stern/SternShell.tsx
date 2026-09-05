@@ -3,6 +3,7 @@
 // search, Quick add, sync status, and account. Mirrors BusinessShell; theme is the
 // .stern-mode scope in app/globals.css.
 import Link from "next/link";
+import { SternSearch } from "./Search";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -63,7 +64,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 function SyncStatus() {
-  const snapshot = useLiveData<SternSnapshot>("stern");
+  const { data: initial } = useApi<SternSnapshot>("/api/stern");
+  const snapshot = useLiveData<SternSnapshot>("stern") || initial;
   const conn = useConnStatus();
   const lastError = snapshot?.automation?.lastError || "";
   const state = conn === "open" ? (snapshot ? (lastError ? "warn" : "ok") : "warn") : conn === "connecting" ? "warn" : "error";
@@ -73,7 +75,7 @@ function SyncStatus() {
   return (
     <span className="stern-sync" data-testid="stern-sync" data-state={state} title={lastError ? `Last scan error: ${lastError}` : `WebSocket ${conn}`}>
       <i aria-hidden="true" />
-      {text}
+      <span className="stern-mono">{text}</span>
     </span>
   );
 }
@@ -118,6 +120,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (open) {
+        event.preventDefault();
         setOpen(false);
         return;
       }
@@ -136,7 +139,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
       <div className="stern-brand">
         <span aria-hidden="true">S</span>
         <strong>Stern</strong>
-        <button className="stern-rail-close" onClick={() => setOpen(false)} aria-label="Close navigation">
+        <button data-testid="stern-rail-close" className="stern-rail-close" onClick={() => setOpen(false)} aria-label="Close navigation">
           <X />
         </button>
       </div>
@@ -162,7 +165,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
       </nav>
       <button
         type="button"
-        className="stern-rail-toggle"
+        data-testid="stern-rail-toggle" className="stern-rail-toggle"
         onClick={toggleCollapsed}
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         title={collapsed ? "Expand" : "Collapse"}
@@ -181,27 +184,17 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
       <div className="stern-desktop-rail">{nav}</div>
       {open && (
         <div className="stern-mobile-nav" role="dialog" aria-modal="true" aria-label="Stern navigation">
-          <button className="stern-scrim" onClick={() => setOpen(false)} aria-label="Close navigation" />
+          <button data-testid="stern-rail-scrim" className="stern-scrim" onClick={() => setOpen(false)} aria-label="Close navigation" />
           {nav}
         </div>
       )}
       <div className="stern-column">
         <header className="stern-header">
-          <button className="stern-menu" onClick={() => setOpen(true)} aria-label="Open navigation">
+          <button data-testid="stern-rail-menu" className="stern-menu" onClick={() => setOpen(true)} aria-label="Open navigation">
             <Menu />
           </button>
           <div className="stern-header-title" data-testid="stern-page-title">{sternPageTitle(pathname)}</div>
-          <div className="stern-search">
-            <label>
-              <Search aria-hidden="true" />
-              <input
-                type="search"
-                placeholder="Search people, clubs, tasks"
-                aria-label="Search people, clubs, tasks"
-                data-testid="stern-search"
-              />
-            </label>
-          </div>
+          <SternSearch />
           <div className="stern-header-right">
             <button type="button" className="stern-quick-add" onClick={quickAdd} data-testid="stern-quick-add-button">
               <Plus aria-hidden="true" />
@@ -218,7 +211,7 @@ export function SternShell({ user, children }: { user: User; children: React.Rea
             </span>
             <button
               type="button"
-              className="stern-signout"
+              data-testid="stern-signout" className="stern-signout"
               onClick={() => signOut({ callbackUrl: "/signin" })}
               aria-label="Sign out"
               title="Sign out"
