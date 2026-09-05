@@ -5,13 +5,28 @@ import { requireSecret } from "@/lib/secrets";
 import { encrypt, decrypt } from "@/lib/crypto";
 import { all, get, run, nowIso, kvGet } from "@/db";
 
-const SCOPES = [
+const READONLY_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/calendar.readonly",
-].join(" ");
+];
+
+export const SCOPE_SETS = {
+  readonly: READONLY_SCOPES,
+  stern: [...READONLY_SCOPES, "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/calendar.events"],
+} as const;
+export class ScopeMissing extends Error {
+  readonly status = 409;
+  constructor(public scope: string) { super(`Connect Google with ${scope} permission`); this.name = "ScopeMissing"; }
+}
+export function accountScopes(email: string): string[] {
+  return (get<{ scopes: string }>("SELECT scopes FROM google_accounts WHERE lower(email)=?", email.toLowerCase())?.scopes || "").split(/\s+/).filter(Boolean);
+}
+function requireScope(email: string, scope: string) {
+  if (!accountScopes(email).includes(`https://www.googleapis.com/auth/${scope}`)) throw new ScopeMissing(scope);
+}
 
 export function baseUrl(): string {
   return (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -21,7 +36,7 @@ export function redirectUri(): string {
 }
 
 // ---- OAuth flow ----
-export function connectUrl(state: string, options: { loginHint?: string; hostedDomain?: string } = {}): string {
+export function connectUrl(state: string, options: { loginHint?: string; hostedDomain?: string; scopeSet?: keyof typeof SCOPE_SETS } = {}): string {
   const p = new URLSearchParams({
     client_id: requireSecret("GOOGLE_CLIENT_ID"),
     redirect_uri: redirectUri(),
@@ -29,7 +44,7 @@ export function connectUrl(state: string, options: { loginHint?: string; hostedD
     access_type: "offline",
     include_granted_scopes: "true",
     prompt: "consent select_account",
-    scope: SCOPES,
+    scope: SCOPE_SETS[options.scopeSet || "readonly"].join(" "),
     state,
   });
   if (options.loginHint) p.set("login_hint", options.loginHint);
@@ -37,7 +52,7 @@ export function connectUrl(state: string, options: { loginHint?: string; hostedD
   return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
 }
 
-async function exchangeCode(code: string): Promise<{ refresh_token?: string; access_token: string; expires_in: number }> {
+async function exchangeCode(code: string): Promise<{ refresh_token?: string; access_token: string; expires_in: number; scope?: string }> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -66,7 +81,7 @@ export async function handleCallback(code: string): Promise<{ email: string }> {
   const tok = await exchangeCode(code);
   const info = await userInfo(tok.access_token);
   const email = info.email.toLowerCase();
-  const existing = get<any>("SELECT email, refresh_token_enc FROM google_accounts WHERE email=?", email);
+  const existing = get<any>("SELECT email, refresh_token_enc, scopes FROM google_accounts WHERE email=?", email);
   // Google only returns refresh_token on first consent; keep the old one if absent.
   const refreshEnc = tok.refresh_token
     ? encrypt(tok.refresh_token)
@@ -82,9 +97,11 @@ export async function handleCallback(code: string): Promise<{ email: string }> {
     info.name ?? null,
     info.picture ?? null,
     refreshEnc,
-    SCOPES,
+    tok.scope || existing?.scopes || "",
     nowIso()
   );
+  // A re-consent may add scopes while the cached access token still has the old grant.
+  tokenCache().delete(email);
   return { email };
 }
 
@@ -600,4 +617,85 @@ export function removeAccount(email: string) {
   run("DELETE FROM google_accounts WHERE email=?", email.toLowerCase());
   run("DELETE FROM email_state WHERE email=?", email.toLowerCase());
   tokenCache().delete(email.toLowerCase());
+}
+
+// Stern adapters. Read helpers are additive; write helpers require explicit invocation.
+export type GmailFullMessage = {
+  id: string; threadId: string; from: string; to: string; cc: string; subject: string;
+  text: string; labelIds: string[]; internalDate: number; headers: { name: string; value: string }[];
+};
+type MimePart = { mimeType?: string; body?: { data?: string }; parts?: MimePart[] };
+export function decodeGmailBody(payload: MimePart): string {
+  const plain: string[] = [], html: string[] = [];
+  function visit(part: MimePart) {
+    if (part.body?.data) {
+      const decoded = Buffer.from(part.body.data, "base64url").toString("utf8");
+      if (part.mimeType === "text/plain") plain.push(decoded);
+      if (part.mimeType === "text/html") html.push(decoded);
+    }
+    part.parts?.forEach(visit);
+  }
+  visit(payload);
+  return plain.length ? plain.join("\n") : html.join("\n").replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&#(\d+);/g, (_, n) => { const cp = Number(n); return Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : ""; });
+}
+async function sternToken(email: string) {
+  const token = await accessTokenFor(email);
+  if (!token) throw new Error("Google account needs re-auth");
+  return token;
+}
+export async function gmailFetchFull(email: string, messageId: string): Promise<GmailFullMessage> {
+  const msg = await gapi(await sternToken(email), `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}?format=full`);
+  const headers: GmailFullMessage["headers"] = msg.payload?.headers || [];
+  const h = (name: string) => headers.find(h => h.name.toLowerCase() === name)?.value || "";
+  return { id: msg.id, threadId: msg.threadId, from: h("from"), to: h("to"), cc: h("cc"), subject: h("subject"), text: decodeGmailBody(msg.payload || {}), headers, labelIds: msg.labelIds || [], internalDate: Number(msg.internalDate) };
+}
+export async function gmailListSince(email: string, sinceInternalDateMs: number, options: { labels?: ("INBOX" | "SENT")[] } = {}): Promise<string[]> {
+  const token = await sternToken(email), ids = new Set<string>();
+  for (const label of options.labels || ["INBOX", "SENT"]) {
+    let pageToken = "";
+    do {
+      const params = new URLSearchParams({ labelIds: label, maxResults: "100", q: sinceInternalDateMs ? `after:${Math.max(0, Math.floor(sinceInternalDateMs / 1000) - 1)}` : "newer_than:14d" });
+      if (pageToken) params.set("pageToken", pageToken);
+      const page = await gapi(token, `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
+      for (const msg of page.messages || []) if (msg.id) ids.add(msg.id);
+      pageToken = page.nextPageToken || "";
+    } while (pageToken);
+  }
+  return [...ids];
+}
+async function googlePost(email: string, url: string, body: unknown) {
+  const response = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${await sternToken(email)}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Google write failed (${response.status})`);
+  return response.json();
+}
+export async function gmailCreateDraft(email: string, input: { to: string; subject: string; body: string }, options: { dryRun?: boolean } = {}) {
+  if (/[\r\n]/.test(input.to + input.subject)) throw new Error("Invalid draft headers");
+  if (options.dryRun) return { id: "dry-run:draft" };
+  requireScope(email, "gmail.compose");
+  const raw = Buffer.from(`To: ${input.to}\r\nSubject: =?UTF-8?B?${Buffer.from(input.subject).toString("base64")}?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${Buffer.from(input.body).toString("base64")}`).toString("base64url");
+  return googlePost(email, "https://gmail.googleapis.com/gmail/v1/users/me/drafts", { message: { raw } });
+}
+export type GoogleCalendarEvent = { id: string; summary?: string; status?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }; location?: string; attendees?: { email: string; responseStatus?: string }[] };
+export async function calendarEventsBetween(email: string, fromIso: string, toIso: string): Promise<GoogleCalendarEvent[]> {
+  const token = await sternToken(email), events: GoogleCalendarEvent[] = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({ timeMin: fromIso, timeMax: toIso, singleEvents: "true", maxResults: "250", orderBy: "startTime" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const page = await gapi(token, `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`);
+    events.push(...(page.items || [])); pageToken = page.nextPageToken || "";
+  } while (pageToken);
+  return events;
+}
+export type CalendarCreateInput = { summary: string; startIso: string; endIso: string; location: string; attendees: string[]; description: string; id?: string };
+export async function calendarCreateEvent(email: string, input: CalendarCreateInput, options: { dryRun?: boolean } = {}) {
+  if (options.dryRun) return { id: `dry-run:${input.id || "event"}` };
+  requireScope(email, "calendar.events");
+  // Stable client ID makes retries idempotent. No invitations or emails are sent.
+  try {
+    return await googlePost(email, "https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none", { ...(input.id ? { id: input.id } : {}), summary: input.summary, start: { dateTime: input.startIso }, end: { dateTime: input.endIso }, location: input.location, attendees: input.attendees.map(email => ({ email })), description: input.description });
+  } catch (error) {
+    if (input.id && error instanceof Error && error.message.includes("(409)")) return { id: input.id };
+    throw error;
+  }
 }

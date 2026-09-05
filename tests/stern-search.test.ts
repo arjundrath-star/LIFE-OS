@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const tmp=fs.mkdtempSync(path.join(process.cwd(),'.stern-wp6-search-'));
+process.env.RATHWORKSPACE_DB=path.join(tmp,'test.db');process.env.STERN_VAULT_WRITE='0';
+const setup=Promise.all([import('@/db'),import('@/lib/stern/search')]).then(([db,search])=>({db:db.getDb(),...search}));
+test.after(async()=>{(await setup).db.close();fs.rmSync(tmp,{recursive:true,force:true});});
+test('literal, bounded search returns stable deep links across people, clubs and open tasks',async()=>{
+ const {db,searchStern}=await setup;
+ const p=Number(db.prepare("INSERT INTO people(display_name,email,org) VALUES('Example Person','person@example.com','Example org')").run().lastInsertRowid);
+ db.prepare("INSERT INTO people(display_name,archived) VALUES('Example Archived',1)").run();
+ const processId=Number(db.prepare("INSERT INTO stern_processes(slug) VALUES('test')").run().lastInsertRowid);
+ const club=Number(db.prepare("INSERT INTO stern_clubs(process_id,name,short_name,slug) VALUES(?,'Example Club','EC','ec')").run(processId).lastInsertRowid);
+ const task=Number(db.prepare("INSERT INTO stern_tasks(title) VALUES('Example task')").run().lastInsertRowid);
+ db.prepare("INSERT INTO stern_tasks(title,status) VALUES('Example done','done')").run();
+ assert.deepEqual(searchStern(' EXAMPLE ').map(r=>r.href),[`/stern/network?person=${p}`,`/stern/recruiting/${club}`,`/stern/tasks?task=${task}`]);
+ assert.equal(searchStern('person@example.com')[0].id,p);assert.equal(searchStern('EC')[0].kind,'club');
+ assert.deepEqual(searchStern(''),[]);assert.deepEqual(searchStern('   '),[]);
+ for(const literal of ['%', '_', "' OR 1=1 --",'\\'])assert.equal(searchStern(literal).length,0);
+ db.prepare("INSERT INTO stern_tasks(title) VALUES('100% complete_soon')").run();
+ assert.equal(searchStern('%')[0].label,'100% complete_soon');assert.equal(searchStern('_')[0].label,'100% complete_soon');
+ for(let i=0;i<20;i++)db.prepare('INSERT INTO people(display_name) VALUES(?)').run(`Bounded Example ${i}`);
+ assert.equal(searchStern('bounded').length,8);
+ assert.deepEqual(searchStern('example'),searchStern('example'));
+});
+test('muted tokens pass 4.5:1 on both light surfaces and chip colors use tokens',()=>{
+ const tokens=fs.readFileSync('docs/plans/stern/design/stern-design-tokens.css','utf8');
+ const value=(name:string)=>tokens.match(new RegExp(`--stern-${name}: (#[A-Fa-f0-9]{6})`))![1];
+ const luminance=(hex:string)=>{const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c.reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);};
+ for(const fg of ['text-muted','text-faint'])for(const bg of ['surface','surface-2','bg'])assert.ok((luminance(value(bg))+.05)/(luminance(value(fg))+.05)>=4.5,`${fg} on ${bg}`);
+ const css=fs.readFileSync('app/globals.css','utf8');assert.ok(css.includes(`--stern-text-faint: ${value('text-faint')}`));
+ for(const line of css.split('\n').filter(l=>l.startsWith('.stern-chip[')||l.startsWith('.stern-source-badge[')))assert.doesNotMatch(line,/#|rgba\(/);
+});
+test('search API preserves requireUser and returns only bounded search results',async()=>{
+ const ts=await import('typescript'),{createRequire}=await import('node:module');const require=createRequire(import.meta.url);
+ const {searchStern}=await setup;let authorized=false;
+ const modules:Record<string,unknown>={'@/lib/guard':{requireUser:async()=>authorized?{email:'student@example.com'}:null},'@/lib/stern/search':{searchStern},'@/lib/stern/snapshot':{sternSnapshot:()=>({marker:'snapshot'})}};
+ const compiled=ts.transpileModule(fs.readFileSync('app/api/stern/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const route={} as {GET:(req:Request)=>Promise<Response>};new Function('require','exports',compiled)((id:string)=>modules[id]||require(id),route);
+ const request=(q:string)=>route.GET(new Request(`http://localhost:3160/api/stern${q}`));
+ assert.equal((await request('?q=example')).status,401);authorized=true;
+ const result=await (await request('?q=example')).json();assert.ok(Array.isArray(result.results));assert.ok(result.results.length<=24);assert.equal(result.marker,undefined);
+ assert.deepEqual(await (await request('')).json(),{marker:'snapshot'});
+});
+test('Google reconnect forwards a valid login_hint without changing the Stern scope set or auth gate',async()=>{
+ const ts=await import('typescript'),{createRequire}=await import('node:module');const require=createRequire(import.meta.url);let authorized=false;let options:Record<string,unknown>={};
+ const modules:Record<string,unknown>={'@/lib/guard':{requireUser:async()=>authorized?{email:'student@stern.nyu.edu'}:null},'@/lib/sources/google':{connectUrl:(_state:string,o:Record<string,unknown>)=>{options=o;return 'https://accounts.google.com/example';}}};
+ const compiled=ts.transpileModule(fs.readFileSync('app/api/google/connect/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
+ const route={} as {GET:(req:Request)=>Promise<Response>};new Function('require','exports',compiled)((id:string)=>modules[id]||require(id),route);
+ const request=(hint:string)=>route.GET(new Request(`http://localhost:3160/api/google/connect?set=stern&target=stern&login_hint=${encodeURIComponent(hint)}`));
+ const blocked=await request('student@stern.nyu.edu');assert.match(blocked.headers.get('location')!,/signin/);assert.deepEqual(options,{});
+ authorized=true;const ok=await request('student@stern.nyu.edu');assert.equal(ok.status,307);assert.equal(options.loginHint,'student@stern.nyu.edu');assert.equal(options.scopeSet,'stern');assert.ok(ok.headers.get('set-cookie')?.includes('rw_g_state'));
+ await request('invalid\nheader');assert.equal(options.loginHint,undefined);
+});
+test('shared deadline label keeps date keys and late-night instants on the same New York date',async()=>{
+ const {dateLabel}=await import('@/components/stern/recruiting/Controls');
+ assert.equal(dateLabel('2026-09-13T03:59:00Z'),'Sep 12');
+ assert.equal(dateLabel('2026-09-12'),'Sep 12');
+ assert.equal(dateLabel('2026-12-13T04:59:00Z'),'Dec 12');
+});

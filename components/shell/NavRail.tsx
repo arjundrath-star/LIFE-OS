@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive, type NavItem } from "@/components/shell/nav";
 import { StatusDot, type DotState } from "@/components/StatusDot";
 import { useLiveData, useConnStatus } from "@/hooks/useLiveData";
-import { daysUntilTerm } from "@/lib/school";
+import { useApi } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { ChevronsLeft, ChevronsRight, Command } from "lucide-react";
 
@@ -43,11 +42,11 @@ function indicatorFor(item: NavItem, live: Live): Indicator | null {
       const n = live.cal?.connected ? live.cal?.events?.length ?? 0 : 0;
       return n > 0 ? { badge: String(n), badgeTone: "accent" } : null;
     }
-    case "school":
-      return live.days === null ? null : { badge: `${live.days}d`, badgeTone: "warn" };
-    case "career": {
-      const pending = live.career?.stats?.pendingSuggestions ?? 0;
-      return pending > 0 ? { badge: pending > 99 ? "99+" : String(pending), badgeTone:"warn" } : null;
+    case "stern": {
+      // pending suggestions + replies waiting on Arjun, from the live Stern snapshot
+      const counts = live.stern?.counts;
+      const n = (counts?.suggestionsPending ?? 0) + (counts?.replyOwed ?? 0);
+      return n > 0 ? { badge: n > 99 ? "99+" : String(n), badgeTone: "warn" } : null;
     }
     case "connections": {
       const broken = (live.conns || []).filter((c) => c.state === "on_broken").length;
@@ -63,9 +62,8 @@ type Live = {
   kanban: any;
   email: any;
   cal: any;
-  career: any;
+  stern: any;
   conns: { state: string }[];
-  days: number | null;
   connStatus: "connecting" | "open" | "closed";
 };
 
@@ -88,18 +86,12 @@ export function NavRail({
   const kanban = useLiveData<any>("kanban");
   const email = useLiveData<any>("email");
   const cal = useLiveData<any>("calendar");
-  const career = useLiveData<any>("career");
+  const { data: sternInitial } = useApi("/api/stern");
+  const stern = useLiveData<any>("stern") || sternInitial;
   const conns = useLiveData<{ state: string }[]>("connections");
   const connStatus = useConnStatus();
-  const [days, setDays] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setDays(daysUntilTerm());
-    tick();
-    const t = setInterval(tick, 60 * 60 * 1000);
-    return () => clearInterval(t);
-  }, []);
 
-  const live: Live = { pulse, kanban, email, cal, career, conns: conns || [], days, connStatus };
+  const live: Live = { pulse, kanban, email, cal, stern, conns: conns || [], connStatus };
 
   return (
     <nav
@@ -138,6 +130,7 @@ export function NavRail({
             <Link
               key={item.key}
               href={item.href}
+              data-testid={item.key === "stern" ? "stern-home-nav" : undefined}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
               aria-current={active ? "page" : undefined}
@@ -160,6 +153,7 @@ export function NavRail({
                 )}
                 {collapsed && ind?.badge && (
                   <span
+                    data-testid={item.key === "stern" ? "stern-rail-badge" : undefined}
                     className={cn(
                       "absolute -right-2.5 -top-2 rounded-full px-1 py-px font-mono text-[8px] font-semibold leading-none",
                       ind.badgeTone === "warn" ? "bg-warn/20 text-warn" : "bg-accent/20 text-accent"
@@ -175,6 +169,7 @@ export function NavRail({
                   {ind?.dot && <StatusDot state={ind.dot.state} pulse={ind.dot.pulse} size={7} />}
                   {ind?.badge && (
                     <span
+                      data-testid={item.key === "stern" ? "stern-rail-badge" : undefined}
                       className={cn(
                         "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none",
                         ind.badgeTone === "warn" ? "bg-warn/15 text-warn" : "bg-accent/15 text-accent"

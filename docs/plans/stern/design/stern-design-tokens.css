@@ -1,0 +1,50 @@
+/* Stern tab design tokens. Light theme, single accent (NYU violet). Tailwind-compatible.
+   Every value here maps 1:1 to a CSS variable in the real app, so use ONLY these. */
+.stern-mode {
+  /* surfaces */
+  --stern-bg: #F7F7FA;            /* page background */
+  --stern-surface: #FFFFFF;       /* cards, tables, drawers */
+  --stern-surface-2: #F1F1F6;     /* inset areas, table header rows, inputs */
+  --stern-border: #E4E4EC;        /* 1px borders everywhere */
+  --stern-rail: #1B1B2F;          /* left nav rail, charcoal navy */
+  --stern-rail-text: #C9C9D9;
+  --stern-rail-active: #57068C;   /* 3px left indicator on the active nav item */
+
+  /* text */
+  --stern-text: #14141F;
+  --stern-text-muted: #5B5B70;
+  --stern-text-faint: #6C6C83;
+
+  /* accent: NYU violet, the only accent hue */
+  --stern-accent: #57068C;
+  --stern-accent-hover: #6B1FA0;
+  --stern-accent-soft: #F1E6F8;   /* chips, selected rows, soft badges */
+  --stern-on-accent: #FFFFFF;
+
+  /* status: color carries meaning, never decoration */
+  --stern-ok: #16A34A;            /* done, healthy, accepted */
+  --stern-warn: #D97706;          /* due soon, needs re-auth, pending reply */
+  --stern-error: #DC2626;         /* overdue, rejected, broken */
+  --stern-info: #2563EB;          /* scheduled, informational */
+  --stern-off: #9CA3AF;           /* archived, disabled, not connected */
+
+  /* shape */
+  --stern-radius-panel: 12px;
+  --stern-radius-inner: 8px;
+  --stern-radius-chip: 999px;
+  --stern-shadow: 0 1px 2px rgba(20,20,31,0.06), 0 1px 3px rgba(20,20,31,0.04);
+
+  /* type: Inter for everything, JetBrains Mono ONLY for dates, times, counts, codes */
+  --stern-font: Inter, system-ui, -apple-system, sans-serif;
+  --stern-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --stern-text-xs: 12px; --stern-text-sm: 13px; --stern-text-base: 14px;
+  --stern-text-lg: 16px; --stern-text-xl: 20px; --stern-text-2xl: 24px; --stern-text-3xl: 32px;
+
+  /* spacing scale (4px base) */
+  --stern-space-1: 4px; --stern-space-2: 8px; --stern-space-3: 12px; --stern-space-4: 16px;
+  --stern-space-6: 24px; --stern-space-8: 32px; --stern-space-12: 48px;
+
+  /* layout */
+  --stern-rail-w: 240px; --stern-rail-w-collapsed: 64px;
+  --stern-header-h: 56px; --stern-content-max: 1280px; --stern-drawer-w: 440px;
+}

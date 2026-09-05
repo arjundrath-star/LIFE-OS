@@ -1,0 +1,49 @@
+{
+  "endeavors": [
+    {
+      "id": 1,
+      "title": "Placeholder fellowship",
+      "organization": "Example Organization",
+      "category": "work",
+      "kind": "application",
+      "status": "researching",
+      "deadline": "",
+      "primary_url": "",
+      "urls": [],
+      "contact_name": "Placeholder Contact",
+      "contact_email": "contact@example.com",
+      "location": "New York",
+      "notes": "Placeholder notes for light-theme verification.",
+      "source": "manual",
+      "created_at": "2026-09-01T12:00:00Z",
+      "updated_at": "2026-09-01T12:00:00Z",
+      "events": [
+        {
+          "id": 1,
+          "endeavor_id": 1,
+          "event_type": "note",
+          "summary": "Placeholder activity",
+          "detail": "",
+          "source": "manual",
+          "occurred_at": "2026-09-01T12:00:00Z",
+          "created_at": "2026-09-01T12:00:00Z"
+        }
+      ]
+    }
+  ],
+  "suggestions": [],
+  "stats": {
+    "total": 1,
+    "applications": 1,
+    "engagements": 0,
+    "pendingSuggestions": 0,
+    "byStatus": {
+      "researching": 1
+    },
+    "byCategory": {
+      "work": 1
+    },
+    "nextDeadline": null
+  },
+  "updatedAt": "2026-09-01T12:00:00Z"
+}

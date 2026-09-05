@@ -1,0 +1,859 @@
+[
+  {
+    "id": "fx-001",
+    "threadId": "fx-t-001",
+    "messageId": "<fx-001.20260905@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "SENT"
+    ],
+    "from": "Arjun Rath <netid@stern.nyu.edu>",
+    "to": "Priya Nair <pn2041@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-05T14:12:00-04:00",
+    "subject": "Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Priya,\n\nMy name is Arjun Rath. I'm a sophomore transfer at Stern (I came from Haverford this fall) studying Business with a planned concentration in AI, Computing and Data Science, plus Entrepreneurship.\n\nI'm reaching out because I've been building small businesses since high school, most recently a portable phone-charging station operation in Boston, and SVS is the club I most want to understand before applications open. I'd like to hear how you got involved and what the Venture Team actually works on week to week.\n\nWould you have 15 to 20 minutes for a coffee chat sometime in the next two weeks? I'm happy to work around your schedule and meet anywhere on campus.\n\nThanks for your time,\nArjun",
+    "expected": {
+      "category": "coffee_chat_request_sent",
+      "confidence": 0.96,
+      "direction": "outbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Arjun asked Priya Nair (SVS VP, Venture Team) for a 15 to 20 minute coffee chat in the next two weeks.",
+      "evidence_excerpt": "Would you have 15 to 20 minutes for a coffee chat sometime in the next two weeks? I'm happy to work around your schedule and meet anywhere on campus."
+    }
+  },
+  {
+    "id": "fx-002",
+    "threadId": "fx-t-001",
+    "messageId": "<CAF7x2Qk9b1n0v3fx002@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Priya Nair <pn2041@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-06T19:40:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Arjun,\n\nThanks for reaching out, and welcome to Stern. Happy to chat. Charging stations in Boston is a fun one, I want to hear how that started.\n\nI have two windows this week that would work:\n- Tuesday 9/8 at 1:45 PM (right after the SVS general meeting, so I'll already be in Tisch)\n- Thursday 9/10 at 4:00 PM\n\nEither works for me. Let me know which you prefer and where you'd like to meet. Think Coffee on Mercer is easy for me but I'm flexible.\n\nBest,\nPriya\n\nPriya Nair\nVice President, Venture Team | Strategic Venture Society\nNYU Stern '27",
+    "expected": {
+      "category": "coffee_chat_reply_positive",
+      "confidence": 0.8,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [
+        "2026-09-08T13:45:00-04:00",
+        "2026-09-10T16:00:00-04:00"
+      ],
+      "confirmed_time": null,
+      "location": "Think Coffee, Mercer St",
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": true,
+      "summary": "Priya Nair (SVS) said yes to a coffee chat and proposed Tue 9/8 1:45 PM or Thu 9/10 4:00 PM. Arjun owes a reply.",
+      "evidence_excerpt": "I have two windows this week that would work:\n- Tuesday 9/8 at 1:45 PM (right after the SVS general meeting, so I'll already be in Tisch)\n- Thursday 9/10 at 4:00 PM"
+    }
+  },
+  {
+    "id": "fx-003",
+    "threadId": "fx-t-001",
+    "messageId": "<fx-003.20260907@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "SENT"
+    ],
+    "from": "Arjun Rath <netid@stern.nyu.edu>",
+    "to": "Priya Nair <pn2041@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-07T09:05:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Priya,\n\nThursday 9/10 at 4:00 PM works great. Think Coffee on Mercer is perfect, I'll grab a table near the front.\n\nLooking forward to it, and thanks again for making the time.\n\nBest,\nArjun",
+    "expected": {
+      "category": "scheduling_confirmed",
+      "confidence": 0.92,
+      "direction": "outbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": "2026-09-10T16:00:00-04:00",
+      "location": "Think Coffee, Mercer St",
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Arjun confirmed the SVS coffee chat with Priya Nair for Thu 9/10 at 4:00 PM at Think Coffee on Mercer.",
+      "evidence_excerpt": "Thursday 9/10 at 4:00 PM works great. Think Coffee on Mercer is perfect, I'll grab a table near the front."
+    }
+  },
+  {
+    "id": "fx-004",
+    "threadId": "fx-t-004",
+    "messageId": "<fx-004.20260907@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Priya Nair <pn2041@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-07T11:20:00-04:00",
+    "subject": "Invitation: Coffee chat: Arjun x Priya (SVS) @ Thu Sep 10, 2026 4pm - 4:30pm (EDT) (netid@stern.nyu.edu)",
+    "text": "Coffee chat: Arjun x Priya (SVS)\n\nWhen: Thursday Sep 10, 2026, 4:00pm - 4:30pm (Eastern Time - New York)\nWhere: Think Coffee, 248 Mercer St, New York, NY 10012\nOrganizer: Priya Nair <pn2041@stern.nyu.edu>\nGuests: Arjun Rath <netid@stern.nyu.edu>\n\nReply for netid@stern.nyu.edu: Yes / Maybe / No\nView all guest info: https://calendar.google.com/calendar/event?action=VIEW&eid=fx004\n\nInvitation from Google Calendar\nYou are receiving this email because you are a guest on this event. To stop receiving future updates for this event, decline this event.",
+    "expected": {
+      "category": "calendar_invite",
+      "confidence": 0.98,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": "2026-09-10T16:00:00-04:00",
+      "location": "Think Coffee, 248 Mercer St, New York, NY 10012",
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Google Calendar invite from Priya Nair for the SVS coffee chat, Thu 9/10 4:00 to 4:30 PM at Think Coffee.",
+      "evidence_excerpt": "When: Thursday Sep 10, 2026, 4:00pm - 4:30pm (Eastern Time - New York)\nWhere: Think Coffee, 248 Mercer St, New York, NY 10012"
+    }
+  },
+  {
+    "id": "fx-005",
+    "threadId": "fx-t-005",
+    "messageId": "<fx-005.20260909@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Daniel Okafor <do1893@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-09T22:15:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Arjun,\n\nThanks for the note and congrats on the transfer. Unfortunately I'm not able to take coffee chats this cycle. Between recruiting and running FLP interviews my calendar is full through the end of September.\n\nTwo things that would help you more than a chat with me anyway: come to our general meeting on Wednesday (12:30, Tisch UC24) and submit the coffee chat form on sternmcg.org so one of our directors can grab you. They know the FLP application better than I do at this point.\n\nBest of luck with applications.\n\nDaniel\n\nDaniel Okafor\nVice President of Recruitment | Management Consulting Group",
+    "expected": {
+      "category": "coffee_chat_reply_negative",
+      "confidence": 0.93,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Daniel Okafor",
+          "email": "do1893@stern.nyu.edu",
+          "role": "Vice President of Recruitment",
+          "club_or_org": "Management Consulting Group",
+          "is_eboard": true
+        }
+      ],
+      "club": "Management Consulting Group",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Daniel Okafor (MCG VP Recruitment) declined a coffee chat this cycle; pointed to Wed general meeting and the MCG chat form.",
+      "evidence_excerpt": "Unfortunately I'm not able to take coffee chats this cycle. Between recruiting and running FLP interviews my calendar is full through the end of September."
+    }
+  },
+  {
+    "id": "fx-006",
+    "threadId": "fx-t-006",
+    "messageId": "<fx-006.20260911@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "SENT"
+    ],
+    "from": "Arjun Rath <netid@stern.nyu.edu>",
+    "to": "Marcus Lindqvist <ml5120@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-11T10:30:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Marcus,\n\nBumping this in case it got buried, I know this week is busy with the newsletter going out and general meetings starting. Still very interested in a quick 15 minute chat about the Startup Team before applications open on the 20th. Any time next week works, I'll come to wherever is easiest.\n\nThanks,\nArjun\n\nOn Tue, Sep 8, 2026 at 5:12 PM Arjun Rath <netid@stern.nyu.edu> wrote:\n> Hi Marcus,\n> My name is Arjun Rath, a sophomore transfer at Stern studying Business with a focus on AI and entrepreneurship. I started a portable charging station business this summer and would love to hear how the EEG Startup Team works. Would you have 15 minutes for a coffee chat? Happy to work around your schedule.\n> Thanks, Arjun",
+    "expected": {
+      "category": "follow_up_sent",
+      "confidence": 0.9,
+      "direction": "outbound",
+      "people": [
+        {
+          "name": "Marcus Lindqvist",
+          "email": "ml5120@stern.nyu.edu",
+          "role": "Vice President, Startup Team",
+          "club_or_org": "Entrepreneurial Exchange Group",
+          "is_eboard": true
+        }
+      ],
+      "club": "Entrepreneurial Exchange Group",
+      "program_track": "teams",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Arjun bumped his unanswered Sept 8 coffee chat request to Marcus Lindqvist (EEG Startup Team).",
+      "evidence_excerpt": "Bumping this in case it got buried, I know this week is busy with the newsletter going out and general meetings starting."
+    }
+  },
+  {
+    "id": "fx-007",
+    "threadId": "fx-t-001",
+    "messageId": "<fx-007.20260910@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "SENT"
+    ],
+    "from": "Arjun Rath <netid@stern.nyu.edu>",
+    "to": "Priya Nair <pn2041@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-10T21:30:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "Hi Priya,\n\nThank you for taking the time this afternoon. The point about the Venture Team spending most of the semester on one live deal rather than case studies changed how I'm thinking about my application. And I'll take your advice and show up to Tuesday's general meeting even before the app opens.\n\nIf it's ever useful, I'm happy to share what I learned running the charging station route this summer with anyone on the team.\n\nThanks again,\nArjun",
+    "expected": {
+      "category": "thank_you_sent",
+      "confidence": 0.95,
+      "direction": "outbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": "teams",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Arjun sent Priya Nair (SVS) a thank-you the same evening as their coffee chat.",
+      "evidence_excerpt": "Thank you for taking the time this afternoon."
+    }
+  },
+  {
+    "id": "fx-008",
+    "threadId": "fx-t-008",
+    "messageId": "<fx-008.20260907@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Stern Inter-Club Council <stern.icc@nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-07T17:00:00-04:00",
+    "subject": "ICC Newsletter | Week of September 7: Central Club Application opens 9/14",
+    "text": "Hi Sternies,\n\nHappy Labor Day, and welcome to the first ICC Newsletter of the fall.\n\nCENTRAL CLUB APPLICATION\nThis year there is one application for every Stern club program. No more 57 separate Google Forms. The Central Club Application lives at https://www.nyusternicc.org/fall-2026 and requires NYU SSO login.\n- Exploratory programs: applications open Monday 9/14 at 9:00 AM and close Saturday 9/19 at 11:59 PM. Interviews 9/19 to 9/26. Decisions go out Sunday 9/27.\n- Team programs: applications open Sunday 9/20 at 9:00 AM and close Saturday 9/26 at 11:59 PM. Interviews 9/26. Decisions go out Sunday 10/4.\nResumes are optional for first-years (type N/A in the resume field). Set any linked Google Docs to \"anyone with the link can view.\"\n\nGENERAL MEETINGS THIS WEEK (all 12:30 to 1:30 PM)\nTue 9/8: Strategic Venture Society, Tisch UC21 | Finance Society, Tisch LC13 | Quantitative Finance Society, KMC 2-60\nWed 9/9: Management Consulting Group, Tisch UC24 | Marketing Society, Tisch LC11 | Undergraduate Stern Women in Business, KMC 3-50\nThu 9/10: Entrepreneurial Exchange Group, Tisch LC25 | Business Analytics Club, Tisch UC13 | Blockchain & Fintech Club, KMC 2-70\nFri 9/11: Investment Analysis Group, Tisch UC21 | Net Impact, Tisch LC13\n\nWant to talk to us? Coffee chat with an ICC board member: https://www.nyusternicc.org/join\n\nSee you in Tisch,\nThe Inter-Club Council",
+    "expected": {
+      "category": "icc_newsletter",
+      "confidence": 0.97,
+      "direction": "inbound",
+      "people": [],
+      "club": null,
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "Exploratory applications open",
+          "date": "2026-09-14"
+        },
+        {
+          "label": "Exploratory applications close",
+          "date": "2026-09-19"
+        },
+        {
+          "label": "Exploratory decisions",
+          "date": "2026-09-27"
+        },
+        {
+          "label": "Teams applications open",
+          "date": "2026-09-20"
+        },
+        {
+          "label": "Teams applications close",
+          "date": "2026-09-26"
+        },
+        {
+          "label": "Teams decisions",
+          "date": "2026-10-04"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "ICC weekly: central application opens 9/14 (Exploratory) and 9/20 (Teams); general meetings listed for 9/8 to 9/11.",
+      "evidence_excerpt": "- Exploratory programs: applications open Monday 9/14 at 9:00 AM and close Saturday 9/19 at 11:59 PM. Interviews 9/19 to 9/26. Decisions go out Sunday 9/27."
+    }
+  },
+  {
+    "id": "fx-009",
+    "threadId": "fx-t-009",
+    "messageId": "<fx-009.20260909@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Entrepreneurial Exchange Group <eeg.stern@nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-09T10:02:00-04:00",
+    "subject": "EEG General Meeting tomorrow: Thu 9/10, 12:30 PM, Tisch LC25",
+    "text": "Hey everyone,\n\nOur first general meeting of the semester is tomorrow, Thursday 9/10, from 12:30 to 1:30 PM in Tisch Hall LC25 (lower concourse, two flights down from the lobby).\n\nAgenda:\n- What EEG is and what the Startup Team and Investing Team actually do\n- Fall 2026 timeline: Team applications open 9/20 on the Central Club Application\n- Founder Q&A with two alumni who started companies out of Stern\n- Pizza\n\nNo membership needed, no RSVP. Bring a friend.\n\nQuestions? Reply here or email Marcus Lindqvist, VP of Startup Team, at ml5120@stern.nyu.edu.\n\nSee you tomorrow,\nEEG E-Board",
+    "expected": {
+      "category": "club_general_meeting",
+      "confidence": 0.94,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Marcus Lindqvist",
+          "email": "ml5120@stern.nyu.edu",
+          "role": "Vice President, Startup Team",
+          "club_or_org": "Entrepreneurial Exchange Group",
+          "is_eboard": true
+        }
+      ],
+      "club": "Entrepreneurial Exchange Group",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": "2026-09-10T12:30:00-04:00",
+      "location": "Tisch Hall LC25",
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "EEG first general meeting Thu 9/10 12:30 to 1:30 PM, Tisch Hall LC25. Open to all, no RSVP.",
+      "evidence_excerpt": "Our first general meeting of the semester is tomorrow, Thursday 9/10, from 12:30 to 1:30 PM in Tisch Hall LC25 (lower concourse, two flights down from the lobby)."
+    }
+  },
+  {
+    "id": "fx-010",
+    "threadId": "fx-t-010",
+    "messageId": "<fx-010.20260916@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Stern Central Club Application <noreply@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-16T21:47:00-04:00",
+    "subject": "Application received: Business Analytics Club | Freshman Liaison Program",
+    "text": "Hi Arjun,\n\nThis confirms that your application to the following program was received on September 16, 2026 at 9:46 PM ET:\n\nProgram: Business Analytics Club | Freshman Liaison Program\nClassification: Exploratory\nApplicant: Arjun Rath (netid@stern.nyu.edu)\nSubmission ID: CCA-2026F-04417\n\nExploratory applications close Saturday, September 19 at 11:59 PM. You may edit your responses until then by logging back in with your NYU SSO. Interview invitations, if any, will come directly from the club between September 19 and September 26. Decisions are released September 27.\n\nQuestions about the form: Office of Student Engagement (stern.ose@nyu.edu). Questions about the program: contact the club directly.\n\nThis is an automated message. Please do not reply.",
+    "expected": {
+      "category": "club_application_confirmation",
+      "confidence": 0.96,
+      "direction": "inbound",
+      "people": [],
+      "club": "Business Analytics Club",
+      "program_track": "exploratory",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "Exploratory applications close",
+          "date": "2026-09-19"
+        },
+        {
+          "label": "Exploratory decisions",
+          "date": "2026-09-27"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "Central Club Application confirmed Arjun's Exploratory application to Business Analytics Club (Freshman Liaison Program).",
+      "evidence_excerpt": "Program: Business Analytics Club | Freshman Liaison Program\nClassification: Exploratory\nApplicant: Arjun Rath (netid@stern.nyu.edu)\nSubmission ID: CCA-2026F-04417"
+    }
+  },
+  {
+    "id": "fx-011",
+    "threadId": "fx-t-011",
+    "messageId": "<fx-011.20260920@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Lena Fischer <lf2210@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-20T18:30:00-04:00",
+    "subject": "Blockchain & Fintech Club Mentorship Program: interview invitation",
+    "text": "Hi Arjun,\n\nThank you for applying to the Blockchain & Fintech Club Mentorship Program. We enjoyed reading your application and would like to invite you to a 20-minute interview with two members of our board.\n\nYour slot: Tuesday, September 22 at 5:40 PM in Tisch Hall UC13.\n\nDress code is business casual. This is a behavioral conversation, not a technical one, so there is nothing to study. We want to hear about you and why you're interested in BnF.\n\nPlease reply to this email by Monday 9/21 at 12:00 PM to confirm the slot. If the time does not work, tell us and we will do our best to find another.\n\nLooking forward to meeting you,\nLena\n\nLena Fischer\nDirector of Mentorship | Blockchain & Fintech Club\nNYU Stern '28",
+    "expected": {
+      "category": "club_interview_invite",
+      "confidence": 0.95,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Lena Fischer",
+          "email": "lf2210@stern.nyu.edu",
+          "role": "Director of Mentorship",
+          "club_or_org": "Blockchain & Fintech Club",
+          "is_eboard": true
+        }
+      ],
+      "club": "Blockchain & Fintech Club",
+      "program_track": "exploratory",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": "2026-09-22T17:40:00-04:00",
+      "location": "Tisch Hall UC13",
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "Confirm BnF interview slot",
+          "date": "2026-09-21"
+        }
+      ],
+      "requires_reply_from_me": true,
+      "summary": "BnF Mentorship Program interview: Tue 9/22 5:40 PM, Tisch UC13, 20 min, business casual. Confirm by Mon 9/21 noon.",
+      "evidence_excerpt": "Your slot: Tuesday, September 22 at 5:40 PM in Tisch Hall UC13.\n\nDress code is business casual."
+    }
+  },
+  {
+    "id": "fx-012",
+    "threadId": "fx-t-012",
+    "messageId": "<fx-012.20260927@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Sofia Reyes <sr4471@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "Priya Nair <pn2041@stern.nyu.edu>",
+    "date": "2026-09-27T10:05:00-04:00",
+    "subject": "Congratulations: Strategic Venture Society Exploratory Program",
+    "text": "Dear Arjun,\n\nOn behalf of the Strategic Venture Society board, I am thrilled to offer you a place in the SVS Exploratory Program for Fall 2026.\n\nWe had over 140 applicants for 24 spots this cycle. Your interview stood out for how concretely you talked about running a real business, and the board agreed you would add a lot to the cohort.\n\nNext steps:\n1. Reply to this email by Thursday, October 1 at 11:59 PM to accept or decline your spot.\n2. Our first cohort meeting is Tuesday, October 6 at 6:00 PM in KMC 2-60. Attendance is required.\n3. If you receive offers from other clubs, please decide promptly so we can extend waitlist offers.\n\nWelcome to SVS. We are excited to work with you.\n\nWarmly,\nSofia\n\nSofia Reyes\nPresident | Strategic Venture Society",
+    "expected": {
+      "category": "club_result_accepted",
+      "confidence": 0.96,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Sofia Reyes",
+          "email": "sr4471@stern.nyu.edu",
+          "role": "President",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        },
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": "exploratory",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": "2026-10-06T18:00:00-04:00",
+      "location": "KMC 2-60",
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "Accept or decline SVS offer",
+          "date": "2026-10-01"
+        },
+        {
+          "label": "First SVS cohort meeting",
+          "date": "2026-10-06"
+        }
+      ],
+      "requires_reply_from_me": true,
+      "summary": "Accepted to the SVS Exploratory Program. Reply by Thu 10/1 to accept; first cohort meeting Tue 10/6 6:00 PM, KMC 2-60.",
+      "evidence_excerpt": "I am thrilled to offer you a place in the SVS Exploratory Program for Fall 2026."
+    }
+  },
+  {
+    "id": "fx-013",
+    "threadId": "fx-t-013",
+    "messageId": "<fx-013.20260927@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Ethan Walsh <ew2934@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-27T12:30:00-04:00",
+    "subject": "Finance Society Discovery Program: application decision",
+    "text": "Hi Arjun,\n\nThank you for applying to the Finance Society Discovery Program and for taking the time to interview with us last week.\n\nThis cycle we received far more strong applications than we had spots, and after a lot of discussion we are not able to offer you a place in the program this fall. This was a hard call and it is not a judgment of your potential.\n\nWe would genuinely like to see you around. Our general meetings on Tuesdays at 12:30 are open to everyone, and we run the Discovery Program again in the spring. Several of our current board members got in on their second try.\n\nIf you would like feedback on your interview, reply to this email and I will set up ten minutes to talk.\n\nBest,\nEthan\n\nEthan Walsh\nDirector, Discovery Program | Finance Society",
+    "expected": {
+      "category": "club_result_rejected",
+      "confidence": 0.94,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Ethan Walsh",
+          "email": "ew2934@stern.nyu.edu",
+          "role": "Director, Discovery Program",
+          "club_or_org": "Finance Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Finance Society",
+      "program_track": "exploratory",
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "Finance Society Discovery Program (Exploratory) rejection. Feedback offered on request; program runs again in spring.",
+      "evidence_excerpt": "we are not able to offer you a place in the program this fall. This was a hard call and it is not a judgment of your potential."
+    }
+  },
+  {
+    "id": "fx-014",
+    "threadId": "fx-t-014",
+    "messageId": "<fx-014.20260914@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "NYU Brightspace <brightspace-noreply@nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-14T08:15:00-04:00",
+    "subject": "STAT-UB 103: New assignment - Problem Set 2",
+    "text": "STAT-UB 103 Statistics and Regression (Fall 2026)\n\nA new assignment has been posted.\n\nAssignment: Problem Set 2\nDue: Friday, September 25, 2026 at 11:59 PM EDT\nPoints: 50\nInstructor: Miriam Castellano\n\nInstructions: Complete problems 3.4, 3.9, 3.12, 4.1 and 4.6 from the textbook plus the attached regression exercise using the housing dataset. Submit a single PDF. Late submissions lose 10% per day.\n\nView assignment: https://brightspace.nyu.edu/d2l/lms/dropbox/user/folder_submit_files.d2l?ou=fx014\n\nYou are receiving this because notifications are enabled for this course. Manage your notification settings in Brightspace.",
+    "expected": {
+      "category": "brightspace_assignment",
+      "confidence": 0.97,
+      "direction": "inbound",
+      "people": [],
+      "club": null,
+      "program_track": null,
+      "course_code": "STAT-UB 103",
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": {
+        "title": "Problem Set 2",
+        "kind": "homework",
+        "due_at": "2026-09-25T23:59:00-04:00",
+        "points_possible": 50
+      },
+      "deadline_mentions": [
+        {
+          "label": "STAT-UB 103 Problem Set 2 due",
+          "date": "2026-09-25"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "STAT-UB 103 Problem Set 2 posted on Brightspace. Due Fri 9/25 11:59 PM, 50 points, single PDF.",
+      "evidence_excerpt": "Assignment: Problem Set 2\nDue: Friday, September 25, 2026 at 11:59 PM EDT\nPoints: 50"
+    }
+  },
+  {
+    "id": "fx-015",
+    "threadId": "fx-t-015",
+    "messageId": "<fx-015.20260923@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "NYU Brightspace <brightspace-noreply@nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-23T16:40:00-04:00",
+    "subject": "MKTG-UB 1: Grade posted for Quiz 1",
+    "text": "MKTG-UB 1 Introduction to Marketing (Fall 2026)\n\nA grade has been released.\n\nItem: Quiz 1\nGrade: 18 / 20 (90%)\nInstructor: Helena Marsh\nFeedback: Strong on segmentation. Review the 4 Ps question, the answer conflated place with promotion.\n\nView grades: https://brightspace.nyu.edu/d2l/lms/grades/my_grades/main.d2l?ou=fx015\n\nYou are receiving this because notifications are enabled for this course.",
+    "expected": {
+      "category": "brightspace_grade",
+      "confidence": 0.96,
+      "direction": "inbound",
+      "people": [],
+      "club": null,
+      "program_track": null,
+      "course_code": "MKTG-UB 1",
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": {
+        "title": "Quiz 1",
+        "kind": "quiz",
+        "due_at": null,
+        "points_possible": 20
+      },
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "MKTG-UB 1 Quiz 1 grade posted: 18/20 (90%). Feedback: review the 4 Ps question.",
+      "evidence_excerpt": "Item: Quiz 1\nGrade: 18 / 20 (90%)"
+    }
+  },
+  {
+    "id": "fx-016",
+    "threadId": "fx-t-016",
+    "messageId": "<fx-016.20260915@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Ingrid Vasquez-Holm <ivh2@stern.nyu.edu>",
+    "to": "TECH-UB 1 Section 004 <tech-ub1-004-fa26@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-15T07:52:00-04:00",
+    "subject": "TECH-UB 1: syllabus update and office hours",
+    "text": "Dear class,\n\nTwo updates.\n\n1. Syllabus change. Module 4 (Databases and SQL) moves from October 6 to October 13 so we have a full week on the data ethics case first. As a result the group project proposal is now due Friday, October 9 at 5:00 PM instead of October 2. The revised syllabus is posted on Brightspace under Course Materials.\n\n2. Office hours. Starting this week I hold office hours Tuesdays 3:30 to 5:00 PM in KMC 8-58. No appointment needed. If you cannot make Tuesdays, email me and we will find a time.\n\nReminder that the Week 3 reading response is still due tomorrow at 11:59 PM.\n\nBest,\nIngrid Vasquez-Holm\nClinical Associate Professor, Technology, Operations and Statistics\nNYU Stern School of Business",
+    "expected": {
+      "category": "course_announcement",
+      "confidence": 0.9,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Ingrid Vasquez-Holm",
+          "email": "ivh2@stern.nyu.edu",
+          "role": "Professor, TECH-UB 1",
+          "club_or_org": "NYU Stern School of Business",
+          "is_eboard": false
+        }
+      ],
+      "club": null,
+      "program_track": null,
+      "course_code": "TECH-UB 1",
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "TECH-UB 1 group project proposal due",
+          "date": "2026-10-09"
+        },
+        {
+          "label": "TECH-UB 1 Week 3 reading response due",
+          "date": "2026-09-16"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "TECH-UB 1: Module 4 moved to Oct 13, group project proposal now due Fri 10/9 5 PM, office hours Tue 3:30 to 5 in KMC 8-58.",
+      "evidence_excerpt": "As a result the group project proposal is now due Friday, October 9 at 5:00 PM instead of October 2."
+    }
+  },
+  {
+    "id": "fx-017",
+    "threadId": "fx-t-017",
+    "messageId": "<fx-017.20260924@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Naomi Adler-Stein <na3358@nyu.edu>",
+    "to": "CAMS-UA 110 Fall 2026 <cams-ua110-fa26@nyu.edu>",
+    "cc": "",
+    "date": "2026-09-24T12:10:00-04:00",
+    "subject": "CAMS-UA 110: Midterm on Thursday 10/1, room details",
+    "text": "Hello everyone,\n\nA reminder that the CAMS-UA 110 midterm is one week from today: Thursday, October 1, during our regular class time, 9:30 to 10:45 AM. We will be in Tisch Hall UC50 as usual. Please arrive by 9:20 so we can start on time.\n\nFormat: 40 multiple choice questions and two short essays covering Weeks 1 through 5 (hedonic adaptation through social connection). Closed book, no devices. Bring a pencil and your NYU ID.\n\nThere is no recitation on Friday 10/2. Recitation resumes 10/9.\n\nGood luck with your studying. The TAs will hold a review session Tuesday 9/29 at 5:00 PM in UC50.\n\nNaomi Adler-Stein",
+    "expected": {
+      "category": "exam_reminder",
+      "confidence": 0.78,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Naomi Adler-Stein",
+          "email": "na3358@nyu.edu",
+          "role": "Professor, CAMS-UA 110",
+          "club_or_org": "NYU College of Arts and Science",
+          "is_eboard": false
+        }
+      ],
+      "club": null,
+      "program_track": null,
+      "course_code": "CAMS-UA 110",
+      "proposed_times": [],
+      "confirmed_time": "2026-10-01T09:30:00-04:00",
+      "location": "Tisch Hall UC50",
+      "assignment": {
+        "title": "Midterm Exam",
+        "kind": "exam",
+        "due_at": "2026-10-01T09:30:00-04:00",
+        "points_possible": null
+      },
+      "deadline_mentions": [
+        {
+          "label": "CAMS-UA 110 midterm",
+          "date": "2026-10-01"
+        },
+        {
+          "label": "CAMS-UA 110 midterm review session",
+          "date": "2026-09-29"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "CAMS-UA 110 midterm Thu 10/1 9:30 to 10:45 AM in Tisch UC50; arrive 9:20. Review session Tue 9/29 5 PM.",
+      "evidence_excerpt": "the CAMS-UA 110 midterm is one week from today: Thursday, October 1, during our regular class time, 9:30 to 10:45 AM. We will be in Tisch Hall UC50 as usual."
+    }
+  },
+  {
+    "id": "fx-018",
+    "threadId": "fx-t-018",
+    "messageId": "<fx-018.20260909@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "NYU Campus Services <campus.services@nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-09T11:00:00-04:00",
+    "subject": "Fall 2026 meal plan changes close Tuesday, September 15",
+    "text": "Dear Arjun,\n\nThe window to change your Fall 2026 meal plan closes on Tuesday, September 15 at 11:59 PM. After that date, plans are locked for the semester.\n\nYour current plan: 150 Block Plan with $300 Dining Dollars.\n\nTo review options or make a change, log in to the NYU Dining portal with your NetID and select \"Change Meal Plan.\" Changes take effect the following business day and any difference in cost is applied to your Bursar account.\n\nReminder: unused Dining Dollars roll over from fall to spring but expire at the end of the spring semester. Meal swipes reset weekly on Sunday.\n\nQuestions? Contact NYU Dining at dining@nyu.edu.\n\nNYU Campus Services",
+    "expected": {
+      "category": "other_nyu",
+      "confidence": 0.9,
+      "direction": "inbound",
+      "people": [],
+      "club": null,
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [
+        {
+          "label": "Fall 2026 meal plan change deadline",
+          "date": "2026-09-15"
+        }
+      ],
+      "requires_reply_from_me": false,
+      "summary": "NYU Dining: last day to change the Fall 2026 meal plan is Tue 9/15 11:59 PM. Current plan: 150 Block.",
+      "evidence_excerpt": "The window to change your Fall 2026 meal plan closes on Tuesday, September 15 at 11:59 PM. After that date, plans are locked for the semester."
+    }
+  },
+  {
+    "id": "fx-019",
+    "threadId": "fx-t-019",
+    "messageId": "<fx-019.20260917@mail.gmail.com>",
+    "account": "netid@stern.nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Stackpad Team <hello@mail.stackpad.example>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-17T13:05:00-04:00",
+    "subject": "Students get Stackpad Pro free for 12 months",
+    "text": "Hi there,\n\nMidterms are coming. Your notes shouldn't be scattered across six apps.\n\nStackpad Pro is free for 12 months with a .edu email. Unlimited notebooks, AI summaries of lecture recordings, and shared study spaces with your classmates.\n\nClaim your free year: https://mail.stackpad.example/l/edu-offer?u=netid\n\nOffer ends September 30.\n\nThe Stackpad Team\n\nYou received this email because you signed up for Stackpad with netid@stern.nyu.edu. Unsubscribe: https://mail.stackpad.example/u/netid",
+    "expected": {
+      "category": "irrelevant",
+      "confidence": 0.97,
+      "direction": "inbound",
+      "people": [],
+      "club": null,
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [],
+      "confirmed_time": null,
+      "location": null,
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": false,
+      "summary": "SaaS marketing email (Stackpad Pro student offer). Not NYU, not club related.",
+      "evidence_excerpt": "Stackpad Pro is free for 12 months with a .edu email."
+    }
+  },
+  {
+    "id": "fx-020",
+    "threadId": "fx-t-020",
+    "messageId": "<CAF7x2Qk9b1n0v3fx002@mail.gmail.com>",
+    "account": "netid@nyu.edu",
+    "labelIds": [
+      "INBOX"
+    ],
+    "from": "Priya Nair <pn2041@stern.nyu.edu>",
+    "to": "Arjun Rath <netid@stern.nyu.edu>",
+    "cc": "",
+    "date": "2026-09-06T19:40:00-04:00",
+    "subject": "Re: Coffee chat request - Arjun Rath (sophomore transfer)",
+    "text": "---------- Forwarded message ---------\nFrom: Priya Nair <pn2041@stern.nyu.edu>\nDate: Sun, Sep 6, 2026 at 7:40 PM\nSubject: Re: Coffee chat request - Arjun Rath (sophomore transfer)\nTo: Arjun Rath <netid@stern.nyu.edu>\n\n\nHi Arjun,\n\nThanks for reaching out, and welcome to Stern. Happy to chat. Charging stations in Boston is a fun one, I want to hear how that started.\n\nI have two windows this week that would work:\n- Tuesday 9/8 at 1:45 PM (right after the SVS general meeting, so I'll already be in Tisch)\n- Thursday 9/10 at 4:00 PM\n\nEither works for me. Let me know which you prefer and where you'd like to meet. Think Coffee on Mercer is easy for me but I'm flexible.\n\nBest,\nPriya\n\nPriya Nair\nVice President, Venture Team | Strategic Venture Society\nNYU Stern '27",
+    "expected": {
+      "category": "coffee_chat_reply_positive",
+      "confidence": 0.8,
+      "direction": "inbound",
+      "people": [
+        {
+          "name": "Priya Nair",
+          "email": "pn2041@stern.nyu.edu",
+          "role": "Vice President, Venture Team",
+          "club_or_org": "Strategic Venture Society",
+          "is_eboard": true
+        }
+      ],
+      "club": "Strategic Venture Society",
+      "program_track": null,
+      "course_code": null,
+      "proposed_times": [
+        "2026-09-08T13:45:00-04:00",
+        "2026-09-10T16:00:00-04:00"
+      ],
+      "confirmed_time": null,
+      "location": "Think Coffee, Mercer St",
+      "assignment": null,
+      "deadline_mentions": [],
+      "requires_reply_from_me": true,
+      "summary": "Priya Nair (SVS) said yes to a coffee chat and proposed Tue 9/8 1:45 PM or Thu 9/10 4:00 PM. Arjun owes a reply.",
+      "evidence_excerpt": "I have two windows this week that would work:\n- Tuesday 9/8 at 1:45 PM (right after the SVS general meeting, so I'll already be in Tisch)\n- Thursday 9/10 at 4:00 PM"
+    },
+    "dedupe_of": "fx-002"
+  }
+]

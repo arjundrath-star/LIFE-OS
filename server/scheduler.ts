@@ -270,6 +270,44 @@ async function tickCareerHunter() {
   await tickCareer();
 }
 
+async function tickStern() {
+  // One guarded Stern tick owns deadline automation and live snapshots. No panel polls.
+  const { markMissedPrograms } = await import("@/lib/stern/recruiting");
+  markMissedPrograms();
+  const { broadcastStern } = await import("@/lib/stern/snapshot");
+  broadcastStern();
+}
+
+async function tickSternEmail() {
+  const { runSternEmailScan } = await import("@/lib/stern/gmail-scan");
+  await runSternEmailScan();
+  await tickStern();
+}
+async function tickSternCalendar() {
+  const { runSternCalendarSync } = await import("@/lib/stern/calendar-sync");
+  await runSternCalendarSync();
+  await tickStern();
+}
+
+export async function tickSternReminders() {
+  // Own lane (not the email/calendar automationJob): a long first scan must never delay urgent
+  // reminders or the 08:00 memo. The SQL-only rules (need_to_reach_out -> coffee chats, reply
+  // clearing, no_reply ageing) run here too, so they work before any NYU account is connected.
+  const { evaluateRules, dispatchDue } = await import("@/lib/stern/reminders");
+  const { reminderMeta } = await import("@/lib/stern/reminder-store");
+  const { runRulesPass } = await import("@/lib/stern/rules-pass");
+  try { await runRulesPass(); } catch (e) { console.error("[scheduler] stern rules pass failed:", (e as Error).message); }
+  const now = new Date(), audit = reminderMeta();
+  const evaluation = evaluateRules(now, { audit }), delivery = await dispatchDue(now, { audit });
+  const changed = evaluation.inserted > 0 || Object.values(delivery).some(count => count > 0);
+  if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
+}
+export async function tickSternMemo() {
+  const { tickMemo } = await import("@/lib/stern/memo");
+  const changed = !(await tickMemo()).skipped;
+  if (changed) { const { broadcastStern } = await import("@/lib/stern/snapshot"); broadcastStern(); }
+}
+
 export function guarded(name: string, fn: () => Promise<void>) {
   let running = false;
   return async () => {
@@ -303,6 +341,11 @@ export function startScheduler() {
   const career = guarded("career", tickCareer);
   const careerEmail = guarded("careerEmail", tickCareerEmail);
   const careerHunter = guarded("careerHunter", tickCareerHunter);
+  const stern = guarded("stern", tickStern);
+  const sternEmail = guarded("sternEmail", tickSternEmail);
+  const sternCalendar = guarded("sternCalendar", tickSternCalendar);
+  const sternReminders = guarded("sternReminders", tickSternReminders);
+  const sternMemo = guarded("sternMemo", tickSternMemo);
 
   // initial burst so first paint has data
   pushEvent("system", "rathworkspace command center online", "success");
@@ -319,6 +362,11 @@ export function startScheduler() {
   pokemonOps();
   career();
   careerEmail();
+  stern();
+  sternEmail();
+  sternCalendar();
+  sternReminders();
+  sternMemo();
 
   // retain handles so the scheduler can be stopped/reset cleanly
   g.__rw_timers = [
@@ -336,6 +384,11 @@ export function startScheduler() {
     setInterval(career, 15000), // canonical SQLite snapshot; writes also broadcast immediately
     setInterval(careerEmail, 30 * 60 * 1000), // approved Gmail metadata only; review-gated suggestions
     setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
+    setInterval(sternReminders, 60_000),
+    setInterval(sternMemo, 60_000),
+    setInterval(sternEmail, 10 * 60 * 1000),
+    setInterval(sternCalendar, 5 * 60 * 1000),
+    setInterval(stern, 15000), // Stern tab snapshot: SQL counts + broadcast, cheap and bounded
   ];
 
   console.log("[scheduler] started");

@@ -49,3 +49,14 @@ tsconfig.tsbuildinfo
 # session / working artifacts
 SESSION_PROGRESS.md
 .pytest_cache/
+
+# Isolated Stern Network tests and browser artifacts
+.stern-network-test-*/
+.stern-network-e2e/
+.stern-wp4-test-*/
+.stern-wp4-e2e/
+
+.stern-reminders-test-*/
+
+.stern-wp6-search-*/
+.stern-wp6-overview-*/

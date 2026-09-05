@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SternEmailClassification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "confidence", "direction", "people", "requires_reply_from_me", "summary", "evidence_excerpt"],
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "coffee_chat_request_sent", "coffee_chat_reply_positive", "coffee_chat_reply_negative",
+        "scheduling_proposal", "scheduling_confirmed", "thank_you_sent", "follow_up_sent",
+        "club_application_confirmation", "club_interview_invite", "club_result_accepted", "club_result_rejected",
+        "icc_newsletter", "club_general_meeting", "club_other",
+        "brightspace_assignment", "brightspace_grade", "course_announcement", "exam_reminder",
+        "calendar_invite", "other_nyu", "irrelevant"
+      ]
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "direction": { "type": "string", "enum": ["inbound", "outbound"] },
+    "people": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "email"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "role": { "type": "string" },
+          "club_or_org": { "type": "string" },
+          "is_eboard": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "club": { "type": ["string", "null"] },
+    "program_track": { "type": ["string", "null"], "enum": ["exploratory", "teams", null] },
+    "course_code": { "type": ["string", "null"] },
+    "proposed_times": { "type": "array", "items": { "type": "string", "description": "ISO 8601 with offset" } },
+    "confirmed_time": { "type": ["string", "null"] },
+    "location": { "type": ["string", "null"] },
+    "assignment": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "kind": { "type": "string", "enum": ["homework", "quiz", "exam", "project", "reading", "other"] },
+        "due_at": { "type": ["string", "null"] },
+        "points_possible": { "type": ["number", "null"] }
+      }
+    },
+    "deadline_mentions": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": false, "required": ["label", "date"], "properties": { "label": { "type": "string" }, "date": { "type": "string" } } }
+    },
+    "requires_reply_from_me": { "type": "boolean" },
+    "summary": { "type": "string", "maxLength": 140 },
+    "evidence_excerpt": { "type": "string", "maxLength": 300 }
+  }
+}
