@@ -353,3 +353,14 @@ test("broadcastStern sends the stern channel only when the snapshot changed", as
     hub.broadcast = original;
   }
 });
+
+test("undoBatch refuses seed batches", async () => {
+  const { getDb, audit, errors } = await setup();
+  const db = getDb();
+  const seed = audit.newBatchId("seed");
+  const pid = Number(db.prepare("INSERT INTO people (dedupe_key, display_name) VALUES ('name:seed probe:placeholder', 'Seed Probe')").run().lastInsertRowid);
+  audit.logCreate("person", pid, { id: pid }, { batchId: seed, source: "seed" });
+  assert.throws(() => audit.undoBatch(seed), (e: any) => e instanceof errors.SternError && e.status === 400 && /seed/.test(e.message));
+  assert.ok(db.prepare("SELECT id FROM people WHERE id = ?").get(pid), "seeded row survives");
+  db.prepare("DELETE FROM people WHERE id = ?").run(pid);
+});
