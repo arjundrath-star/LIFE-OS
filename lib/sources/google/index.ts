@@ -100,6 +100,8 @@ export async function handleCallback(code: string): Promise<{ email: string }> {
     tok.scope || existing?.scopes || "",
     nowIso()
   );
+  // A re-consent may add scopes while the cached access token still has the old grant.
+  tokenCache().delete(email);
   return { email };
 }
 

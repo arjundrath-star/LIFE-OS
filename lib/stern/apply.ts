@@ -9,13 +9,14 @@ import { setInterested, upsertProgram, observeProgramStatus, reconcileThankYous 
 import { automationSource, dryRunDefault, sternAccount, type AutomationSource } from "./automation-source";
 import { ScopeMissing } from "@/lib/sources/google";
 import { SternError } from "./errors";
+import { nyDayBounds } from "./time";
 
 export function addresses(value: string): string[] { return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(s => s.toLowerCase()))]; }
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 export function messageMeta(message: SternEmailMessage, cls: EmailClassification, source = "auto_email"): AuditMeta {
   return { batchId: newBatchId("email"), source, confidence: cls.confidence, evidenceType: "gmail", gmailAccount: message.gmail_account, gmailMessageId: message.gmail_message_id, evidenceExcerpt: cls.evidence_excerpt };
 }
-export type Effect = { kind: "coffee" | "program" | "newsletter" | "meeting" | "academic" | "tasks" | "review"; classification: EmailClassification } | { kind: "program_window"; programId: number; fields: Row };
+export type Effect = { kind: "coffee" | "program" | "newsletter" | "meeting" | "academic" | "tasks" | "review"; classification: EmailClassification } | { kind: "program_window"; programId: number; fields: Row } | { kind: "calendar_create"; intent: CalendarIntent };
 export function effectsFor(cls: EmailClassification): Effect[] {
   const c = cls.category;
   if (c === "irrelevant") return [];
@@ -98,12 +99,12 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
     if (c === "thank_you_sent") { update.state = "thank_you_sent"; update.thank_you_sent_at = at; observePersonStatus(person.id, "chatted", audit); }
     if (["scheduling_confirmed", "calendar_invite", "coffee_chat_reply_positive"].includes(c) && cls.confirmed_time) {
       update.state = "scheduled"; update.scheduled_at = cls.confirmed_time; update.location = cls.location || "";
-      const hash = crypto.createHash("sha256").update(`${chat.id}:${cls.confirmed_time}`).digest("hex");
+      const hash = crypto.createHash("sha256").update(`${chat.id}:${new Date(cls.confirmed_time).toISOString()}`).digest("hex");
       if (c === "calendar_invite") {
         const id = `invite:${message.content_hash}`;
         upsertCalendar({ account: message.gmail_account, event_id: id, title: message.subject, start_at: cls.confirmed_time, end_at: new Date(Date.parse(cls.confirmed_time) + 30 * 60000).toISOString(), location: cls.location || "", attendees: JSON.stringify([email]), kind: "coffee_chat", person_id: person.id, coffee_chat_id: chat.id, synced_at: nowIso() }, audit);
         update.calendar_event_id = chat.calendar_event_id || id;
-      } else if (!chat.calendar_event_id) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
+      } else if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") || Date.parse(chat.scheduled_at) !== Date.parse(cls.confirmed_time)) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
     }
     observeCoffeeChat(chat.id, update, audit);
     if (c === "thank_you_sent") reconcileThankYous(chat.club_id, audit);
@@ -120,6 +121,12 @@ export function upsertCalendar(fields: Row & { account: string; event_id: string
 function executeEffects(effects: Effect[], message: SternEmailMessage, audit: AuditMeta): CalendarIntent[] {
   const db = getDb(), intents: CalendarIntent[] = [];
   for (const effect of effects) {
+    if (effect.kind === "calendar_create") {
+      const chat = row<CoffeeChat>("coffee_chat", effect.intent.chatId);
+      if (chat.state !== "scheduled" || Date.parse(chat.scheduled_at) !== Date.parse(effect.intent.start)) throw new SternError(409, "Calendar intent is stale; review the chat schedule");
+      if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:")) intents.push(effect.intent);
+      continue;
+    }
     if (effect.kind === "program_window") { upsertProgram({ id: effect.programId, ...effect.fields }, audit); continue; }
     const cls = effect.classification, club = clubFor(cls.club), deadlines = cls.deadline_mentions || [];
     if (effect.kind === "coffee") { intents.push(...coffeeEffect(message, cls, audit)); continue; }
@@ -131,7 +138,7 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
       if (status === "interview_invited") {
         const dress = message.snippet.match(/(?:dress(?: code)?|attire)\s*:\s*([^\n.]+)/i)?.[1]?.trim() || message.snippet.match(/\b(business casual|business formal|smart casual)\b/i)?.[1] || "";
         upsertProgram({ id: program.id, interview_at: cls.confirmed_time || "", interview_location: cls.location || "", dress_code: dress }, audit);
-        if (cls.confirmed_time) upsertAutomationTask({ title: `Prep for ${club.name} interview`, due_at: new Date(Date.parse(cls.confirmed_time) - 86400000).toISOString().slice(0, 10), club_id: club.id, program_id: program.id, dedupe_key: `interview-prep:${program.id}:${cls.confirmed_time}` }, audit);
+        if (cls.confirmed_time) upsertAutomationTask({ title: `Prep for ${club.name} interview`, due_at: nyDayBounds(cls.confirmed_time, -1).dateKey, club_id: club.id, program_id: program.id, dedupe_key: `interview-prep:${program.id}:${cls.confirmed_time}` }, audit);
         if (cls.requires_reply_from_me) upsertAutomationTask({ title: `Reply to ${club.name} interview invite`, due_at: deadlines[0]?.date || cls.confirmed_time || "", club_id: club.id, program_id: program.id, dedupe_key: `interview-reply:${program.id}:${message.gmail_message_id}` }, audit);
       }
       observeProgramStatus(program.id, status, audit);
@@ -160,7 +167,7 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
   }
   return intents;
 }
-async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage, audit: AuditMeta, source: AutomationSource, dryRun: boolean) {
+async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage, audit: AuditMeta, source: AutomationSource, dryRun: boolean, retry: boolean) {
   const account = sternAccount();
   try {
     if (!account) throw new ScopeMissing("calendar.events (connect a Stern account)");
@@ -171,7 +178,17 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
       observeCoffeeChat(intent.chatId, { calendar_event_id: result.id }, audit);
     }).immediate();
   } catch (error) {
-    getDb().transaction(() => suggest(`calendar-write:${account}:${nowIso().slice(0, 10)}`, [], message, audit, error instanceof ScopeMissing ? "connect calendar write" : "calendar write failed; retry after reconnect")).immediate();
+    if (retry) throw error; // Keep the reviewed suggestion pending until its write succeeds.
+    getDb().transaction(() => {
+      const key = `calendar-write:${account}:${nowIso().slice(0, 10)}`;
+      const effect: Effect = { kind: "calendar_create", intent };
+      const existing = getDb().prepare("SELECT id,proposed_data,state FROM stern_suggestions WHERE dedupe_key=?").get(key) as { id: number; proposed_data: string; state: string } | undefined;
+      if (!existing) suggest(key, [effect], message, audit, error instanceof ScopeMissing ? "connect calendar write" : "calendar write failed; retry after reconnect");
+      else if (existing.state === "pending") {
+        const effects = JSON.parse(existing.proposed_data) as Effect[];
+        if (!effects.some(e => e.kind === "calendar_create" && e.intent.hash === intent.hash)) patch("suggestion", existing.id, { proposed_data: JSON.stringify([...effects, effect]) }, audit);
+      }
+    }).immediate();
   }
 }
 export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
@@ -190,7 +207,8 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
       }
     }
   }
-  for (const intent of intents) await calendarIntent(intent, message, audit, options.source || automationSource(), dryRunDefault(options.dryRun));
+  const retryCalendarOnly = !!options.accept && effects.every(effect => effect.kind === "calendar_create");
+  for (const intent of intents) await calendarIntent(intent, message, audit, options.source || automationSource(), dryRunDefault(options.dryRun), retryCalendarOnly);
   getDb().transaction(() => patch("email_message", message.id, { applied, processed_at: nowIso() }, audit)).immediate();
   return { applied, batchId: audit.batchId, calendarIntents: intents };
 }

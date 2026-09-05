@@ -26,6 +26,7 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
           const events = await source.calendar(account, from, to);
           for (const event of events) {
             if (event.status === "cancelled") continue;
+            if (event.attendees?.some(a => a.email.toLowerCase() === account && a.responseStatus === "declined")) continue;
             const start = event.start?.dateTime || event.start?.date || "", end = event.end?.dateTime || event.end?.date || "";
             if (!event.id || !start || !end || !Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end))) continue;
             const attendees = (event.attendees || []).filter(a => a.responseStatus !== "declined").map(a => a.email.toLowerCase());
@@ -33,7 +34,9 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
             const audit = { batchId, source: "auto_calendar", evidenceType: "calendar", evidenceExcerpt: title };
             peopleWrite(() => {
               const chats = db.prepare(`SELECT ch.* FROM coffee_chats ch JOIN people p ON p.id=ch.person_id JOIN stern_clubs c ON c.id=ch.club_id JOIN stern_processes s ON s.id=c.process_id WHERE p.archived=0 AND c.status<>'archived' AND s.status='active' AND ch.state NOT IN ('thank_you_sent','declined') ORDER BY ch.id DESC`).all() as CoffeeChat[];
-              const chat = chats.find(ch => {
+              // Retain historical event identity after a thank-you; do not relink it to a newer chat.
+              const linked = db.prepare("SELECT ch.* FROM stern_calendar_events e JOIN coffee_chats ch ON ch.id=e.coffee_chat_id JOIN people p ON p.id=ch.person_id JOIN stern_clubs c ON c.id=ch.club_id JOIN stern_processes s ON s.id=c.process_id WHERE e.account=? AND e.event_id=? AND p.archived=0 AND c.status<>'archived' AND s.status='active'").get(account, event.id) as CoffeeChat | undefined;
+              const chat = linked || chats.find(ch => {
                 const p = db.prepare("SELECT email,email_alt FROM people WHERE id=?").get(ch.person_id) as { email: string; email_alt: string };
                 return attendees.includes(p.email.toLowerCase()) || !!p.email_alt && attendees.includes(p.email_alt.toLowerCase());
               });
@@ -43,7 +46,7 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
               const kind = chat ? "coffee_chat" : club && /interview/i.test(title) ? "interview" : club && /general meeting|info session/i.test(title) ? "club_meeting" : course ? "class" : "other";
               const program = kind === "interview" && club ? db.prepare("SELECT id FROM stern_programs WHERE club_id=? AND status='interview_invited' ORDER BY id DESC LIMIT 1").get(club.id) as { id: number } | undefined : undefined;
               upsertCalendar({ account, event_id: event.id, title, start_at: start, end_at: end, location: event.location || "", attendees: JSON.stringify(attendees), kind, person_id: chat?.person_id || 0, coffee_chat_id: chat?.id || 0, program_id: program?.id || 0, synced_at: nowIso() }, audit);
-              if (chat && start.includes("T")) {
+              if (chat && !["thank_you_sent", "declined"].includes(chat.state) && start.includes("T")) {
                 const done = Date.parse(end) < now.getTime();
                 observeCoffeeChat(chat.id, { state: done ? "done" : "scheduled", scheduled_at: start, location: event.location || "", calendar_event_id: event.id, ...(done ? { occurred_at: end } : {}) }, audit);
                 addTouchpoint(chat.person_id, done ? "coffee_chat" : "calendar", { source: "calendar", occurred_at: done ? end : start, gmail_account: account, gmail_message_id: `calendar:${event.id}:${done ? "done" : "scheduled"}`, summary: title }, audit);
@@ -61,9 +64,10 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
           }
         } catch (error) { counts.failures++; counts.errors.push(error instanceof Error ? error.message.slice(0, 200) : "Calendar account failed"); }
       }
-      await runRulesPass({ now });
+      const rules = await runRulesPass({ now, audit: { batchId, source: "auto_calendar", evidenceType: "calendar" } });
+      counts.errors.push(...rules.errors);
       emit("calendar_sync", "running");
-      emit(counts.failures ? "failed" : "completed", counts.failures ? "failed" : "completed");
+      emit(counts.failures || counts.errors.length ? "failed" : "completed", counts.failures || counts.errors.length ? "failed" : "completed");
       return counts;
     } catch (error) { emit("failed", "failed"); throw error; }
   });

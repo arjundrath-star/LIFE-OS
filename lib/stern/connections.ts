@@ -29,6 +29,8 @@ export const sternConnections: ConnectionDef[] = [true, false].map((stern): Conn
     if (!a.enabled) return { ok: false, detail: "Account is disabled" };
     if (!a.refresh_token_enc || a.last_error) return { ok: false, detail: "Google account needs re-auth" };
     const missing = SCOPE_SETS.stern.filter(scope => !["openid", "email", "profile"].includes(scope) && !accountScopes(a.email).includes(scope));
+    const scan = getDb().prepare("SELECT last_error FROM stern_scan_state WHERE account=?").get(a.email.toLowerCase()) as { last_error: string } | undefined;
+    if (!missing.length && scan?.last_error) return { ok: false, detail: `Last Stern email scan failed: ${scan.last_error}` };
     return missing.length ? { ok: false, detail: `Partial scopes: reconnect with Stern permissions (${missing.map(s => s.split("/").pop()).join(", ")})` } : { ok: true, detail: "Stern Gmail and Calendar permissions granted" };
   },
 }));

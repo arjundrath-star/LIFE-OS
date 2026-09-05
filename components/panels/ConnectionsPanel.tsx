@@ -260,11 +260,13 @@ function ReconnectAction({ conn, onKey, onWhoopSetup, onDiscordSetup }: { conn: 
       </a>
     );
   }
-  if (conn.reconnect === "oauth" && (conn.service === "google" || conn.service.startsWith("career-google-"))) {
-    const target = conn.service.startsWith("career-google-") ? `?target=${encodeURIComponent(conn.service.slice("career-google-".length))}` : "";
+  if (conn.reconnect === "oauth" && (conn.service === "google" || conn.service.startsWith("career-google-") || conn.service.startsWith("stern-google-"))) {
+    const stern = conn.service.startsWith("stern-google-");
+    const target = stern ? `?target=${encodeURIComponent(conn.service.slice("stern-google-".length))}&set=stern`
+      : conn.service.startsWith("career-google-") ? `?target=${encodeURIComponent(conn.service.slice("career-google-".length))}` : "";
     return (
-      <a href={`/api/google/connect${target}`}>
-        <Button variant="accent" size="sm">
+      <a href={`/api/google/connect${target}`} data-testid={stern ? `${conn.service}-connect-link` : undefined}>
+        <Button variant="accent" size="sm" data-testid={stern ? `${conn.service}-connect` : undefined}>
           <ExternalLink size={12} /> connect
         </Button>
       </a>
