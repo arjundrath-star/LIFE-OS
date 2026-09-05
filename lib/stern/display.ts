@@ -6,7 +6,7 @@ const LABEL_QUERIES: Record<string, string> = {
   person: 'SELECT display_name label FROM people WHERE id=?',
   coffee_chat: 'SELECT p.display_name label FROM coffee_chats c JOIN people p ON p.id=c.person_id WHERE c.id=?',
   club: 'SELECT name label FROM stern_clubs WHERE id=?',
-  program: 'SELECT c.name || " · " || p.name label FROM stern_programs p JOIN stern_clubs c ON c.id=p.club_id WHERE p.id=?',
+  program: "SELECT c.name || ' · ' || p.name label FROM stern_programs p JOIN stern_clubs c ON c.id=p.club_id WHERE p.id=?",
   course: 'SELECT code label FROM courses WHERE id=?',
   assignment: 'SELECT title label FROM assignments WHERE id=?',
   task: 'SELECT title label FROM stern_tasks WHERE id=?',

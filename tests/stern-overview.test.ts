@@ -61,7 +61,11 @@ test('audit and suggestions resolve names and actual classifier effects without 
  const {db,sternSnapshot}=await setup;
  const {auditTail}=await import('@/lib/stern/audit');
  const {automationDetails}=await import('@/lib/stern/automation-snapshot');
- const {suggestionSummary}=await import('@/lib/stern/display');
+ const {suggestionSummary,entityLabel}=await import('@/lib/stern/display');
+ const program=db.prepare("SELECT id FROM stern_programs WHERE name='Example program'").get() as {id:number};
+ const course=db.prepare("SELECT id FROM courses WHERE code='TEST-UB 1'").get() as {id:number};
+ assert.equal(entityLabel('program',program.id),'Example club · Example program');
+ assert.equal(entityLabel('course',course.id),'TEST-UB 1');
  const person=Number(db.prepare("INSERT INTO people(display_name) VALUES('Example Reviewer')").run().lastInsertRowid);
  db.prepare("INSERT INTO stern_audit_log(entity_type,entity_id,action,field,before_value,after_value,source) VALUES('person',?,'update','status','reached_out','replied','auto_email')").run(person);
  assert.equal(auditTail().find(r=>r.entity_type==='person'&&r.entity_id===person)!.entity_label,'Example Reviewer');assert.equal(auditTail().find(r=>r.entity_type==='person'&&r.entity_id===person)!.before_value,'reached_out');
