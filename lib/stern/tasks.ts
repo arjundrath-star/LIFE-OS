@@ -23,9 +23,9 @@ export function createTask(value: unknown, audit?: AuditMeta): SternTask {
   return write(() => {
     const { source = 'manual', dedupe_key = '', ...input } = object(value);
     const s = choice(source, TASK_SOURCES, 'source'), key = text(dedupe_key, 'dedupe_key');
-    if (['auto', 'agent'].includes(s) && !key) throw new SternError(400, 'Automated tasks require dedupe_key');
+    if (s !== 'manual' && !key) throw new SternError(400, 'Automated tasks require dedupe_key');
     const values = clean(input); text(values.title, 'title', true);
-    if (key) { const existing = getDb().prepare('SELECT id FROM stern_tasks WHERE dedupe_key=?').get(key) as { id: number } | undefined; if (existing) return getTask(existing.id); }
+    if (key) { const existing = getDb().prepare('SELECT id FROM stern_tasks WHERE dedupe_key=?').get(key) as { id: number } | undefined; if (existing) { if (s === 'manual') throw new SternError(409, 'A task with this dedupe_key already exists'); return getTask(existing.id); } }
     const m = audit ?? { ...meta(), source: s === 'auto' ? 'auto_email' : s };
     const created = insert<SternTask>('task', { ...values, source: s, dedupe_key: key }, m); return getTask(created.id);
   });
@@ -53,16 +53,18 @@ export function listTasks(filters: TaskFilters = {}, now = new Date()): SternTas
     else { const start = filters.due === 'today' ? today : nyDayBounds(now, 1); const end = filters.due === 'today' ? today : weekEnd; where.push(dayWindowSql('t.due_at')); params.push(...dayWindowParams(start, end)); }
   }
   const rows = getDb().prepare(`${SELECT}${where.length ? ' WHERE '+where.join(' AND ') : ''}`).all(...params) as SternTask[];
-  return rows.sort((a,b) => (a.due_at ? deadlineInstant(a.due_at) : Infinity) - (b.due_at ? deadlineInstant(b.due_at) : Infinity) || a.priority-b.priority || a.id-b.id);
+  return rows.sort((a,b) => (a.due_at && validDate(a.due_at) ? deadlineInstant(a.due_at) : Infinity) - (b.due_at && validDate(b.due_at) ? deadlineInstant(b.due_at) : Infinity) || a.priority-b.priority || a.id-b.id);
 }
 export function groupForUi(tasks: SternTask[], now = new Date()): TaskGroup[] {
   const daysLeft = 7 - (new Date(`${nyDayBounds(now).dateKey}T12:00Z`).getUTCDay() || 7);
-  const groups: TaskGroup[] = [{ key:'overdue',title:'Overdue',rows:[] },{ key:'today',title:'Today',rows:[] },{ key:'week',title:'This week',rows:[] },{ key:'later',title:'Later',rows:[] },{ key:'none',title:'No due date',rows:[] }];
-  for (const task of tasks) { const days = task.due_at ? deadlineDays(task.due_at, now) : Infinity; const key: TaskBucket = !task.due_at ? 'none' : days < 0 ? 'overdue' : days === 0 ? 'today' : days <= daysLeft ? 'week' : 'later'; groups.find(g => g.key === key)!.rows.push(task); }
+  const groups: TaskGroup[] = [{ key:'overdue',title:'Overdue',rows:[] },{ key:'today',title:'Today',rows:[] },{ key:'week',title:'This week',rows:[] },{ key:'later',title:'Later',rows:[] },{ key:'none',title:'No date',rows:[] }];
+  for (const task of tasks) { const hasDue = !!task.due_at && validDate(task.due_at); const days = hasDue ? deadlineDays(task.due_at, now) : Infinity; const key: TaskBucket = !hasDue ? 'none' : days < 0 ? 'overdue' : days === 0 ? 'today' : days <= daysLeft ? 'week' : 'later'; groups.find(g => g.key === key)!.rows.push(task); }
   return groups;
 }
 export function tasksSnapshot(now = new Date()): TasksSnapshot {
-  const tasks = listTasks({status:'all'}, now), today = nyDayBounds(now), db = getDb();
+  const today = nyDayBounds(now), db = getDb();
+  const history = (db.prepare(`${SELECT} WHERE t.status<>'open' ORDER BY t.id DESC LIMIT 100`).all() as SternTask[]).reverse();
+  const tasks = [...listTasks({}, now), ...history];
   const counts = db.prepare(`SELECT COUNT(*) open, SUM(CASE WHEN domain='academic' THEN 1 ELSE 0 END) academic, SUM(CASE WHEN domain='professional' THEN 1 ELSE 0 END) professional, SUM(CASE WHEN domain='campus' THEN 1 ELSE 0 END) campus FROM stern_tasks WHERE status='open'`).get() as Record<string,number>;
   const dueToday = listTasks({due:'today'}, now), overdue = listTasks({due:'overdue'}, now);
   const doneToday = db.prepare(`${SELECT} WHERE t.status='done' AND ${dayWindowSql('t.completed_at')}`).all(...dayWindowParams(today,today)) as SternTask[];

@@ -79,7 +79,7 @@ export function createAssignment(value:unknown,audit?:AuditMeta):Assignment {
     const {source='manual',gmail_message_id='',...input}=object(value), values=assignmentValues(input);
     const s=choice(source,ASSIGNMENT_SOURCES,'source'), message=text(gmail_message_id,'gmail_message_id');
     const existing=getDb().prepare('SELECT * FROM assignments WHERE dedupe_key=?').get(values.dedupe_key) as Assignment | undefined;
-    if(existing) { if(existing.course_id!==values.course_id) throw new SternError(409,'Assignment title already exists for this course code in another term'); return existing; }
+    if(existing) { if(existing.course_id!==values.course_id) throw new SternError(409,'Assignment title already exists for this course code in another term'); if(s==='manual') throw new SternError(409,'An assignment with this title already exists in this course'); return existing; }
     return insert<Assignment>('assignment',{...values,source:s,gmail_message_id:message},audit ?? {...meta(),source:s});
   });
 }
@@ -88,7 +88,7 @@ export const setAssignmentStatus=(id:number,status:unknown,m?:AuditMeta)=>update
 export const gradeAssignment=(id:number,earned:unknown,possible:unknown,m?:AuditMeta)=>updateAssignment(id,{points_earned:earned,points_possible:possible,status:'graded'},m);
 export const deleteAssignment=(id:number,m?:AuditMeta)=>write(()=>remove('assignment',id,meta(m)));
 /** WP3 calls once per message, passing the same audit metadata/batchId as its other changes. */
-export function upsertAssignmentFromEmail(courseCode:string, value:{title:string;kind?:string;dueAt?:string;points?:number|null;gmailMessageId?:string}, audit?:AuditMeta):Assignment {
+export function upsertAssignmentFromEmail(courseCode:string, value:{title:string;kind?:string;dueAt?:string|null;points?:number|null;gmailMessageId?:string}, audit?:AuditMeta):Assignment {
   return write(()=>{
     const m=audit ?? {...meta(),source:'auto_email'};
     const matches=getDb().prepare('SELECT * FROM courses WHERE lower(code)=lower(?) AND archived=0 ORDER BY term DESC,id DESC').all(text(courseCode,'courseCode',true).replace(/\s+/g,' ')) as Course[];
@@ -96,7 +96,7 @@ export function upsertAssignmentFromEmail(courseCode:string, value:{title:string
     const course=matches[0], key=assignmentKey(course.code,text(value.title,'title',true));
     const existing=getDb().prepare('SELECT * FROM assignments WHERE dedupe_key=?').get(key) as Assignment | undefined;
     if(existing && existing.course_id!==course.id) throw new SternError(409,'Assignment belongs to another term');
-    const input={title:value.title,...(value.kind!==undefined?{kind:value.kind}:{}),...(value.dueAt!==undefined?{due_at:value.dueAt}:{}),...(value.points!==undefined?{points_possible:value.points}:{})};
+    const input={title:value.title,...(value.kind!==undefined?{kind:value.kind}:{}),...(typeof value.dueAt==='string' && value.dueAt.trim()!==''?{due_at:value.dueAt}:{}),...(Number.isFinite(value.points)?{points_possible:value.points}:{})};
     if(existing) { const result=updateAssignment(existing.id,input,m); if(value.gmailMessageId) return patch<Assignment>('assignment',existing.id,{gmail_message_id:text(value.gmailMessageId,'gmailMessageId')},m); return result; }
     return createAssignment({...input,course_id:course.id,source:'auto_email',gmail_message_id:value.gmailMessageId ?? ''},m);
   });
