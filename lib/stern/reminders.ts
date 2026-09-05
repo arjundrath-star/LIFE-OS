@@ -119,8 +119,14 @@ export async function dispatchDue(now = new Date(), options: SendOptions = {}) {
       return true;
     }).immediate();
     if (!ready) continue;
-    const delivery = await send({ channel: item.channel, subject: message.subject, body: message.body, urgent: message.urgent, reminderId: item.id }, { ...options, now, audit });
-    if (delivery.delivery_status in result) result[delivery.delivery_status as keyof typeof result]++;
+    try {
+      const delivery = await send({ channel: item.channel, subject: message.subject, body: message.body, urgent: message.urgent, reminderId: item.id, expectedFireAt: item.fire_at }, { ...options, now, audit });
+      if (delivery.delivery_status in result) result[delivery.delivery_status as keyof typeof result]++;
+    } catch (error) {
+      // Invalid legacy content must not stop the rest of the queue.
+      changeReminder(item.id, { delivery_status: "failed", error: error instanceof SternError ? error.message : "Notification dispatch failed" }, audit);
+      result.failed++;
+    }
   }
   return result;
 }

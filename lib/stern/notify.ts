@@ -6,7 +6,7 @@ import { changeReminder, queueReminder, reminderMeta, reminderRow } from "./remi
 import type { AuditMeta } from "./audit";
 import { SternError } from "./errors";
 export type SendOptions = { dryRun?: boolean; runner?: NotificationRunner; now?: Date; audit?: AuditMeta };
-export type NotificationInput = { channel: ReminderChannel; subject: string; body: string; urgent: boolean; reminderId?: number };
+export type NotificationInput = { channel: ReminderChannel; subject: string; body: string; urgent: boolean; reminderId?: number; expectedFireAt?: string };
 export function notificationDryRun(requested?: boolean) {
   if (requested === true) return true;
   // An API payload cannot override the operator's environment safety switch.
@@ -26,7 +26,7 @@ export async function send(input: NotificationInput, options: SendOptions = {}) 
     message: { key: audit.batchId, subject: input.subject, body: input.body, urgent: input.urgent, scheduledAt: now.toISOString() } }, audit).reminder.id;
   const claimed = getDb().transaction(() => {
     const current = reminderRow(reminderId);
-    if (!["pending", "snoozed"].includes(current.delivery_status)) return false;
+    if (!["pending", "snoozed"].includes(current.delivery_status) || (input.expectedFireAt !== undefined && current.fire_at !== input.expectedFireAt)) return false;
     // A crash/timeout is ambiguous: leave failed for review, never automatically resend it.
     changeReminder(reminderId, { delivery_status: "failed", error: "delivery-in-progress" }, audit);
     return true;

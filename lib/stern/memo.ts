@@ -6,7 +6,7 @@ import type { SternMemo } from "@/lib/stern-types";
 import { sternSnapshot } from "./snapshot";
 import { nyDayBounds, nyDateKey, nyClock, nyWallTime, dayWindowSql, dayWindowParams } from "./time";
 import { reminderChats, replyOwed, thankYouOwed, reminderPrograms } from "./reminders";
-import { queueReminder, reminderMeta, reminderRow, changeReminder } from "./reminder-store";
+import { queueReminder, reminderMeta, reminderRow, changeReminder, reminderMessage } from "./reminder-store";
 import { notificationDryRun, send, type SendOptions } from "./notify";
 import { writeNotificationSetting } from "./notification-settings";
 const line = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
@@ -80,10 +80,11 @@ export async function sendMemo(date = new Date(), options: SendOptions = {}) {
     if (!dryRun && queued.reminder.delivery_status === "skipped" && queued.reminder.error === "dry-run") {
       getDb().transaction(() => {
         const current = reminderRow(queued.reminder.id);
-        if (current.delivery_status === "skipped" && current.error === "dry-run") changeReminder(current.id, { delivery_status: "pending", error: "" }, audit);
+        if (current.delivery_status === "skipped" && current.error === "dry-run") changeReminder(current.id, { delivery_status: "pending", error: "", message: JSON.stringify({ ...reminderMessage(current), subject: memo.subject, body }) }, audit);
       }).immediate();
     }
-    deliveries.push(await send({ channel, subject: memo.subject, body, urgent: false, reminderId: queued.reminder.id }, { ...options, now: date, audit }));
+    const stored = reminderMessage(reminderRow(queued.reminder.id));
+    deliveries.push(await send({ channel, subject: stored.subject, body: stored.body, urgent: false, reminderId: queued.reminder.id }, { ...options, now: date, audit }));
   }
   if (!dryRun && deliveries.every(d => d.delivery_status === "sent")) {
     getDb().transaction(() => writeNotificationSetting("stern.memo_last_date", memo.date, audit)).immediate();

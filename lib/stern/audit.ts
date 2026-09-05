@@ -134,6 +134,7 @@ export function logChange(input: LogChangeInput): number {
   if (!Number.isInteger(input.entityId) || input.entityId < 0) throw new SternError(400, "audit entity id must be a non-negative integer");
   if (!input.batchId || typeof input.batchId !== "string") throw new SternError(400, "audit batchId is required");
   const field = input.field ? String(input.field) : "";
+  if (entityType === "notification_setting" && action !== "update") throw new SternError(400, "Notification settings require field updates");
   if (action === "update") assertField(entityType, field);
   const confidence = Number.isFinite(input.confidence) ? Number(input.confidence) : 0;
   const result = getDb()
@@ -198,8 +199,18 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
     let skipped = 0;
     const ts = nowIso();
     const totalChanges = () => Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+    const checkedReminderIds = new Set<number>();
     for (const row of rows) {
       const table = entityTable(row.entity_type);
+      if (row.entity_type === "reminder") {
+        const current = db.prepare("SELECT * FROM stern_reminders WHERE id=?").get(row.entity_id) as Record<string, unknown> | undefined;
+        if (!checkedReminderIds.has(row.entity_id) && current?.error === "delivery-in-progress") throw new SternError(409, "Delivery is in progress or interrupted; reconcile its outcome before undo");
+        checkedReminderIds.add(row.entity_id);
+        if (row.action === "create" && current) {
+          const created = JSON.parse(row.after_value || "{}") as Record<string, unknown>;
+          if (Object.entries(created).some(([key, value]) => current[key] !== value)) throw new SternError(409, "Reminder has later changes; undo the newer batches first");
+        }
+      }
       let changes = 0;
       if (row.entity_type === "notification_setting") {
         assertField(row.entity_type, row.field);
