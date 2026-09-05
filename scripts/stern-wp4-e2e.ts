@@ -81,13 +81,22 @@ async function main() {
     await new Promise<void>((resolve, reject) => { observer!.once('open', resolve); observer!.once('error', reject); });
     browser = await puppeteer.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking'] });
     const page = await browser.newPage();
+    // A fixed NY Friday exercises the weekday marker even when this runs on a weekend.
+    await page.evaluateOnNewDocument(() => {
+      const OriginalDate=Date;
+      window.Date=new Proxy(OriginalDate,{
+        construct(target,args){return Reflect.construct(target,args.length?args:['2026-09-04T18:00:00Z']);},
+      });
+    });
     await page.setViewport({ width: 1440, height: 1000 });
     await page.setCookie({ name: 'next-auth.session-token', value: token, url: origin, httpOnly: true });
     // Career stays read-only. The existing component gets placeholder data so screenshots
     // cannot contain the copied database's personal career records.
     const careerFixture = JSON.parse(fs.readFileSync('tests/fixtures/stern/wp4-career.json', 'utf8'));
     await page.setRequestInterception(true);
+    let failedArea='';
     page.on('request', req => {
+      if(failedArea && req.url()===`${origin}/api/stern/${failedArea}`){void req.respond({status:500,contentType:'application/json',body:JSON.stringify({error:'Fixture load failure'})});return;}
       if (req.url() === `${origin}/api/career`) void req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(careerFixture) });
       else if (req.url().startsWith(origin) || req.url().startsWith('data:')) void req.continue();
       else void req.abort();
@@ -98,7 +107,30 @@ async function main() {
     const type = async (id: string, value: string) => { await page.$eval(s(id), el => { (el as HTMLInputElement).focus(); (el as HTMLInputElement).select(); }); await page.keyboard.type(value); };
     const waitText = (id: string, text: string) => page.waitForFunction((selector, text) => document.querySelector(selector)?.textContent?.includes(text), {}, s(id), text);
     const closed = () => page.waitForSelector(s('stern-course-dialog'), { hidden: true });
+    for(const area of ['tasks','classes']){
+      failedArea=area;
+      await page.goto(`${origin}/stern/${area}`,{waitUntil:'networkidle0'});
+      await page.waitForSelector(s(`stern-${area}-retry`));
+      assert.equal(await page.$(`${s(`stern-${area==='tasks'?'tasks-view':'classes-index'}`)} [aria-busy="true"]`),null,'A failed initial fetch must stop the loading skeleton');
+      failedArea='';await click(`stern-${area}-retry`);
+      await page.waitForSelector(s(area==='tasks'?'stern-task-composer':'stern-course-card'));
+      await page.waitForSelector(s(`stern-${area}-retry`),{hidden:true});
+    }
+    assert.equal(await page.$eval('.stern-week [aria-current="date"]',el=>el.textContent),'Fri · Sep 4');
+    const identityTask=(await post<SternTask>('tasks',{action:'task.create',task:{title:'Placeholder manual identity',source:'imessage',dedupe_key:'fixture:client-key'}})).result;
+    assert.equal(identityTask.source,'manual');assert.equal(identityTask.dedupe_key,'');
+    const identityAssignment=(await post<Assignment>('classes',{action:'assignment.create',assignment:{course_id:course.id,title:'Placeholder manual identity',source:'auto_email',gmail_message_id:'fixture:client-message'}})).result;
+    assert.equal(identityAssignment.source,'manual');assert.equal(identityAssignment.gmail_message_id,'');
+    assert.equal((await request('classes',{action:'assignment.create',assignment:{course_id:course.id,title:'Placeholder manual identity',points_possible:30}})).status,409);
+    await post('tasks',{action:'task.drop',id:identityTask.id});
+    await post('classes',{action:'assignment.remove',id:identityAssignment.id});
     await page.goto(`${origin}/stern/tasks`, { waitUntil: 'networkidle0' });
+    await click('stern-tasks-domain-campus');
+    await waitText('stern-tasks-group-today','Nothing due today');
+    await waitText('stern-tasks-group-none','No undated tasks');
+    await click('stern-tasks-group');
+    await waitText('stern-tasks-group-all','No open tasks');
+    await click('stern-tasks-group');await click('stern-tasks-domain-all');
     await click('stern-tasks-domain-academic');
     await type('stern-task-title', 'Placeholder WP4 task');
     await page.select(s('stern-task-linked'), `course:${course.id}`);
@@ -152,6 +184,13 @@ async function main() {
     const meeting = (await (await request(`classes?course=${course.id}`)).json()).meetings[0];
     await click(`stern-meeting-edit-${meeting.id}`); await click('stern-meeting-remove'); await closed(); await waitText('stern-course-meetings', 'No meetings added');
     await click('stern-course-tab-exams'); await waitText('stern-exams-list', 'No exams added');
+    await waitText('stern-exam-add','Add exam');await click('stern-exam-add');
+    assert.equal(await page.$eval(s('stern-assignment-kind'),el=>(el as HTMLSelectElement).value),'exam');
+    await type('stern-assignment-title','Placeholder exam');await click('stern-assignment-save');await closed();
+    await waitText('stern-exams-list','Placeholder exam');
+    await click('stern-exam-add');await type('stern-assignment-title','Placeholder exam');await click('stern-assignment-save');
+    await waitText('stern-course-dialog','An assignment with this title already exists');
+    await click('stern-course-dialog-close');await closed();
     await click('stern-course-tab-grades'); await waitText('stern-gradebook', 'Placeholder syllabus curve note');
     await click('stern-course-tab-assignments');
     await page.screenshot({ path: path.resolve('shots/stern-wp4-course.png'), fullPage: true });
@@ -162,6 +201,8 @@ async function main() {
     await page.goto(`${origin}/stern/career`, { waitUntil: 'networkidle0' });
     await waitText('stern-career-view', 'Dormant until club season ends');
     await page.waitForSelector(s('career-row'));
+    await page.hover(s('career-suggestions-toggle'));
+    assert.equal(await page.$eval(s('career-suggestions-toggle'),el=>getComputedStyle(el).color),'rgb(87, 6, 140)');
     // Click a non-editable cell: inline inputs intentionally stop row propagation.
     await page.click(`${s('career-row')} td:nth-child(4)`);
     await page.waitForSelector('[role="dialog"]', { visible: true });
@@ -171,13 +212,14 @@ async function main() {
       bodyClass: document.body.classList.contains('stern-theme'), portaled: !el.closest('[data-testid="stern-shell"]'),
     }));
     assert.deepEqual(theme, { background: 'rgb(255, 255, 255)', color: 'rgb(20, 20, 31)', bodyClass: true, portaled: true });
+    assert.equal(await page.$eval('[role="dialog"] article',el=>getComputedStyle(el,'::before').backgroundColor),'rgb(87, 6, 140)');
     await page.screenshot({ path: path.resolve('shots/stern-wp4-career-drawer.png'), fullPage: true });
     await page.keyboard.press('Escape'); await page.waitForSelector('[role="dialog"]', { hidden: true });
     await page.goto(`${origin}/signin`, { waitUntil: 'networkidle0' });
     assert.equal(await page.evaluate(() => document.body.classList.contains('stern-theme')), false);
     assert.ok(wsMessages >= 15, `Expected mutation broadcasts, got ${wsMessages}`);
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ auth: '401 APIs / 307 pages / 200 placeholder session', courses: 4, meetings: 5, tasks: 'create/edit/complete/reopen/drop', gradeStanding: '80% -> 90%', dialogs: 'assignments/categories/meetings', liveMessages: wsMessages, phoneFits: true, careerPortal: theme, browserErrors: errors.length }));
+    console.log(JSON.stringify({ auth: '401 APIs / 307 pages / 200 placeholder session', courses: 4, meetings: 5, tasks: 'create/edit/complete/reopen/drop', gradeStanding: '80% -> 90%', dialogs: 'assignments/categories/meetings', liveMessages: wsMessages, phoneFits: true, careerPortal: theme, browserErrors: errors.length, reviewFixes:'load retry / empty copy / Friday marker / exam default / duplicate conflict / manual identity / Career hover and timeline' }));
   } finally {
     observer?.close(); await browser?.close();
     for (const client of wss.clients) client.terminate();
