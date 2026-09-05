@@ -22,7 +22,7 @@ export async function POST(req:Request){
       case 'meeting.remove':result=classes.removeMeeting(id,m);break;
       case 'category.upsert':result=classes.upsertCategory(body.category??flat,m);break;
       case 'category.remove':result=classes.removeCategory(id,m);break;
-      case 'assignment.create':result=classes.createAssignment({...object(body.assignment??flat),source:'manual'},m);break;
+      case 'assignment.create':{const {gmail_message_id:_message,...assignment}=object(body.assignment??flat);result=classes.createAssignment({...assignment,source:'manual'},m);break;}
       case 'assignment.update':result=classes.updateAssignment(id,body.patch,m);break;
       case 'assignment.set_status':result=classes.setAssignmentStatus(id,body.status,m);break;
       case 'assignment.grade':result=classes.gradeAssignment(id,body.points_earned,body.points_possible,m);break;

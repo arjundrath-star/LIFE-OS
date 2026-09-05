@@ -19,7 +19,7 @@ export async function POST(req:Request){
   if(!(await requireUser()))return NextResponse.json({error:'unauthorized'},{status:401});
   try{const body=object(await req.json().catch(()=>{throw new SternError(400,'Invalid JSON');}));const m={source:'manual',batchId:newBatchId('tasks')},id=Number(body.id);let result;
     switch(body.action){
-      case 'task.create': {const {action:_,...flat}=body;result=tasks.createTask({...object(body.task??flat),source:'manual'},m);break;}
+      case 'task.create': {const {action:_,...flat}=body;const {dedupe_key:_key,...task}=object(body.task??flat);result=tasks.createTask({...task,source:'manual'},m);break;}
       case 'task.update':result=tasks.updateTask(id,body.patch,m);break;
       case 'task.complete':result=tasks.complete(id,m);break;
       case 'task.reopen':result=tasks.reopen(id,m);break;

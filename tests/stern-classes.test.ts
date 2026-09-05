@@ -40,6 +40,15 @@ test('assignment email upsert dedupes normalized title, updates due and points, 
  assert.equal(a.id,b.id);assert.equal(b.due_at,'2026-09-10');assert.equal(b.points_possible,20);assert.equal(b.status,'in_progress');assert.equal(b.source,'auto_email');assert.equal(b.dedupe_key,'email-ub 1:homework one');
  assert.equal((db.prepare('SELECT COUNT(*) n FROM assignments WHERE course_id=?').get(course.id) as {n:number}).n,1);
  assert.ok(audit.batchRows(m.batchId).length>1);
+ for(const dueAt of ['',null,undefined,'   ']){
+   const reminder=c.upsertAssignmentFromEmail('EMAIL-UB 1',{title:'homework one',dueAt,points:null},m);
+   assert.equal(reminder.due_at,'2026-09-10');assert.equal(reminder.points_possible,20);assert.equal(reminder.status,'in_progress');
+ }
+ c.gradeAssignment(a.id,16,20);
+ const graded=c.upsertAssignmentFromEmail('EMAIL-UB 1',{title:'homework one',dueAt:null,points:null},m);
+ assert.equal(graded.points_earned,16);assert.equal(graded.points_possible,20);assert.equal(graded.due_at,'2026-09-10');assert.equal(graded.status,'graded');
+ for(const points of [NaN,Infinity])assert.equal(c.upsertAssignmentFromEmail('EMAIL-UB 1',{title:'homework one',points},m).points_possible,20);
+
  const other=c.upsertCourse({code:'EMAIL-UB 1',term:'Fall 2027',title:'Later term'});assert.throws(()=>c.upsertAssignmentFromEmail('EMAIL-UB 1',{title:'Ambiguous'}),/Ambiguous/);c.deleteCourse(other.id);
  assert.throws(()=>c.upsertAssignmentFromEmail('UNKNOWN',{title:'No course'}),/not found/);
 });
@@ -76,4 +85,14 @@ test('clearing a grade is undoable without confusing NULL with empty text',async
  const {c,audit}=await setup;const course=c.upsertCourse({code:'NULL-UB 1',title:'Nullable grade example'});const a=c.createAssignment({course_id:course.id,title:'Clearable grade'});c.gradeAssignment(a.id,7,10);
  const m={source:'manual',batchId:audit.newBatchId('clear-grade')};c.updateAssignment(a.id,{points_earned:null,points_possible:null,status:'upcoming'},m);audit.undoBatch(m.batchId);
  const restored=c.getCourse(course.id).assignments[0];assert.equal(restored.points_earned,7);assert.equal(restored.points_possible,10);assert.equal(restored.status,'graded');
+});
+
+test('manual duplicate assignment is a conflict without discarding changes silently',async()=>{
+ const {c,db}=await setup;const course=c.upsertCourse({code:'DUP-UB 1',title:'Duplicate fixture course'});
+ const first=c.createAssignment({course_id:course.id,title:'Homework: One',points_possible:10});
+ const count=db.prepare('SELECT COUNT(*) FROM stern_audit_log').pluck().get();
+ assert.throws(()=>c.createAssignment({course_id:course.id,title:' homework one! ',points_possible:20}),{status:409});
+ assert.equal(c.getCourse(course.id).assignments[0].points_possible,10);
+ assert.equal(db.prepare('SELECT COUNT(*) FROM stern_audit_log').pluck().get(),count);
+ assert.equal(c.createAssignment({course_id:course.id,title:'Homework one',source:'auto_email'}).id,first.id);
 });

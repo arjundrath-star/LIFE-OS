@@ -8,11 +8,16 @@ const setup=Promise.all([import('@/lib/stern/tasks'),import('@/lib/stern/audit')
 test.after(async()=>{(await setup).db.close();fs.rmSync(tmp,{recursive:true,force:true});});
 test('tasks dedupe preserves edits, validates automatic keys and editable allowlist',async()=>{
  const {tasks:t,db}=await setup;
- const a=t.createTask({title:'Example task',dedupe_key:'test:dedupe',domain:'campus'});
+ const a=t.createTask({title:'Example task',source:'auto',dedupe_key:'test:dedupe',domain:'campus'});
  t.updateTask(a.id,{title:'Edited title'});
- assert.equal(t.createTask({title:'Duplicate',dedupe_key:'test:dedupe'}).id,a.id);
+ assert.equal(t.createTask({title:'Duplicate',source:'auto',dedupe_key:'test:dedupe'}).id,a.id);
  assert.equal(t.getTask(a.id).title,'Edited title');
- assert.throws(()=>t.createTask({title:'Missing auto key',source:'auto'}),/dedupe_key/);
+ for(const source of ['auto','agent','imessage','seed']) {
+   assert.throws(()=>t.createTask({title:'Missing automation key',source}),/dedupe_key/);
+   const created=t.createTask({title:'Automated fixture',source,dedupe_key:`fixture:${source}`});
+   assert.equal(t.createTask({title:'Duplicate fixture',source,dedupe_key:`fixture:${source}`}).id,created.id);
+ }
+ assert.throws(()=>t.createTask({title:'Manual collision',dedupe_key:'test:dedupe'}),{status:409});
  assert.throws(()=>t.createTask({title:'Invalid due',due_at:'2026-02-30'}),/Invalid due/);
  assert.throws(()=>t.createTask({title:'No title',priority:4}),/priority/);
  assert.throws(()=>t.updateTask(a.id,{source:'auto'}),/not editable/);
@@ -63,4 +68,40 @@ test('legacy migration is idempotent, audited and cannot resurrect an undone imp
  assert.equal(db.prepare('SELECT COUNT(*) FROM stern_audit_log WHERE batch_id=?').pluck().get(`legacy-todo:${id}`),1);
  audit.undoBatch(`legacy-todo:${id}`);db.transaction(()=>db.exec(sql)).immediate();assert.equal(db.prepare('SELECT COUNT(*) FROM stern_tasks WHERE dedupe_key=?').pluck().get(`legacy-todo:${id}`),0);
  assert.ok(db.prepare('SELECT id FROM todos WHERE id=?').get(id));
+});
+
+test('legacy non-date deadlines preserve raw notes and never break Stern snapshots',async()=>{
+ const {db,tasks:t,audit}=await setup;
+ const values=['Friday','next friday','tomorrow','2026-99-99','2026-02-30','2026-09-20garbage','2026-09-20','2026-09-20T14:00:00Z'];
+ const ids=values.map(due=>Number(db.prepare("INSERT INTO todos(text,done,due) VALUES('Legacy deadline fixture',0,?)").run(due).lastInsertRowid));
+ const sql=fs.readFileSync('db/migrations/0031_stern_todos_migrate.sql','utf8');
+ db.transaction(()=>db.exec(sql)).immediate();db.transaction(()=>db.exec(sql)).immediate();
+ ids.forEach((id,index)=>{
+   const task=db.prepare('SELECT * FROM stern_tasks WHERE dedupe_key=?').get(`legacy-todo:${id}`) as {due_at:string;notes:string};
+   assert.equal(task.due_at,index<6?'':values[index]);
+   assert.equal(task.notes,index<6?`Legacy due: ${values[index]}`:'');
+   const rows=audit.batchRows(`legacy-todo:${id}`);assert.equal(rows.length,1);
+   assert.equal(JSON.parse(rows[0].after_value).notes,task.notes);
+ });
+ // Existing installations may already contain bad rows; migration replay cannot repair them.
+ const broken=values.slice(0,6).map(due=>Number(db.prepare("INSERT INTO stern_tasks(title,due_at) VALUES('Invalid stored deadline',?)").run(due).lastInsertRowid));
+ const now=new Date('2026-09-05T12:00:00Z');
+ const snapshot=t.tasksSnapshot(now),undated=snapshot.groups.find(g=>g.key==='none')!;
+ assert.equal(undated.title,'No date');
+ for(const id of broken)assert.ok(undated.rows.some(t=>t.id===id));
+ const {sternSnapshot}=await import('@/lib/stern/snapshot');
+ assert.doesNotThrow(()=>sternSnapshot(now));
+});
+test('snapshot bounds closed history by id while keeping every open task and all done today',async()=>{
+ const {db,tasks:t}=await setup;
+ const open=t.createTask({title:'Open fixture survives history cap'});
+ const first=t.createTask({title:'Old completed fixture'});t.complete(first.id);
+ for(let i=0;i<105;i++)t.drop(t.createTask({title:`Closed fixture ${i}`}).id);
+ const snapshot=t.tasksSnapshot();
+ const expected=(db.prepare("SELECT id FROM stern_tasks WHERE status<>'open' ORDER BY id DESC LIMIT 100").all() as {id:number}[]).reverse().map(t=>t.id);
+ assert.deepEqual(snapshot.tasks.filter(t=>t.status!=='open').map(t=>t.id),expected);
+ assert.ok(snapshot.tasks.some(t=>t.id===open.id));
+ assert.ok(!snapshot.tasks.some(t=>t.id===first.id));
+ assert.ok(snapshot.doneToday.some(t=>t.id===first.id));
+ assert.equal(snapshot.counts.open,db.prepare("SELECT COUNT(*) FROM stern_tasks WHERE status='open'").pluck().get());
 });
