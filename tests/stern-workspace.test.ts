@@ -59,5 +59,6 @@ test("shell dispatches the quick-add event and reads the stern live channel", ()
   assert.match(shell, /useLiveData<SternSnapshot>\("stern"\)/);
   assert.match(shell, /stern_rail_collapsed/);
   assert.match(shell, /Back to dashboard/);
-  assert.match(shell, /Search people, clubs, tasks/);
+  assert.match(shell, /<SternSearch/);
+  assert.match(read("components/stern/Search.tsx"), /Search people, clubs, tasks/);
 });

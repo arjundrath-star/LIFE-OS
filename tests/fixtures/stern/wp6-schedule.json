@@ -1,0 +1,5 @@
+[
+  {"event_id":"shared-chat","title":"Example coffee chat","start_at":"2026-09-05T01:00:00Z","kind":"coffee_chat"},
+  {"event_id":"next-day","title":"Tomorrow event","start_at":"2026-09-05T04:00:00Z","kind":"club_meeting"},
+  {"event_id":"early","title":"Morning interview","start_at":"2026-09-04T08:00:00-04:00","kind":"interview"}
+]

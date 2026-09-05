@@ -11,7 +11,7 @@ export function RecruitingButton({ className = "", primary, ...props }: ButtonHT
 export function RecruitingDialog({ open, onOpenChange, title, children, error }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; children: ReactNode; error?: string }) {
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="stern-recruiting-scrim" />
-    <DialogPrimitive.Content className="stern-mode stern-recruiting-dialog" aria-describedby={undefined}>
+    <DialogPrimitive.Content className="stern-mode stern-recruiting-dialog" aria-describedby={undefined} onEscapeKeyDown={e => { e.preventDefault(); onOpenChange(false); }}>
       <header><DialogPrimitive.Title>{title}</DialogPrimitive.Title><DialogPrimitive.Close asChild><RecruitingButton data-testid="stern-recruiting-dialog-close" aria-label="Close dialog"><X size={16}/></RecruitingButton></DialogPrimitive.Close></header>
       <div className="stern-recruiting-dialog-body">{error && <p role="alert" className="stern-recruiting-error">{error}</p>}{children}</div>
     </DialogPrimitive.Content>

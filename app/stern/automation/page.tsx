@@ -1,10 +1,13 @@
-"use client";
-import { SternPage, EmptyState } from "@/components/stern/Page";
-
-export default function SternAutomationPage() {
-  return (
-    <SternPage title="Automation" testId="stern-automation">
-      <EmptyState title="No accounts connected" hint="Connect the Stern Google account to start scanning email and calendar. Suggestions and the audit log appear here." testId="stern-automation-empty" />
-    </SternPage>
-  );
+import { notFound } from 'next/navigation';
+import { requireUser } from '@/lib/guard';
+import { AutomationView } from '@/components/stern/automation/AutomationView';
+import { ComponentSheet } from '@/components/stern/automation/ComponentSheet';
+export default async function SternAutomationPage({searchParams}:{searchParams:Promise<{components?:string}>}) {
+  if (!(await requireUser())) notFound();
+  const params=await searchParams;
+  if(params.components==='1') {
+    if(process.env.NODE_ENV==='production') notFound();
+    return <ComponentSheet/>;
+  }
+  return <AutomationView/>;
 }

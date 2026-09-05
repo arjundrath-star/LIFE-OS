@@ -1,3 +1,4 @@
+import { searchStern } from "@/lib/stern/search";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/guard";
 import { sternSnapshot, broadcastStern } from "@/lib/stern/snapshot";
@@ -10,8 +11,10 @@ function unauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!(await requireUser())) return unauthorized();
+  const query = new URL(req.url).searchParams.get("q");
+  if (query !== null) return NextResponse.json({ results: searchStern(query) });
   return NextResponse.json(sternSnapshot());
 }
 

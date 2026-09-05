@@ -199,52 +199,6 @@ function RecentEmails() {
   );
 }
 
-// ---------------------------------------------------------------- today's to-dos
-function TodayTodos() {
-  const { data, refetch } = useApi<any>("/api/todos");
-  const [text, setText] = useState("");
-  const todos = (data?.todos ?? []).filter((t: any) => !t.done);
-  const add = async () => {
-    if (!text.trim()) return;
-    await apiPost("/api/todos", { action: "add", text: text.trim() });
-    setText("");
-    refetch();
-  };
-  const toggle = async (id: number) => {
-    await apiPost("/api/todos", { action: "toggle", id });
-    refetch();
-  };
-  return (
-    <Section title="To-dos" icon={<CheckSquare size={13} />} right={<span className="font-mono text-[11px] text-txt-faint">{todos.length} open</span>}>
-      <div className="mb-2 flex items-center gap-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-          placeholder="add a task"
-          className="flex-1 rounded-inner border border-border bg-base px-2 py-1.5 text-xs text-txt-primary outline-none focus:border-accent/50"
-        />
-        <Button size="sm" variant="accent" onClick={add} aria-label="Add task"><Plus size={12} /></Button>
-      </div>
-      {todos.length === 0 ? (
-        <div className="py-3 text-center text-xs text-txt-faint/70">all clear</div>
-      ) : (
-        <div className="space-y-0.5">
-          {todos.map((t: any) => (
-            <div key={t.id} className="flex items-start gap-2 rounded-inner px-1 py-1 hover:bg-white/5">
-              <button onClick={() => toggle(t.id)} aria-label="Mark task done" className="mt-0.5 text-txt-faint hover:text-accent"><Square size={14} /></button>
-              <span className="min-w-0 flex-1 text-xs text-txt-muted">
-                {t.text}
-                {t.due && <span className="ml-1 font-mono text-[10px] text-warn">· {t.due}</span>}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
-
 // ---------------------------------------------------------------- whoop
 function WhoopSnapshot() {
   const liveSnap = useLiveData<any>("health");
@@ -286,7 +240,7 @@ function WhoopSnapshot() {
 // ---------------------------------------------------------------- projects glance
 function GlanceCard({ href, icon, name, chip, chipTone = "accent", sub, dot }: { href: string; icon: React.ReactNode; name: string; chip: string; chipTone?: "accent" | "warn" | "muted"; sub?: string; dot?: any }) {
   return (
-    <Link href={href} className="group flex flex-col gap-2 rounded-panel border border-border bg-panel p-4 shadow-panel transition-colors hover:border-accent/40">
+    <Link href={href} data-testid={href==="/stern"?"stern-home-glance":undefined} className="group flex flex-col gap-2 rounded-panel border border-border bg-panel p-4 shadow-panel transition-colors hover:border-accent/40">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-txt-muted">
           <span className="text-accent">{icon}</span>
@@ -306,7 +260,8 @@ function ProjectsGlance() {
   const { data: ad } = useApi<any>("/api/adagency");
   const projects = useLiveData<any[]>("projects");
   const career = useLiveData<any>("career");
-  const stern = useLiveData<any>("stern");
+  const { data: sternInitial } = useApi<import("@/lib/stern-types").SternSnapshot>("/api/stern");
+  const stern = useLiveData<import("@/lib/stern-types").SternSnapshot>("stern") || sternInitial;
 
   const dealCount = vending ? Object.values(vending.stages || {}).reduce((a: number, b: any) => a + (b as number), 0) : 0;
   const vendChip = vending?.revenueConnected
@@ -321,7 +276,7 @@ function ProjectsGlance() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <GlanceCard href="/vending" icon={<Boxes size={15} />} name="Vending Ops" chip={vendChip} chipTone={vending?.revenueConnected ? "accent" : "muted"} sub={vending?.needsRefill ? `${vending.needsRefill} need refill` : "deal pipeline live"} dot={vending?.needsRefill ? "warn" : undefined} />
         <GlanceCard href="/ad-agency" icon={<Clapperboard size={15} />} name="Klade Ad Agency" chip={ad?.connected ? `${ad.account?.credits ?? "—"} credits` : "connect CLI"} chipTone={ad?.connected ? "accent" : "muted"} sub={ad?.connected ? `${ad.videos?.length ?? 0} recent generations` : "Higgsfield"} />
-        <GlanceCard href="/stern" icon={<GraduationCap size={15} />} name="Stern" chip={stern?.counts ? `${stern.counts.coffeeChatsOwed ?? 0} chats owed` : "—"} chipTone={stern?.counts?.coffeeChatsOwed ? "warn" : "muted"} sub="club recruiting · network · classes" dot={stern?.counts?.replyOwed ? "warn" : undefined} />
+        <GlanceCard href="/stern" icon={<GraduationCap size={15} />} name="Stern" chip={stern?.counts ? `${stern.counts.coffeeChatsOwed ?? 0} chats owed` : "—"} chipTone={stern?.counts?.coffeeChatsOwed ? "warn" : "muted"} sub={stern?`${stern.counts.tasksDueToday} tasks due today · ${stern.recruiting.deadlines[0]?`next: ${stern.recruiting.deadlines[0].club} ${stern.recruiting.deadlines[0].deadlineAt.slice(0,10)}`:"No upcoming application deadline"}`:"Loading Stern…"} dot={stern?.counts?.replyOwed ? "warn" : undefined} />
         <GlanceCard href="/stern/career" icon={<Target size={15}/>} name="Career" chip={career?`${career.stats?.byStatus?.drafting??0} drafting · ${career.stats?.byStatus?.submitted??0} submitted`:"—"} chipTone={career?.stats?.pendingSuggestions?"warn":"accent"} sub={career?`${career.stats?.applications??0} applications · next ${career.stats?.nextDeadline?.deadline||"—"} · ${career.stats?.pendingSuggestions??0} suggestions`:"career snapshot loading"}/>
         <GlanceCard href="/projects" icon={<FolderGit2 size={15} />} name="Vault projects" chip={projects ? `${projects.length}` : "—"} chipTone="muted" sub="from command-center" />
       </div>
@@ -339,7 +294,7 @@ export function Home() {
         <RecentEmails />
         <TodayCalendar />
         <div className="flex flex-col gap-5">
-          <TodayTodos />
+  
           <WhoopSnapshot />
         </div>
       </div>

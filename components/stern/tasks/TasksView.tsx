@@ -1,6 +1,7 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { CheckSquare, Plus } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { SternPage, EmptyState, SkeletonRows, SourceBadge } from '@/components/stern/Page';
@@ -10,6 +11,8 @@ import { formatDue } from '../classes/format';
 const EMPTY_GROUP:Record<string,string>={overdue:'Nothing overdue',today:'Nothing due today',week:'Nothing due this week',later:'Nothing due later',none:'No undated tasks',all:'No open tasks'};
 export function TasksView(){
   const {data,error,busy,mutate,refetch}=useSternArea('tasks');const [domains,setDomains]=useState<TaskDomain[]>([]),[grouped,setGrouped]=useState(true),[editing,setEditing]=useState<SternTask|null>(null),[history,setHistory]=useState(false);
+  const params=useSearchParams(), taskId=Number(params.get('task'))||0;
+  useEffect(()=>{if(taskId&&data){const task=data.tasks.find(t=>t.id===taskId);if(task)setEditing(task);}},[taskId,!!data]);
   const matches=(t:SternTask)=>!domains.length||domains.includes(t.domain);
   const groups=data?(grouped?data.groups:[{key:'all',title:'Open tasks',rows:data.tasks.filter(t=>t.status==='open')}]).map(g=>({...g,rows:g.rows.filter(matches)})):[];
   async function save(body:Record<string,unknown>){await mutate(body);setEditing(null);}

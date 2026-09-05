@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Archive, ArrowLeft, Plus } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 import { SternPage, SternSection, EmptyState, SkeletonRows, SourceBadge, StatusChip } from "@/components/stern/Page";
@@ -45,6 +45,8 @@ export function ClubDetail({ clubId, draftsAvailable }: { clubId: number; drafts
   const state = useRecruiting(); const { snapshot, busy, mutate } = state;
   const club = snapshot?.clubs.find(c => c.id === clubId);
   const catalogClub = snapshot?.catalog.find(c => c.id === clubId);
+  const [tab,setTab]=useState('overview');
+  useEffect(()=>{const read=()=>{const value=window.location.hash.slice(1);if(['overview','people','application','prep','timeline'].includes(value))setTab(value);};read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[]);
   const [archiving, setArchiving] = useState(false); const [addingProgram, setAddingProgram] = useState(false);
   if (!snapshot) return <SternPage title="Club recruiting" testId="stern-club-detail">{state.error ? <EmptyState title="Could not load this club" hint={state.error} action={<RecruitingButton data-testid="stern-detail-retry" onClick={state.refetch}>Retry</RecruitingButton>}/> : <SkeletonRows rows={10}/>}</SternPage>;
   if (!club) return <SternPage title={catalogClub?.name || "Club not found"} testId="stern-club-detail"><MutationNotice {...state} undo={() => void state.undo()}/><EmptyState title={catalogClub ? "This club is not on your board" : "This club does not exist"} hint={catalogClub ? "Add it to your recruiting board to view its programs and checklist." : "Return to recruiting to choose a club."} action={catalogClub && catalogClub.status !== "archived" ? <RecruitingButton primary disabled={busy} data-testid="stern-detail-track-club" onClick={() => void mutate({ action: "club.set_interested", clubId, interested: true })}>Track this club</RecruitingButton> : <Link data-testid="stern-detail-back" href="/stern/recruiting">Back to recruiting</Link>}/></SternPage>;
@@ -53,7 +55,7 @@ export function ClubDetail({ clubId, draftsAvailable }: { clubId: number; drafts
     <div className="stern-club-links"><Link data-testid="stern-detail-back" href="/stern/recruiting"><ArrowLeft size={14}/>Club Recruiting</Link><span className="stern-note-chip">{statusLabel(club.category) || "Uncategorized"}</span><SafeLink testId="stern-club-website" href={club.website}>Website</SafeLink>{club.instagram && <SafeLink testId="stern-club-instagram" href={/^https?:/.test(club.instagram) ? club.instagram : `https://www.instagram.com/${encodeURIComponent(club.instagram.replace(/^@/,""))}/`}>Instagram</SafeLink>}<StatusSelect testId="stern-club-status" label="Club status" value={club.status} choices={CLUB_TRANSITIONS[club.status]} disabled={disabled} onChange={status => void mutate({ action: "club.set_status", clubId, status })}/></div>
     <MutationNotice {...state} undo={() => void state.undo()}/>
     {club.status === "archived" && <p className="stern-muted">Archived. History is preserved; use Undo on the archive activity to resume this club.</p>}
-    <Tabs defaultValue="overview" className="stern-detail-tabs">
+    <Tabs value={tab} onValueChange={setTab} className="stern-detail-tabs">
       <TabsList data-testid="stern-club-detail-tabs" aria-label="Club detail tabs">{[["overview","Overview"],["people","People"],["application","Application"],["prep","Interview prep"],["timeline","Timeline"]].map(([value,label]) => <TabsTrigger data-testid={`stern-club-tab-${value}`} key={value} value={value}>{label}</TabsTrigger>)}</TabsList>
       <TabsContent value="overview"><div className="stern-detail-columns"><div className="stern-stack"><div className="stern-program-grid" data-testid="stern-program-list">{club.programs.map(program => <ProgramCard key={program.id} program={program} disabled={disabled} mutate={mutate}/>)}</div>{!club.programs.length && <EmptyState title="No programs added yet" hint="Use Application to add the club's programs."/>}
         <SternSection title="Checklist" note={<span className="stern-mono">{club.checklistDone} of {club.checklistTotal}</span>} flush>{!club.checklist.length ? <EmptyState title="No checklist items yet" hint="Tracking a club creates the recruiting checklist."/> : <div data-testid="stern-checklist-list">{club.checklist.map(item => <label className="stern-checklist-item" data-component="ChecklistItem" data-testid="stern-checklist-item" key={item.id}><input data-testid={`stern-checklist-toggle-${item.id}`} type="checkbox" disabled={disabled} checked={!!item.done_at} onChange={e => void mutate({ action: "checklist.toggle", itemId: item.id, done: e.target.checked })}/><span className={item.done_at ? "done" : ""}>{item.label}</span><time className="stern-mono">{item.done_at ? dateLabel(item.done_at) : ""}</time></label>)}</div>}</SternSection>
