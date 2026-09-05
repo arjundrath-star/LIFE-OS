@@ -473,3 +473,18 @@ test("account discovery uses enabled NYU domains and configured extras; calendar
   assert.equal(q("SELECT COUNT(*) n FROM stern_calendar_events").n, 0);
   assert.equal(q("SELECT done_at FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0", club.id).done_at, "");
 });
+
+test("notification-sender invites link by attendee identity; outbound CC recipients are retained", async () => {
+  reset(); await feed("fx-001");
+  const invite = { ...sourceMod.fixtureMessage(fixture("fx-004")), from: "Google Calendar <calendar-notification@google.com>" };
+  const inviteSource = { ...source, list: async (account: string) => account === fixture("fx-004").account ? ["fx-004"] : [], full: async () => invite };
+  await scan.runSternEmailScan({ source: inviteSource, dryRun: true });
+  assert.equal(msg("fx-004").applied, "auto_applied");
+  assert.equal(q("SELECT COUNT(*) n FROM people").n, 1);
+  assert.equal(q("SELECT coffee_chat_id FROM stern_calendar_events").coffee_chat_id, chatFor("fx-001").id);
+  reset();
+  const request = { ...sourceMod.fixtureMessage(fixture("fx-001")), cc: "Placeholder Recipient <cc.placeholder@example.com>" };
+  await scan.runSternEmailScan({ source: { ...source, list: async (account: string) => account === fixture("fx-001").account ? ["fx-001"] : [], full: async () => request }, dryRun: true });
+  assert.match(msg("fx-001").to_addrs, /cc.placeholder@example.com/);
+  assert.equal(q("SELECT COUNT(*) n FROM people").n, 2);
+});

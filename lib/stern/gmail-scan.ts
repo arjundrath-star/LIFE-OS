@@ -42,7 +42,7 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
             for (const msg of full) {
               if (!Number.isFinite(msg.internalDate) || msg.internalDate <= 0) throw new Error("Invalid Gmail internal date");
               const direction = addresses(msg.from).some(email => own.includes(email)) ? "outbound" : "inbound";
-              db.prepare(`INSERT OR IGNORE INTO stern_email_messages (gmail_account,gmail_message_id,gmail_thread_id,content_hash,direction,from_addr,to_addrs,subject,internal_date,snippet) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(account, msg.id, msg.threadId, contentHash(msg), direction, msg.from, msg.to, msg.subject, msg.internalDate, msg.text.slice(0, 30000));
+              db.prepare(`INSERT OR IGNORE INTO stern_email_messages (gmail_account,gmail_message_id,gmail_thread_id,content_hash,direction,from_addr,to_addrs,subject,internal_date,snippet) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(account, msg.id, msg.threadId, contentHash(msg), direction, msg.from, [msg.to, msg.cc].filter(Boolean).join(", "), msg.subject, msg.internalDate, msg.text.slice(0, 30000));
             }
           }).immediate();
           for (const msg of full) {

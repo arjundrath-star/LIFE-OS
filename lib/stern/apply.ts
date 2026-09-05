@@ -70,7 +70,12 @@ export type CalendarIntent = { chatId: number; personId: number; email: string; 
 function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audit: AuditMeta): CalendarIntent[] {
   const db = getDb(), at = new Date(message.internal_date).toISOString(), club = clubFor(cls.club);
   const own = (db.prepare("SELECT email FROM google_accounts").all() as { email: string }[]).map(r => r.email.toLowerCase());
-  const counterparts = (message.direction === "outbound" ? addresses(message.to_addrs) : addresses(message.from_addr)).filter(email => !own.includes(email));
+  // Google can send invitations from its notification address. The extracted attendees,
+  // not that transport sender, identify the chat participants.
+  const participantAddresses = cls.category === "calendar_invite" && cls.people.length
+    ? cls.people.flatMap(person => addresses(person.email))
+    : addresses(message.direction === "outbound" ? message.to_addrs : message.from_addr);
+  const counterparts = [...new Set(participantAddresses)].filter(email => !own.includes(email));
   if (!counterparts.length) throw new SternError(409, "No counterpart in message headers");
   const intents: CalendarIntent[] = [];
   for (const email of counterparts) {
