@@ -131,6 +131,7 @@ async function main() {
     await page.waitForSelector(s('stern-course-card'));
     assert.equal(await page.$$eval(s('stern-course-card'), els => els.length), 4);
     assert.equal(await page.$$eval('[data-testid^="stern-meeting-"]', els => els.length), 5);
+    assert.equal(await page.$$eval('.stern-meeting-block', els => els.every(el => el.getBoundingClientRect().bottom <= el.parentElement!.getBoundingClientRect().bottom)), true, 'Meeting blocks fit the schedule');
     await page.screenshot({ path: path.resolve('shots/stern-wp4-classes.png'), fullPage: true });
     await click(`stern-course-open-${course.id}`); await page.waitForSelector(s('stern-course-tabs'));
     await click('stern-category-add'); await type('stern-category-name', 'Placeholder homework'); await type('stern-category-weight', '20'); await click('stern-category-save'); await closed();
@@ -164,6 +165,7 @@ async function main() {
     // Click a non-editable cell: inline inputs intentionally stop row propagation.
     await page.click(`${s('career-row')} td:nth-child(4)`);
     await page.waitForSelector('[role="dialog"]', { visible: true });
+    await page.waitForFunction(() => { const el = document.querySelector('[role="dialog"]'); return el && getComputedStyle(el).opacity === '1'; });
     const theme = await page.$eval('[role="dialog"]', el => ({
       background: getComputedStyle(el).backgroundColor, color: getComputedStyle(el.querySelector('h2.text-txt-primary')!).color,
       bodyClass: document.body.classList.contains('stern-theme'), portaled: !el.closest('[data-testid="stern-shell"]'),
