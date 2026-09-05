@@ -1,0 +1,8 @@
+[
+ {"title":"Previous New York day","due_at":"2026-09-04"},
+ {"title":"Today date only","due_at":"2026-09-05"},
+ {"title":"Today late offset","due_at":"2026-09-06T03:59:00Z"},
+ {"title":"Sunday","due_at":"2026-09-06"},
+ {"title":"Next week","due_at":"2026-09-07"},
+ {"title":"Undated","due_at":""}
+]

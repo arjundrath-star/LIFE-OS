@@ -1,0 +1,6 @@
+[
+  {"code":"STAT-UB 103","title":"Statistics and Regression","term":"Fall 2026","credits":4,"professor":"","room":"","meetings":[]},
+  {"code":"TECH-UB 1","title":"Information Technology in Business and Society","term":"Fall 2026","credits":4,"professor":"","room":"","meetings":[]},
+  {"code":"MKTG-UB 1","title":"Introduction to Marketing","section":"006","professor":"Raluca Ursu","term":"Fall 2026","credits":4,"room":"Tisch UC04","meetings":[{"weekday":1,"start_time":"14:00","end_time":"15:15","room":"Tisch UC04","kind":"lecture"},{"weekday":3,"start_time":"14:00","end_time":"15:15","room":"Tisch UC04","kind":"lecture"}]},
+  {"code":"CAMS-UA 110","title":"Science of Happiness","term":"Fall 2026","credits":4,"professor":"","room":"Tisch UC50","meetings":[{"weekday":2,"start_time":"09:30","end_time":"10:45","room":"Tisch UC50","kind":"lecture"},{"weekday":4,"start_time":"09:30","end_time":"10:45","room":"Tisch UC50","kind":"lecture"},{"weekday":5,"start_time":"15:45","end_time":"","room":"Tisch UC50","kind":"recitation"}]}
+]

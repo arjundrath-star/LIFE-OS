@@ -55,7 +55,7 @@ export const EVIDENCE_TYPES = ["gmail", "calendar", "imessage", "web", "manual"]
 export const SUGGESTION_STATES = ["pending", "accepted", "dismissed"] as const;
 export const AUDIT_ACTIONS = ["create", "update", "delete", "undo"] as const;
 export const AUDIT_SOURCES = ["manual", "auto_email", "auto_calendar", "imessage", "suggestion_accept", "seed", "agent", "undo"] as const;
-export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep"] as const;
+export const AUDIT_ENTITY_TYPES = ["person", "affiliation", "touchpoint", "coffee_chat", "program", "club", "checklist_item", "assignment", "task", "calendar_event", "draft", "course", "suggestion", "process", "interview_prep", "course_meeting", "grade_category"] as const;
 export const REMINDER_RULES = ["deadline_t7", "deadline_t3", "deadline_t1", "deadline_day", "reply_owed", "thank_you_due", "no_reply_3d", "interview_eve", "task_due", "suggestions_pending", "memo"] as const;
 export const REMINDER_CHANNELS = ["imessage", "email", "both", "dashboard"] as const;
 export const REMINDER_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped", "snoozed"] as const;
@@ -205,8 +205,8 @@ export type SternSnapshot = {
   };
   recruiting: RecruitingSnapshot;
   network: NetworkSnapshot;
-  tasks: { dueToday: unknown[]; overdue: unknown[] };
-  classes: { nextMeeting: Record<string, unknown> | null; dueSoon: unknown[] };
+  tasks: TasksSnapshot;
+  classes: ClassesSnapshot;
   needsYou: unknown[];
   autoAppliedToday: unknown[];
   reminders: { lastMemoAt: string };
@@ -316,3 +316,27 @@ export type RecruitingSnapshot = {
   deadlines: RecruitingDeadline[]; windows: RecruitingWindow[];
   counts: { coffeeChatsOwed: number; deadlines14d: number; archived: number; interested: number; applying: number; interviewing: number };
 };
+
+// WP4 task and classroom read models (client-safe).
+export type SternTask = {
+  id: number; title: string; domain: TaskDomain; course_id: number; club_id: number; program_id: number;
+  person_id: number; assignment_id: number; due_at: string; priority: number; status: TaskStatus;
+  source: TaskSource; dedupe_key: string; notes: string; completed_at: string; created_at: string; updated_at: string;
+  course_code: string; club_name: string; person_name: string;
+};
+export type TaskBucket = 'overdue' | 'today' | 'week' | 'later' | 'none';
+export type TaskFilters = { domain?: TaskDomain[]; status?: TaskStatus | 'all'; due?: TaskBucket; linked?: { type: 'course' | 'club' | 'person' | 'program' | 'assignment'; id: number } };
+export type TaskGroup = { key: string; title: string; rows: SternTask[] };
+export type TasksSnapshot = {
+  updatedAt: string; tasks: SternTask[]; dueToday: SternTask[]; overdue: SternTask[]; doneToday: SternTask[];
+  groups: TaskGroup[]; counts: { open: number; dueToday: number; overdue: number; perDomain: Record<TaskDomain, number> };
+  links: { type: 'course' | 'club' | 'person'; id: number; label: string }[];
+};
+export type Course = { id: number; code: string; title: string; section: string; professor: string; professor_email: string; term: string; credits: number; room: string; syllabus_url: string; brightspace_url: string; grading_notes: string; color: string; archived: number; created_at: string; updated_at: string };
+export type CourseMeeting = { id: number; course_id: number; weekday: number; start_time: string; end_time: string; room: string; kind: MeetingKind };
+export type ScheduledMeeting = CourseMeeting & { code: string; title: string; date: string; start_at: string };
+export type GradeCategory = { id: number; course_id: number; name: string; weight_pct: number; sort: number };
+export type Assignment = { id: number; course_id: number; title: string; kind: AssignmentKind; due_at: string; status: AssignmentStatus; points_earned: number | null; points_possible: number | null; category_id: number; source: AssignmentSource; dedupe_key: string; gmail_message_id: string; notes: string; created_at: string; updated_at: string };
+export type Standing = { percentage: number | null; method: 'weighted' | 'unweighted' | 'none'; gradedWeight: number; earned: number; possible: number; categories: (GradeCategory & { earned: number; possible: number; percentage: number | null })[] };
+export type CourseDetailData = Course & { meetings: CourseMeeting[]; assignments: Assignment[]; categories: GradeCategory[]; standing: Standing; nextDue: Assignment | null };
+export type ClassesSnapshot = { updatedAt: string; courses: CourseDetailData[]; schedule: ScheduledMeeting[]; nextMeeting: ScheduledMeeting | null; dueSoon: (Assignment & { course_code: string })[]; standings: { courseId: number; standing: Standing }[]; credits: number };

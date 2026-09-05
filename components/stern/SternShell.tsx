@@ -79,6 +79,10 @@ function SyncStatus() {
 }
 
 export function SternShell({ user, children }: { user: User; children: React.ReactNode }) {
+  useEffect(() => {
+    document.body.classList.add("stern-theme");
+    return () => document.body.classList.remove("stern-theme");
+  }, []);
   const pathname = usePathname();
   const { data: initialSnapshot } = useApi<SternSnapshot>("/api/stern");
   const liveSnapshot = useLiveData<SternSnapshot>("stern");
