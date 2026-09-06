@@ -92,3 +92,4 @@ Status values: not started, in progress, gate failed (n), gate passed, merged, b
 - 2026-09-06 00:42 EDT sweep: no new bundle, no "Stern:" requests, prod active with no journal errors, no failed reminders, Stern account not connected, no WP8 data yet, 4.3 GB available.
 - 2026-09-06 01:42 EDT sweep: no new bundle, no "Stern:" requests, prod active with no journal errors, no failed reminders, Stern account not connected, no WP8 data yet, 4.4 GB available.
 - 2026-09-06 02:42 EDT sweep: no new bundle, no "Stern:" requests, prod active with no journal errors, no failed reminders, Stern account not connected, no WP8 data yet, 4.4 GB available.
+- 2026-09-06 03:42 EDT sweep: no new bundle, no "Stern:" requests, prod active with no journal errors, no failed reminders, Stern account not connected, no WP8 data yet, 4.4 GB available. Second nightly backup ran at 03:30 EDT (10.5 MB, integrity ok).
