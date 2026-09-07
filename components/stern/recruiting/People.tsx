@@ -14,7 +14,7 @@ export function People({ club, disabled, draftsAvailable, mutate, compact = fals
   const [scheduling, setScheduling] = useState<number | null>(null); const [notice, setNotice] = useState(""); const [draftBusy, setDraftBusy] = useState(false);
   return <>
     {notice && <p role="status" className="stern-muted">{notice}</p>}
-    {!club.people.length ? <EmptyState title="No E-board people linked yet" hint="Add people in Network with this club affiliation and mark them as E-board."/> : <div className="stern-people-list" data-testid="stern-club-people-list">{club.people.map(person => <PersonRow key={person.id} person={person}>
+    {!club.people.length ? <EmptyState title="No people linked to this club yet" hint="Add people in Network with this club affiliation, or import the club roster."/> : <div className="stern-people-list" data-testid="stern-club-people-list">{club.people.map(person => <PersonRow key={person.id} person={person}>
 
       <div className="stern-person-actions">
         {!person.chat ? <RecruitingButton data-testid={`stern-chat-create-${person.id}`} disabled={disabled} onClick={() => void mutate({ action: "chat.create", personId: person.id, clubId: club.id })}><Plus size={12}/>Track coffee chat</RecruitingButton> : <StatusSelect testId={`stern-chat-state-${person.chat.id}`} label={`Record chat status for ${person.display_name}`} disabled={disabled} value={person.chat.state} choices={CHAT_TRANSITIONS[person.chat.state]} onChange={state => { if (state === "scheduled") setScheduling(person.chat!.id); else void mutate({ action: "chat.transition", chatId: person.chat!.id, state }); }}/>} 
@@ -36,9 +36,9 @@ export function People({ club, disabled, draftsAvailable, mutate, compact = fals
   </>;
 }
 
-export function PersonRow({person,children,selected=false,hovered=false}:{person:Pick<RecruitingClubDetail["people"][number],"display_name"|"role"|"title"|"year"|"chat">;children?:ReactNode;selected?:boolean;hovered?:boolean}) {
+export function PersonRow({person,children,selected=false,hovered=false}:{person:Pick<RecruitingClubDetail["people"][number],"display_name"|"role"|"title"|"year"|"chat"> & { roster?: number; is_eboard?: number };children?:ReactNode;selected?:boolean;hovered?:boolean}) {
   return <article className="stern-person-row" data-component="PersonRow" data-selected={selected} data-hovered={hovered}>
-      <div className="stern-person-heading"><span className="stern-avatar">{person.display_name.split(/\s+/).slice(0,2).map(n => n[0]).join("")}</span><div><strong>{person.display_name}</strong><small>{person.role || person.title || "E-board"}{person.year ? ` · ${person.year}` : ""}</small></div><CoffeeChatChip chat={person.chat}/></div>
+      <div className="stern-person-heading"><span className="stern-avatar">{person.display_name.split(/\s+/).slice(0,2).map(n => n[0]).join("")}</span><div><strong>{person.display_name}</strong><small>{person.role || person.title || (person.is_eboard ? "E-board" : "Member")}{person.year ? ` · ${person.year}` : ""}</small></div>{person.is_eboard ? <span className="stern-chip" data-testid="stern-person-eboard">E-board</span> : null}{person.roster ? <span className="stern-chip" data-testid="stern-person-roster" title="From the club roster. You have not met yet.">Roster</span> : <span className="stern-chip" data-testid="stern-person-met">Met</span>}<CoffeeChatChip chat={person.chat}/></div>
     {children}
   </article>;
 }

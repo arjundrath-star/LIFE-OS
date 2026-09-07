@@ -280,8 +280,8 @@ export function recruitingSnapshot(now: Date = new Date()): RecruitingSnapshot {
     const chatsDone = (db.prepare("SELECT COUNT(DISTINCT person_id) n FROM coffee_chats WHERE club_id = ? AND state IN ('done','thank_you_sent')").get(club.id) as { n: number }).n;
     const chats = db.prepare("SELECT * FROM coffee_chats WHERE club_id = ? ORDER BY id DESC LIMIT 500").all(club.id) as CoffeeChat[];
     chats.reverse();
-    const people = (db.prepare(`SELECT p.id, p.display_name, p.email, p.year, p.title, GROUP_CONCAT(DISTINCT a.role) role FROM people p
-      JOIN people_affiliations a ON a.person_id = p.id WHERE a.club_id = ? AND a.is_eboard = 1 AND p.archived = 0 GROUP BY p.id ORDER BY p.display_name COLLATE NOCASE`).all(club.id) as Omit<RecruitingPerson, "chat">[])
+    const people = (db.prepare(`SELECT p.id, p.display_name, p.email, p.year, p.title, p.roster, MAX(a.is_eboard) is_eboard, GROUP_CONCAT(DISTINCT a.role) role FROM people p
+      JOIN people_affiliations a ON a.person_id = p.id WHERE a.club_id = ? AND p.archived = 0 GROUP BY p.id ORDER BY MAX(a.is_eboard) DESC, p.roster ASC, p.display_name COLLATE NOCASE`).all(club.id) as Omit<RecruitingPerson, "chat">[])
       .map(person => ({ ...person, chat: [...chats].reverse().find(c => c.person_id === person.id) ?? null }));
     const prep = db.prepare("SELECT i.* FROM stern_interview_prep i JOIN stern_programs p ON p.id = i.program_id WHERE p.club_id = ? ORDER BY i.sort, i.id").all(club.id) as InterviewPrep[];
     return { ...club, programs, checklist, ...progress, chatsDone, chats, people, nextDeadline: deadlines.find(d => d.clubId === club.id) ?? null, prep, timeline: clubTimeline(club.id) };
