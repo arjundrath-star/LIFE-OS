@@ -342,3 +342,20 @@ test("fix round: committed writes and undo survive vault IO failures with redact
     assert.ok(messages.every(args => args.length === 1 && args[0] === "[stern] vault sync failed"));
   } finally { rename.mock.restore(); logger.mock.restore(); }
 });
+
+test("roster people stay out of the Network list and counts until a real interaction promotes them", async () => {
+  const { people: p } = await setup();
+  const roster = p.createPerson({ name: "Roster Officer", org: "Roster Club", roster: 1, source: "import" }).person;
+  assert.equal(roster.roster, 1);
+  assert.ok(!p.listPeople({ q: "Roster Officer" }).people.some(x => x.id === roster.id), "hidden by default");
+  assert.ok(p.listPeople({ q: "Roster Officer", includeRoster: true }).people.some(x => x.id === roster.id), "visible with includeRoster");
+  assert.ok(p.listPeople({ rosterOnly: true }).people.every(x => x.roster === 1), "rosterOnly filter");
+  const before = p.networkSnapshot().counts.total;
+  const again = p.createPerson({ name: "Roster Officer", org: "Roster Club", roster: 1, source: "import" });
+  assert.equal(again.created, false); assert.equal(again.person.roster, 1, "a second roster import does not promote");
+  const met = p.createPerson({ name: "Roster Officer", org: "Roster Club", how_met: "club_event" });
+  assert.equal(met.person.id, roster.id); assert.equal(met.person.roster, 0, "a manual capture promotes");
+  assert.equal(p.networkSnapshot().counts.total, before + 1);
+  const other = p.createPerson({ name: "Second Officer", org: "Roster Club", roster: 1, source: "import" }).person;
+  assert.equal(p.setStatus(other.id, "need_to_reach_out").roster, 0, "a status change promotes");
+});

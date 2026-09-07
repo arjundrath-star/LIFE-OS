@@ -36,7 +36,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   const between = dayWindowSql;
 
   const counts: SternSnapshot["counts"] = {
-    people: count("SELECT COUNT(*) n FROM people WHERE archived = 0"),
+    people: count("SELECT COUNT(*) n FROM people WHERE archived = 0 AND roster = 0"),
     clubsInterested: count("SELECT COUNT(*) n FROM stern_clubs WHERE interested = 1 AND status <> 'archived'"),
     coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND (state = 'to_request' OR (state = 'reply_received' AND reply_needs_me = 1))"),
     replyOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND reply_needs_me = 1 AND state NOT IN ('done','thank_you_sent','declined','no_reply')"),
