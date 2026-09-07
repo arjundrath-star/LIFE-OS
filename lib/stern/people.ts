@@ -28,7 +28,7 @@ export function peopleWrite<T>(fn: () => T): T {
 
 type Input = Record<string, unknown>;
 export type WriteOptions = Partial<AuditMeta> & { overwrite?: boolean };
-export const EDITABLE = ["first_name", "last_name", "display_name", "year", "major", "org", "title", "sphere", "relationship_type", "strength", "status", "how_met", "met_at", "met_event", "email", "email_alt", "phone", "instagram", "linkedin", "hometown", "dorm", "next_action", "next_action_at", "notes"] as const;
+export const EDITABLE = ["first_name", "last_name", "display_name", "year", "major", "org", "title", "sphere", "relationship_type", "strength", "status", "how_met", "met_at", "met_event", "email", "email_alt", "phone", "instagram", "linkedin", "hometown", "dorm", "next_action", "next_action_at", "notes", "roster"] as const;
 const text = (v: unknown): string => typeof v === "string" ? v.trim() : "";
 function bounded(v: unknown, max: number, field: string): string {
   const value = text(v);
@@ -102,6 +102,7 @@ function normalized(input: Input): Input {
     if (!(key in input)) continue;
     const v = input[key];
     if (key === "strength") patch[key] = integer(v, 1, 5, key);
+    else if (key === "roster") patch[key] = integer(v, 0, 1, key);
     else {
       if (typeof v !== "string") throw new SternError(400, `${key} must be text`);
       if (v.length > (key === "notes" ? 50000 : 2000)) throw new SternError(400, `${key} is too long`);
@@ -161,6 +162,8 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
     if (existing) {
       if (existing.archived) patchRow("person", existing.id, { archived: 0, updated_at: nowIso() }, m);
       const patch = Object.fromEntries(Object.entries(fields).filter(([k, v]) => options.overwrite || ((existing as unknown as Input)[k] === "" && v !== "")));
+      // A real capture of a roster person (anything but another roster import) promotes them into the Network.
+      if (existing.roster === 1 && !("roster" in fields) && (input.source ?? m.source) !== "import") patch.roster = 0;
       return { person: updateInside(existing.id, patch, m), created: false };
     }
     const source = enumValue(input.source ?? (PERSON_SOURCES.includes(m.source as Person["source"]) ? m.source : "manual"), PERSON_SOURCES, "source");
@@ -172,7 +175,12 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
 }
 export function updatePerson(id: number, input: Input, options: WriteOptions = {}): Person {
   const m = meta(options);
-  const person = peopleWrite(() => updateInside(id, normalized(input), m));
+  const patch = normalized(input);
+  const person = peopleWrite(() => {
+    const current = personRow(id);
+    if (current.roster === 1 && !("roster" in patch) && ["status", "how_met", "met_event", "strength", "relationship_type"].some(k => k in patch)) patch.roster = 0;
+    return updateInside(id, patch, m);
+  });
   syncPersonNote(person);
   return person;
 }
@@ -308,6 +316,8 @@ export function getPerson(id: number): PersonDetail {
 export function clubPicker() { return getDb().prepare("SELECT id, name, short_name FROM stern_clubs ORDER BY name COLLATE NOCASE, id").all() as { id: number; name: string; short_name: string }[]; }
 function where(filters: PeopleFilters) {
   const clauses = ["p.archived = ?"], values: (string | number)[] = [filters.archived ? 1 : 0];
+  // Roster rows (imported club boards Arjun has not met) stay out of the Network tab unless asked for.
+  if (filters.rosterOnly) clauses.push("p.roster = 1"); else if (!filters.includeRoster) clauses.push("p.roster = 0");
   if (filters.q) { clauses.push("(p.display_name LIKE ? ESCAPE '\\' OR p.org LIKE ? ESCAPE '\\' OR p.email LIKE ? ESCAPE '\\' OR p.instagram LIKE ? ESCAPE '\\')"); const q = `%${filters.q.replace(/[\\%_]/g, "\\$&")}%`; values.push(q, q, q, q); }
   for (const [key, column, valid] of [["relationshipType", "relationship_type", RELATIONSHIP_TYPES], ["status", "status", PERSON_STATUSES]] as const) {
     const selected = filters[key];
@@ -347,9 +357,9 @@ export function importPeople(input: unknown, options: WriteOptions = {}) {
 }
 export function networkSnapshot(): NetworkSnapshot {
   const db = getDb();
-  const counts = db.prepare("SELECT COUNT(*) total, COALESCE(SUM(status='follow_up_owed'),0) followUpsOwed, COALESCE(SUM(status='need_to_reach_out'),0) needToReachOut FROM people WHERE archived=0").get() as NetworkSnapshot["counts"];
+  const counts = db.prepare("SELECT COUNT(*) total, COALESCE(SUM(status='follow_up_owed'),0) followUpsOwed, COALESCE(SUM(status='need_to_reach_out'),0) needToReachOut FROM people WHERE archived=0 AND roster=0").get() as NetworkSnapshot["counts"];
   counts.byRelationshipType = Object.fromEntries(RELATIONSHIP_TYPES.map(k => [k, 0])) as NetworkSnapshot["counts"]["byRelationshipType"];
-  for (const r of db.prepare("SELECT relationship_type type,COUNT(*) n FROM people WHERE archived=0 GROUP BY relationship_type").all() as { type: Person["relationship_type"]; n: number }[]) counts.byRelationshipType[r.type] = r.n;
+  for (const r of db.prepare("SELECT relationship_type type,COUNT(*) n FROM people WHERE archived=0 AND roster=0 GROUP BY relationship_type").all() as { type: Person["relationship_type"]; n: number }[]) counts.byRelationshipType[r.type] = r.n;
   // Audited changes cover same-millisecond edits, child deletion and undo. SQL row markers
   // also cover trusted direct writers and read-only drawer data; unrelated tasks/programs do not.
   const marker = db.prepare(`SELECT
@@ -361,7 +371,7 @@ export function networkSnapshot(): NetworkSnapshot {
     (SELECT json_group_array(json_array(id,person_id,updated_at)) FROM (SELECT * FROM stern_drafts ORDER BY id)) drafts,
     (SELECT json_group_array(json_array(id,name,short_name)) FROM (SELECT * FROM stern_clubs ORDER BY id)) clubs`).get();
   const version = crypto.createHash("sha256").update(JSON.stringify(marker)).digest("hex");
-  return { version, counts, recent: db.prepare("SELECT * FROM people WHERE archived=0 ORDER BY id DESC LIMIT 10").all() as Person[] };
+  return { version, counts, recent: db.prepare("SELECT * FROM people WHERE archived=0 AND roster=0 ORDER BY id DESC LIMIT 10").all() as Person[] };
 }
 
 /** Evidence can establish a later relationship stage when earlier emails were outside the scan window. */

@@ -12,7 +12,7 @@ function failure(error: unknown) {
 }
 function filtersFrom(params: URLSearchParams): PeopleFilters {
   const array = (key: string) => params.getAll(key).flatMap(v => v.split(",")).filter(Boolean);
-  return { q: params.get("q") || "", relationshipType: array("relationshipType"), status: array("status"), strengthMin: params.has("strengthMin") ? Number(params.get("strengthMin")) : undefined, clubId: params.has("clubId") ? Number(params.get("clubId")) : undefined, sphere: params.get("sphere") || "", followUpOwed: params.get("followUpOwed") === "1" || params.get("followUpOwed") === "true", archived: params.get("archived") === "1" || params.get("archived") === "true", sort: (params.get("sort") || "name") as PeopleFilters["sort"], page: params.has("page") ? Number(params.get("page")) : 1 };
+  return { q: params.get("q") || "", includeRoster: params.get("includeRoster") === "1", rosterOnly: params.get("rosterOnly") === "1", relationshipType: array("relationshipType"), status: array("status"), strengthMin: params.has("strengthMin") ? Number(params.get("strengthMin")) : undefined, clubId: params.has("clubId") ? Number(params.get("clubId")) : undefined, sphere: params.get("sphere") || "", followUpOwed: params.get("followUpOwed") === "1" || params.get("followUpOwed") === "true", archived: params.get("archived") === "1" || params.get("archived") === "true", sort: (params.get("sort") || "name") as PeopleFilters["sort"], page: params.has("page") ? Number(params.get("page")) : 1 };
 }
 export async function GET(req: Request) {
   if (!(await requireUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

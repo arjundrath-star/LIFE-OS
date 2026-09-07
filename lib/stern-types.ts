@@ -260,7 +260,7 @@ export function statusTone(value: string | null | undefined): StatusTone {
 
 // Network rows shared by API responses and client components.
 export type Person = {
-  id: number; dedupe_key: string; first_name: string; last_name: string; display_name: string;
+  id: number; dedupe_key: string; roster: number; first_name: string; last_name: string; display_name: string;
   year: string; major: string; org: string; title: string; sphere: Sphere;
   relationship_type: RelationshipType; strength: number; status: PersonStatus; how_met: HowMet | "";
   met_at: string; met_event: string; email: string; email_alt: string; phone: string;
@@ -277,7 +277,7 @@ export type PersonDetail = Person & {
   coffeeChats: { id: number; state: CoffeeChatState; requested_at: string; scheduled_at: string; occurred_at: string; thank_you_sent_at: string; location: string; takeaways: string }[];
   drafts: { id: number; kind: DraftKind; subject: string; body: string; state: DraftState; gmail_account: string; gmail_draft_id: string }[];
 };
-export type PeopleFilters = { q?: string; relationshipType?: string[]; strengthMin?: number; status?: string[]; clubId?: number; sphere?: string; followUpOwed?: boolean; archived?: boolean; sort?: "name" | "recent" | "strength" | "last_contact"; page?: number };
+export type PeopleFilters = { q?: string; includeRoster?: boolean; rosterOnly?: boolean; relationshipType?: string[]; strengthMin?: number; status?: string[]; clubId?: number; sphere?: string; followUpOwed?: boolean; archived?: boolean; sort?: "name" | "recent" | "strength" | "last_contact"; page?: number };
 export type NetworkSnapshot = { version: string; counts: { total: number; byRelationshipType: Record<RelationshipType, number>; followUpsOwed: number; needToReachOut: number }; recent: Person[] };
 export type NetworkResponse = NetworkSnapshot & { people: (Person & { affiliations: Affiliation[] })[]; total: number; page: number; pageSize: number; clubs: { id: number; name: string; short_name: string }[] };
 
@@ -315,7 +315,7 @@ export type CoffeeChat = {
   calendar_event_id: string; occurred_at: string; thank_you_sent_at: string; last_follow_up_at: string;
   follow_up_count: number; gmail_thread_id: string; prep_notes: string; takeaways: string;
 };
-export type RecruitingPerson = { id: number; display_name: string; email: string; year: string; title: string; role: string; chat: CoffeeChat | null };
+export type RecruitingPerson = { id: number; display_name: string; email: string; year: string; title: string; role: string; roster: number; is_eboard: number; chat: CoffeeChat | null };
 export type InterviewPrep = { id: number; program_id: number; question: string; answer: string; sort: number; updated_at: string };
 export type RecruitingActivity = { key: string; id: number; at: string; source: string; summary: string; batch_id: string; undone_at: string; undoSummary?: string };
 export type RecruitingDeadline = { id: number; clubId: number; club: string; name: string; deadlineAt: string; days: number; status: ProgramStatus; track: ProgramTrack };

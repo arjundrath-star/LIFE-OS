@@ -13,7 +13,7 @@ export async function ensureDraft(chatId: number, kind: DraftKind, audit: AuditM
   const failure = kvGet<{ at: number; error: string }>(failureKey);
   if (failure && Date.now() - failure.at < 6 * 3600000) return null;
   let draft: { subject: string; body: string };
-  try { draft = await generateDraft(kind, { person, chat }); }
+  try { draft = await generateDraft(kind, draftContext(person, chat)); }
   catch (error) {
     getDb().transaction(() => kvSet(failureKey, { at: Date.now(), error: error instanceof Error ? error.message.slice(0, 200) : "Draft generation failed" })).immediate();
     throw error;
@@ -24,7 +24,7 @@ export async function ensureDraft(chatId: number, kind: DraftKind, audit: AuditM
 export async function regenerateDraft(id: number) {
   const d = row<Row>("draft", id);
   if (["sent_detected", "gmail_draft_created"].includes(String(d.state))) throw new SternError(409, "This draft has already left the tracker; create a new draft instead");
-  const draft = await generateDraft(d.kind as DraftKind, { person: row<Person>("person", Number(d.person_id)), chat: row<CoffeeChat>("coffee_chat", Number(d.coffee_chat_id)) });
+  const draft = await generateDraft(d.kind as DraftKind, draftContext(row<Person>("person", Number(d.person_id)), row<CoffeeChat>("coffee_chat", Number(d.coffee_chat_id))));
   getDb().transaction(() => patch("draft", id, { ...draft, state: "generated" }, { batchId: newBatchId("draft"), source: "manual" })).immediate();
   return id;
 }
@@ -46,4 +46,13 @@ export async function createGmailDraft(id: number, options: { dryRun?: boolean; 
   // Dry runs report intent without claiming a Gmail draft exists.
   if (!dryRun) getDb().transaction(() => patch("draft", id, { state: "gmail_draft_created", gmail_account: account, gmail_draft_id: result.id, updated_at: nowIso() }, { batchId: newBatchId("draft"), source: "manual" })).immediate();
   return { ...result, dryRun };
+}
+
+// The draft is about the coffee chat's club, never the person's primary org (a person can belong to several clubs).
+function draftContext(person: Person, chat: CoffeeChat) {
+  const db = getDb();
+  const club = chat.club_id ? db.prepare("SELECT id, name, short_name, category, website FROM stern_clubs WHERE id = ?").get(chat.club_id) as Record<string, unknown> | undefined : undefined;
+  const affiliation = club ? db.prepare("SELECT role, is_eboard FROM people_affiliations WHERE person_id = ? AND club_id = ?").get(person.id, chat.club_id) as { role: string; is_eboard: number } | undefined : undefined;
+  const { org: _org, dedupe_key: _key, email_alt: _alt, phone: _phone, ...recipient } = person as unknown as Record<string, unknown>;
+  return { person: { ...recipient, role_at_this_club: affiliation?.role ?? "", is_eboard_at_this_club: affiliation?.is_eboard ?? 0 }, club: club ?? { name: person.org }, chat };
 }
