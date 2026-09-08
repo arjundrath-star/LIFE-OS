@@ -34,6 +34,31 @@ function queued<T>(fn: () => Promise<T>): Promise<T> {
   globalQueue.__sternLlmQueue = next.catch(() => {});
   return next;
 }
+// OpenAI structured outputs run in strict mode: every object must list all of its properties as
+// required, and unsupported keywords are rejected. Optional fields become nullable so the model can
+// still say "none". The app keeps validating against the permissive schema on disk.
+const STRICT_DROP = new Set(["description", "maxLength", "minLength", "minimum", "maximum", "format", "pattern", "$schema", "title"]);
+export function strictSchema(schema: Schema): Schema {
+  const copy: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema)) if (!STRICT_DROP.has(k)) copy[k] = v;
+  const s = copy as Schema;
+  if (s.items) s.items = strictSchema(s.items);
+  if (s.properties) {
+    const required = new Set(s.required ?? []);
+    const props: Record<string, Schema> = {};
+    for (const [key, child] of Object.entries(s.properties)) {
+      let strict = strictSchema(child);
+      if (!required.has(key)) {
+        const types = strict.type === undefined ? [] : Array.isArray(strict.type) ? strict.type : [strict.type];
+        if (types.length && !types.includes("null")) strict = { ...strict, type: [...types, "null"] };
+        if (strict.enum && !strict.enum.includes(null)) strict = { ...strict, enum: [...strict.enum, null] };
+      }
+      props[key] = strict;
+    }
+    s.properties = props; s.required = Object.keys(props); s.additionalProperties = false;
+  }
+  return s;
+}
 export function llmMode() { return process.env.STERN_LLM_MODE || "live"; }
 async function execute(prompt: string, schema: Schema, file?: string): Promise<unknown> {
   return queued(async () => {
@@ -46,8 +71,9 @@ async function execute(prompt: string, schema: Schema, file?: string): Promise<u
       const codexHome = path.join(dir, "codex-home");
       await fs.mkdir(codexHome, { mode: 0o700 });
       await fs.symlink(path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "auth.json"), path.join(codexHome, "auth.json"));
-      const out = path.join(dir, "out.json"), localSchema = file || path.join(dir, "schema.json");
-      if (!file) await fs.writeFile(localSchema, JSON.stringify(schema));
+      const out = path.join(dir, "out.json"), localSchema = path.join(dir, "schema.json");
+      void file; // the app validates against the permissive schema; the model receives the strict variant OpenAI requires
+      await fs.writeFile(localSchema, JSON.stringify(strictSchema(schema)));
       let last: unknown;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
