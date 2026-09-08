@@ -59,7 +59,7 @@ export function claudeProbe() {
   if(cached) return Promise.resolve({ok:cached.ok,detail:cached.detail});
   const result=(async()=>{
     const {claudeExecute}=await import("./verify");
-    try { await claudeExecute('Reply OK',false); return {ok:true,detail:"Claude subscription authenticated"}; }
+    try { await claudeExecute('Reply OK',false,{probe:true,timeoutMs:5000}); return {ok:true,detail:"Claude subscription authenticated"}; }
     catch(error) {return {ok:false,detail:error instanceof Error?error.message:"Claude verifier unavailable"};}
   })().then(health=>{getDb().transaction(()=>kvSet("stern.claude_probe",{at:Date.now(),...health})).immediate();return health;});
   claudeGlobal.__sternClaudeProbe={at:Date.now(),result}; return result;

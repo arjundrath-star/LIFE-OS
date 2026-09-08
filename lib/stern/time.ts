@@ -115,7 +115,7 @@ export function parseEventTime(text: string, referenceIso: string): { iso: strin
   const iso = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{1,3})?$/);
   if (iso) { day = iso[1]; hour = +iso[2]; minute = +iso[3]; second = +(iso[4] || 0); confidence = .95; }
   else {
-    const value = raw.toLowerCase().replace(/\b(?:eastern(?: time)?|america\/new_york|edt|est|et)\b/g, '').trim();
+    const value = raw.toLowerCase().replace(/\bnoon\b/g, '12pm').replace(/\bmidnight\b/g, '12am').replace(/\b(\d{1,2})(?:\s+(?:or|and|to)\s+|\s*[-–,]\s*)(\d{1,2})\s*(am|pm)\b/g, '$1$3').replace(/\b(?:eastern(?: time)?|america\/new_york|edt|est|et)\b/g, '').trim();
     const clock = value.match(/(?:\bat\s+|\s|^)(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/)
       || value.match(/(?:\bat\s+|\s|^)(\d{1,2}):(\d{2})(?!\d)/);
     if (!clock) return null;
@@ -124,7 +124,7 @@ export function parseEventTime(text: string, referenceIso: string): { iso: strin
     const numeric = value.match(/\b(?:(\d{4})-)?(\d{1,2})[/-](\d{1,2})(?:\/(\d{4}))?\b/);
     const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
     const named = value.match(/\b([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/);
-    const month = named ? months.findIndex(m => m === named[1] || m.slice(0,3) === named[1]) : -1;
+    const month = named ? months.findIndex(m => m === named[1] || m.slice(0,3) === named[1] || (m === 'september' && named[1] === 'sept')) : -1;
     if (/\btomorrow\b/.test(value)) day = nyDayBounds(referenceIso, 1).dateKey;
     else if (/\btoday\b/.test(value)) day = reference;
     else if (numeric) day = `${numeric[1] || numeric[4] || reference.slice(0,4)}-${numeric[2].padStart(2,'0')}-${numeric[3].padStart(2,'0')}`;
@@ -134,7 +134,7 @@ export function parseEventTime(text: string, referenceIso: string): { iso: strin
       const weekday = value.match(/\b(sun|mon|tue|wed|thu|fri|sat)(?:day|sday|nesday|rsday|urday)?\b/);
       if (!weekday) return null;
       let offset = (weekdays.indexOf(weekday[1]) - new Date(`${reference}T12:00Z`).getUTCDay() + 7) % 7;
-      if (/\bnext\b/.test(value) && offset === 0) offset = 7;
+      if (offset === 0 && (/\bnext\b/.test(value) || nyWallTime(reference, `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`).getTime() < Date.parse(referenceIso))) offset = 7;
       day = nyDayBounds(referenceIso, offset).dateKey; confidence = .8;
     }
   }

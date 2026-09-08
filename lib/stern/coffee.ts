@@ -118,11 +118,12 @@ export function observeCoffeeChat(chatId: number, input: {
     }
     const rank: Record<CoffeeChatState, number> = { to_request: 0, requested: 1, no_reply: 1, reply_received: 2, scheduled: 3, done: 4, thank_you_sent: 5, declined: 5 };
     if (input.state && rank[input.state] < rank[chat.state]) delete fields.state;
+    if(chat.state==='scheduled' && input.scheduling_since && !['scheduled','declined','no_reply','done','thank_you_sent'].includes(String(input.state))) fields.state='reply_received';
     for (const key of ["requested_at", "reply_at", "scheduled_at", "occurred_at", "thank_you_sent_at", "last_follow_up_at"] as const) {
       if (fields[key] && (!validDate(String(fields[key])) || !String(fields[key]).includes("T"))) throw new SternError(400, `Invalid ${key}`);
     }
     if ((fields.state || chat.state) === "scheduled" && !(fields.scheduled_at || chat.scheduled_at)) throw new SternError(400, "Scheduled chat needs a time");
-    if (["scheduled","declined","no_reply","done","thank_you_sent"].includes(String(fields.state || chat.state))) Object.assign(fields, {scheduling_since:"",hot_until:""});
+    if (["scheduled","declined","no_reply","done","thank_you_sent"].includes(String(fields.state))) Object.assign(fields, {scheduling_since:"",hot_until:""});
     if (input.reply_needs_me !== undefined && ![0, 1].includes(input.reply_needs_me)) throw new SternError(400, "Invalid reply flag");
     if (["scheduled", "done", "thank_you_sent", "declined"].includes(String(fields.state || chat.state))) fields.reply_needs_me = 0;
     if (input.last_follow_up_at) fields.follow_up_count = (getDb().prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id=? AND kind='follow_up_sent' AND json_valid(detail) AND json_extract(detail,'$.coffee_chat_id')=?").get(chat.person_id, chatId) as { n: number }).n;

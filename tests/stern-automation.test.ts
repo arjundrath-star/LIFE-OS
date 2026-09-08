@@ -429,7 +429,8 @@ test("scheduling proposals retain times and direction, club results wait for all
   async function apply(name: string, cls: EmailClassification, direction = "inbound", body = "") {
     const f = fixture("fx-002");
     const id = Number(db.prepare("INSERT INTO stern_email_messages(gmail_account,gmail_message_id,gmail_thread_id,from_addr,to_addrs,direction,internal_date,subject,snippet,classification) VALUES (?,?,?,?,?,?,?,?,?,?)").run(base.gmail_account, name, base.gmail_thread_id, direction === "inbound" ? f.from : base.from_addr, direction === "inbound" ? f.to : base.to_addrs, direction, base.internal_date + 3600000, name, body, JSON.stringify(cls)).lastInsertRowid);
-    return policy.applyClassification(q("SELECT * FROM stern_email_messages WHERE id=?", id), cls, { source, dryRun: true });
+    db.prepare("UPDATE stern_email_messages SET direct_to=? WHERE id=?").run(direction === "inbound" ? f.to : base.to_addrs,id);
+    return policy.applyClassification(q("SELECT * FROM stern_email_messages WHERE id=?", id), cls, { source, dryRun: true, now:new Date("2026-09-08T12:00:00Z") });
   }
   const proposal = { ...fixture("fx-002").expected, category: "scheduling_proposal", confidence: .95 } as EmailClassification;
   await apply("proposal-in", proposal); assert.equal(chatFor("fx-001").reply_needs_me, 1); assert.match(chatFor("fx-001").prep_notes, /Proposed:/);

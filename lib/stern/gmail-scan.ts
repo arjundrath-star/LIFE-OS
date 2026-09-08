@@ -4,11 +4,12 @@ import { recordAgentEvent } from "@/lib/agents";
 import type { SternEmailMessage } from "@/lib/stern-types";
 import type { GmailFullMessage } from "@/lib/sources/google";
 import { classifyEmail, llmMode } from "./llm";
-import { addresses, applyClassification, messageMeta } from "./apply";
+import { addresses, applyClassification, messageMeta, mutedSender } from "./apply";
 import { row } from "./recruiting-write";
 import { accountsToScan, automationJob, automationSource, type AutomationSource } from "./automation-source";
 import { sweepDuplicates } from "./people";
 import { queueGoogleReauth } from "./google-reauth";
+import { retryPendingVerifications } from "./verify";
 import { runRulesPass } from "./rules-pass";
 export { accountsToScan } from "./automation-source";
 export function contentHash(msg: Pick<GmailFullMessage, "from" | "subject" | "text">): string {
@@ -58,14 +59,19 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
             }
           }
           full.sort((a, b) => a.internalDate - b.internalDate || a.id.localeCompare(b.id));
+          const threads=new Map<string,GmailFullMessage[]>();
+          for(const msg of full) threads.set(msg.threadId,[...(threads.get(msg.threadId) || []),msg]);
+          const ordered=[...threads.values()].flat();
           // Ingest the whole page first, so a later outbound reply suppresses stale reply-needed flags.
           db.transaction(() => {
             for (const msg of full) {
               const direction = addresses(msg.from).some(email => own.includes(email)) ? "outbound" : "inbound";
               db.prepare(`INSERT INTO stern_email_messages (gmail_account,gmail_message_id,gmail_thread_id,content_hash,direction,from_addr,to_addrs,subject,internal_date,snippet) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(gmail_account,gmail_message_id) DO UPDATE SET gmail_thread_id=excluded.gmail_thread_id,content_hash=excluded.content_hash,direction=excluded.direction,from_addr=excluded.from_addr,to_addrs=excluded.to_addrs,subject=excluded.subject,internal_date=excluded.internal_date,snippet=excluded.snippet`).run(account, msg.id, msg.threadId, contentHash(msg), direction, msg.from, [msg.to, msg.cc].filter(Boolean).join(", "), msg.subject, msg.internalDate, msg.text.slice(0, 30000));
+              db.prepare("UPDATE stern_email_messages SET direct_to=?,list_mail=? WHERE gmail_account=? AND gmail_message_id=?")
+                .run(msg.to,msg.headers.some(h=>['list-unsubscribe','list-id'].includes(h.name.toLowerCase()) || (h.name.toLowerCase()==='auto-submitted' && h.value.toLowerCase()!=='no') || (h.name.toLowerCase()==='precedence' && /bulk|list|junk/i.test(h.value)))?1:0,account,msg.id);
             }
           }).immediate();
-          for (const msg of full) {
+          for (const msg of ordered) {
             // Claim in an IMMEDIATE transaction across CLI/server processes. A crashed
             // claim expires after ten minutes (the classifier is bounded to four).
             const message = db.transaction(() => {
@@ -75,8 +81,15 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
               return current;
             }).immediate();
             if (!message) continue;
+            if(mutedSender(message.from_addr)) {
+              db.transaction(()=>db.prepare("UPDATE stern_email_messages SET applied='ignored',error='',processed_at=? WHERE id=?").run(nowIso(),message.id)).immediate();
+              counts.messages++;counts.ignored++;watermark=Math.max(watermark,msg.internalDate);continue;
+            }
+            const earlier=db.prepare(`SELECT subject,direction,internal_date AS date,substr(snippet,1,1500) AS body,classification
+              FROM stern_email_messages WHERE gmail_account=? AND gmail_thread_id=? AND (internal_date<? OR (internal_date=? AND gmail_message_id<?))
+              ORDER BY internal_date,gmail_message_id`).all(account,msg.threadId,msg.internalDate,msg.internalDate,msg.id);
             const duplicate = db.prepare("SELECT id FROM stern_email_messages WHERE content_hash=? AND applied<>'duplicate' AND id<>? AND abs(internal_date-?)<=? AND (id<? OR applied NOT IN ('pending','error')) LIMIT 1").get(message.content_hash, message.id, message.internal_date, 3 * 86400000, message.id);
-            const result = duplicate ? null : await classifyEmail({ ...msg, account });
+            const result = duplicate ? null : await classifyEmail({ ...msg, account, threadContext:earlier });
             const cls = result?.classification || { category: "irrelevant" as const, confidence: 0, direction: message.direction, people: [], requires_reply_from_me: false, summary: "Duplicate message", evidence_excerpt: "" };
             cls.direction = message.direction; // Model-provided direction never controls effects.
             const audit = messageMeta(message, cls);
@@ -101,7 +114,9 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
           db.transaction(() => db.prepare(`INSERT INTO stern_scan_state(account,last_checked,last_error) VALUES (?,?,?) ON CONFLICT(account) DO UPDATE SET last_checked=excluded.last_checked,last_error=excluded.last_error`).run(account, nowIso(), error instanceof Error ? error.message.slice(0, 200) : "Account scan failed")).immediate();
         }
       }
-      sweepDuplicates({source:"agent",batchId:runId});
+      const sweep=sweepDuplicates({source:"agent",batchId:runId});
+      counts.errors+=sweep.failures;
+      await retryPendingVerifications({dryRun:options.dryRun});
       const rules = await runRulesPass({ now: options.now });
       counts.errors += rules.errors.length;
       emit("gmail_scan", "running", "Stern email scan counts");
@@ -131,7 +146,7 @@ function errorSummary(account: string): string {
 export async function runSternHotThreads(options:{source?:AutomationSource;dryRun?:boolean;now?:Date}={}) {
   const now=options.now || new Date();
   const chats=getDb().prepare(`SELECT DISTINCT gmail_account,gmail_thread_id FROM coffee_chats WHERE hot_until>? AND gmail_thread_id<>'' AND gmail_account<>''
-    AND state IN ('requested','reply_received') AND (last_thread_check_at='' OR julianday(last_thread_check_at)<=julianday(?))`).all(now.toISOString(),new Date(now.getTime()-5*60000).toISOString()) as {gmail_account:string;gmail_thread_id:string}[];
+    AND state IN ('requested','reply_received','scheduled') AND (last_thread_check_at='' OR julianday(last_thread_check_at)<=julianday(?))`).all(now.toISOString(),new Date(now.getTime()-5*60000).toISOString()) as {gmail_account:string;gmail_thread_id:string}[];
   for(const chat of chats) {
     const result=await runSternEmailScan({...options,thread:{account:chat.gmail_account,id:chat.gmail_thread_id}});
     if(!result.failures && !result.errors) getDb().transaction(()=>getDb().prepare('UPDATE coffee_chats SET last_thread_check_at=? WHERE gmail_account=? AND gmail_thread_id=?')

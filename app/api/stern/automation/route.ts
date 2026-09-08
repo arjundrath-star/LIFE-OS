@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/guard";
 import { automationSnapshot } from "@/lib/stern/automation-snapshot";
 import { runSternEmailScan } from "@/lib/stern/gmail-scan";
 import { runSternCalendarSync } from "@/lib/stern/calendar-sync";
-import { acceptSuggestion, dismissSuggestion } from "@/lib/stern/apply";
+import { acceptSuggestion, dismissSuggestion, dismissAllSuggestionsOfType } from "@/lib/stern/apply";
 import { labelAuditRows } from "@/lib/stern/display";
 import { batchRows, undoBatch } from "@/lib/stern/audit";
 import { regenerateDraft, createGmailDraft, markDraftCopied } from "@/lib/stern/drafts";
@@ -44,8 +44,9 @@ export async function POST(req: Request) {
       }
       if (body.action === "memo.send_now") return sendMemo(new Date(), { ...options, audit: reminderMeta("manual") });
       if (body.action === "settings.update") return updateNotificationSettings(body.settings);
-      if (body.action === "suggestion.accept") return acceptSuggestion(id(body.id), {...options,correction:body.correction === true});
-      if (body.action === "suggestion.dismiss") return dismissSuggestion(id(body.id));
+      if (body.action === "suggestion.accept") return acceptSuggestion(id(body.id), {...options,correction:body.correction === true,timeCorrections:body.timeCorrections});
+      if (body.action === "suggestion.dismiss") return dismissSuggestion(id(body.id),body.mute === true);
+      if (body.action === "suggestions.dismiss_all_of_type") return dismissAllSuggestionsOfType(body.type);
       if (body.action === "batch.undo") {
         if (typeof body.batchId !== "string") throw new SternError(400, "batchId is required");
         return undoBatch(body.batchId);

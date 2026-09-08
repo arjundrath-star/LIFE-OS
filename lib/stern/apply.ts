@@ -2,9 +2,9 @@ import { thresholds } from "./notification-settings";
 import crypto from "node:crypto";
 import { createTask, updateTask, EDITABLE as TASK_EDITABLE } from "@/lib/stern/tasks";
 import { upsertAssignmentFromEmail, gradeAssignment } from "@/lib/stern/classes";
-import { getDb, nowIso } from "@/db";
+import { getDb, kvGet, kvSet, nowIso } from "@/db";
 import { type EmailClassification, type SternEmailMessage, type Person, type CoffeeChat, type RecruitingClub, type RecruitingProgram } from "@/lib/stern-types";
-import { newBatchId, type AuditMeta } from "./audit";
+import { logChange, newBatchId, type AuditMeta } from "./audit";
 import { insert, patch, row, type Row } from "./recruiting-write";
 import { createPerson, addAffiliation, addTouchpoint, observePersonStatus, peopleWrite } from "./people";
 import { createCoffeeChat, observeCoffeeChat } from "./coffee";
@@ -37,6 +37,39 @@ export function suggest(key: string, effects: Effect[], message: SternEmailMessa
 function clubFor(name?: string | null): RecruitingClub | undefined {
   if (!name) return undefined;
   return getDb().prepare(`SELECT c.* FROM stern_clubs c JOIN stern_processes p ON p.id=c.process_id WHERE p.status='active' AND c.status<>'archived' AND (lower(c.name)=? OR lower(c.short_name)=?) ORDER BY c.id DESC LIMIT 1`).get(normalize(name), normalize(name)) as RecruitingClub | undefined;
+}
+export function matchCourse(cls:EmailClassification,message:SternEmailMessage):number {
+  const courses=getDb().prepare("SELECT id,code,title,professor_email FROM courses WHERE archived=0").all() as {id:number;code:string;title:string;professor_email:string}[];
+  const norm=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const evidence=` ${norm(`${message.subject} ${message.snippet}`)} `;
+  const choose=(matches:typeof courses)=>{
+    if(matches.length>1) throw new SternError(409,"Unknown or ambiguous course");
+    return matches[0]?.id;
+  };
+  const code=choose(courses.filter(c=>norm(c.code) && (norm(c.code)===norm(cls.course_code || '') || evidence.includes(` ${norm(c.code)} `))));
+  if(code) return code;
+  const title=choose(courses.filter(c=>norm(c.title) && evidence.includes(` ${norm(c.title)} `)));
+  if(title) return title;
+  const professor=choose(courses.filter(c=>c.professor_email && addresses(message.from_addr).includes(c.professor_email.toLowerCase())));
+  if(professor) return professor;
+  throw new SternError(409,"Unknown or ambiguous course");
+}
+export function mutedSender(from:string) {
+  const muted=kvGet<string[]>('stern.muted_senders') || [];
+  return addresses(from).some(sender=>muted.includes(sender));
+}
+export function eligibleOtherNyu(message:SternEmailMessage,cls:EmailClassification,now=new Date()) {
+  const evidence=message;
+  if(evidence.list_mail || /no[._-]?reply|marketing|servicenow|service-now/i.test(message.from_addr)) return false;
+  const own=(getDb().prepare('SELECT email FROM google_accounts').all() as {email:string}[]).map(a=>a.email.toLowerCase());
+  const direct=addresses(evidence.direct_to || '');
+  const personal=direct.length>0 && direct.every(email=>own.includes(email));
+  const required=/\b(mandatory|required)\b/i.test(`${message.subject} ${message.snippet}`);
+  if(!personal && !required) return false;
+  return (cls.deadline_mentions || []).some(d=>{
+    const at=Date.parse(d.date.length===10 ? nyDayBounds(`${d.date}T12:00:00Z`).endIso : d.date);
+    return Number.isFinite(at) && at>=now.getTime() && at<=now.getTime()+30*86400000;
+  });
 }
 function matchingProgram(club: RecruitingClub, cls: EmailClassification, audit: AuditMeta) {
   const track = cls.program_track || "exploratory";
@@ -186,8 +219,7 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
       if (!date) throw new SternError(409, "Meeting date missing");
       upsertAutomationTask({ title: `Attend ${club.name} general meeting`, club_id: club.id, due_at: date, domain: "campus", dedupe_key: `meeting:${club.id}:${date}` }, audit);
     } else if (effect.kind === "academic") {
-      const courses = db.prepare("SELECT id FROM courses WHERE lower(code)=? AND archived=0").all(normalize(cls.course_code || "")) as { id: number }[];
-      if (courses.length !== 1) throw new SternError(409, "Unknown or ambiguous course");
+      const courses = [{id:matchCourse(cls,message)}];
       if (cls.assignment) assignment(cls, message, courses[0].id, audit);
       else for (const d of deadlines) upsertAutomationTask({ title: d.label, due_at: d.date, course_id: courses[0].id, domain: "academic", dedupe_key: `course:${courses[0].id}:${normalize(d.label)}:${d.date}` }, audit);
     } else if (effect.kind === "tasks") {
@@ -225,8 +257,12 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
     }).immediate();
   }
 }
-export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
+export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; now?:Date; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
   const audit = options.audit || messageMeta(message, cls);
+  if(mutedSender(message.from_addr) || (cls.category==='other_nyu' && !eligibleOtherNyu(message,cls,options.now))) {
+    getDb().transaction(()=>getDb().prepare("UPDATE stern_email_messages SET applied='ignored',processed_at=? WHERE id=?").run(nowIso(),message.id)).immediate();
+    return {applied:'ignored',batchId:audit.batchId,calendarIntents:[] as CalendarIntent[]};
+  }
   const originalClassification = structuredClone(cls);
   const unparsed: {field:string;raw:string}[] = [];
   const reference = new Date(message.internal_date).toISOString();
@@ -248,7 +284,7 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
   const forceSuggest = !options.accept && (cls.category === "other_nyu" || cls.category === "club_other" || (outboundOnly && message.direction !== "outbound"));
   if (effects.length && cls.confidence >= confidenceThresholds.suggest) {
     if (!options.accept && (cls.confidence < confidenceThresholds.auto || forceSuggest)) {
-      getDb().transaction(() => suggest(`message:${message.id}`, effects, message, audit)).immediate(); applied = "suggested";
+      getDb().transaction(() => suggest(`message:${message.id}`, effects, message, audit, cls.category === "other_nyu" ? "other_nyu" : "classification")).immediate(); applied = "suggested";
     } else {
       try { intents = peopleWrite(() => executeEffects(effects, message, audit)); applied = "auto_applied"; }
       catch (error) {
@@ -268,11 +304,11 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
   getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
   return { applied, batchId: audit.batchId, calendarIntents: intents };
 }
-export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource; correction?: boolean } = {}) {
+export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource; correction?: boolean; timeCorrections?:Record<string,string> } = {}) {
   const suggestion = row<Row>("suggestion", id);
   if (suggestion.state !== "pending") throw new SternError(409, "Suggestion already reviewed");
   const payload = JSON.parse(String(suggestion.proposed_data));
-  if (["review_flag","person_merge_review"].includes(String(suggestion.suggestion_type)) || (suggestion.suggestion_type === "time_parse_review" && !payload.classification)) {
+  if (["review_flag","person_merge_review"].includes(String(suggestion.suggestion_type)) || (suggestion.suggestion_type === "time_parse_review" && (!payload.classification || !options.timeCorrections))) {
     const batchId=newBatchId("review");
     getDb().transaction(()=>patch("suggestion",id,{state:"accepted",reviewed_at:nowIso()},{source:"manual",batchId})).immediate();
     return {batchId,applied:"accepted",calendarIntents:[] as CalendarIntent[]};
@@ -280,6 +316,19 @@ export async function acceptSuggestion(id: number, options: { dryRun?: boolean; 
   let corrected: EmailClassification | undefined;
   if(suggestion.suggestion_type === "verification_correction" || suggestion.suggestion_type === "time_parse_review") {
     corrected = structuredClone(payload.classification);
+    if(suggestion.suggestion_type === "time_parse_review" && options.timeCorrections) {
+      if(typeof options.timeCorrections!=='object' || Array.isArray(options.timeCorrections)) throw new SternError(400,"Time corrections must be an object");
+      const pending=payload.unparsed as {field:string;raw:string}[];
+      if(!pending?.length || Object.keys(options.timeCorrections).some(field=>!pending.some(p=>p.field===field))) throw new SternError(400,"Unknown time correction field");
+      for(const item of pending) {
+        const raw=options.timeCorrections[item.field];
+        const parsed=typeof raw==='string' && /^\d{4}-\d{2}-\d{2}T/.test(raw) ? parseEventTime(raw,nowIso()) : null;
+        if(!parsed) throw new SternError(400,"Supply a valid ISO time for every unparsed field");
+        if(item.field==='confirmed_time') corrected!.confirmed_time=parsed.iso;
+        else if(/^proposed_times\.\d+$/.test(item.field)) corrected!.proposed_times![Number(item.field.split('.')[1])]=parsed.iso;
+        else throw new SternError(400,"Unsupported time correction field");
+      }
+    }
     if(options.correction) {
       for(const issue of payload.issues || []) {
         const keys=String(issue.field).replace(/^classification\./,"").split(".");
@@ -304,6 +353,31 @@ export async function acceptSuggestion(id: number, options: { dryRun?: boolean; 
   getDb().transaction(() => patch("suggestion", id, { state: "accepted", reviewed_at: nowIso() }, audit)).immediate();
   return result;
 }
-export function dismissSuggestion(id: number) {
-  return getDb().transaction(() => { const s = row<Row>("suggestion", id); if (s.state !== "pending") throw new SternError(409, "Suggestion already reviewed"); patch("suggestion", id, { state: "dismissed", reviewed_at: nowIso() }, { source: "manual", batchId: newBatchId("dismiss") }); }).immediate();
+export function dismissSuggestion(id: number, mute = false) {
+  return getDb().transaction(() => {
+    const s = row<Row>("suggestion", id);
+    if (s.state !== "pending") throw new SternError(409, "Suggestion already reviewed");
+    const audit={source:"manual",batchId:newBatchId("dismiss")};
+    if(mute) {
+      const message=getDb().prepare("SELECT from_addr FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(s.gmail_account,s.gmail_message_id) as {from_addr:string}|undefined;
+      const senders=addresses(message?.from_addr || '');
+      if(!senders.length) throw new SternError(400,"Suggestion has no sender to mute");
+      const key='stern.muted_senders',before=getDb().prepare('SELECT v FROM kv WHERE k=?').get(key) as {v:string}|undefined;
+      const after=[...new Set([...(kvGet<string[]>(key) || []),...senders])].sort();
+      kvSet(key,after);
+      logChange({...audit,entityType:'notification_setting',entityId:0,action:'update',field:key,before:before?.v || '',after:JSON.stringify(after)});
+    }
+    patch("suggestion", id, { state: "dismissed", reviewed_at: nowIso() }, audit);
+    return {batchId:audit.batchId};
+  }).immediate();
+}
+export function dismissAllSuggestionsOfType(type:string) {
+  if(typeof type!=='string' || !type.trim() || type.length>200) throw new SternError(400,"Suggestion type is required");
+  return getDb().transaction(()=>{
+    const audit={source:'manual',batchId:newBatchId('dismiss-type')};
+    const rows=getDb().prepare(`SELECT id FROM stern_suggestions WHERE state='pending' AND (suggestion_type=? OR
+      (?='other_nyu' AND json_valid(proposed_data) AND EXISTS(SELECT 1 FROM json_each(proposed_data) e WHERE json_extract(CASE WHEN json_valid(e.value) THEN e.value ELSE '{}' END,'$.classification.category')='other_nyu')))`).all(type,type) as {id:number}[];
+    for(const s of rows) patch('suggestion',s.id,{state:'dismissed',reviewed_at:nowIso()},audit);
+    return {dismissed:rows.length,batchId:audit.batchId};
+  }).immediate();
 }
