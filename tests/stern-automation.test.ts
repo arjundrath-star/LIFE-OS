@@ -793,3 +793,14 @@ test("model strings longer than the schema limit are clamped, and mismatches nam
   assert.equal(llm.schemaMismatch(clamped, permissive), null);
   assert.equal(llm.schemaMismatch({ ...fixture("fx-001").expected, people: [{ name: "P", email: 4 }] }, permissive), "$.people[0].email (type number)");
 });
+
+test("optional arrays are never nullable in strict mode, and a null array from the model is coerced to empty", async () => {
+  const llm = await import("@/lib/stern/llm");
+  const permissive = JSON.parse(fs.readFileSync("docs/plans/stern/schema/email-classifier.schema.json", "utf8"));
+  const strict = llm.strictSchema(permissive) as { properties: Record<string, { type?: unknown }> };
+  assert.deepEqual(strict.properties.proposed_times.type, "array");
+  assert.deepEqual(strict.properties.deadline_mentions.type, "array");
+  const fixed = llm.clampToSchema({ ...fixture("fx-001").expected, proposed_times: null, deadline_mentions: null }, permissive) as { proposed_times: unknown[]; deadline_mentions: unknown[] };
+  assert.deepEqual(fixed.proposed_times, []); assert.deepEqual(fixed.deadline_mentions, []);
+  assert.equal(llm.schemaMismatch(fixed, permissive), null);
+});
