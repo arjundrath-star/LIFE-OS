@@ -124,7 +124,7 @@ export function entityTable(entityType: string): string {
 
 function assertField(entityType: string, field: string) {
   if (entityType === "notification_setting") {
-    if (!(STERN_NOTIFICATION_KEYS as readonly string[]).includes(field)) throw new SternError(400, "Unknown notification setting");
+    if (field !== "stern.muted_senders" && !(STERN_NOTIFICATION_KEYS as readonly string[]).includes(field)) throw new SternError(400, "Unknown notification setting");
     return;
   }
   if (!field) return;
@@ -272,6 +272,9 @@ export function undoBatch(batchId: string, options: { source?: AuditSource | str
             .run(restore, row.entity_id, expected).changes;
         }
       } else if (row.action === "create") {
+        if (db.prepare("SELECT 1 FROM stern_audit_log WHERE entity_type=? AND entity_id=? AND id>? AND batch_id<>? AND undone_at='' AND source='manual' AND action<>'undo' LIMIT 1").get(row.entity_type,row.entity_id,row.id,batchId)) {
+          throw new SternError(409, `${row.entity_type} has later edits; undo the newer batches first`);
+        }
         // Foreign keys cascade on delete. Refuse when the delete would take dependent rows
         // this batch did not create (they would vanish with no audit snapshot to restore).
         // Recruiting links in 0029 deliberately use sentinel IDs rather than foreign keys.

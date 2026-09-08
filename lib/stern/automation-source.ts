@@ -23,14 +23,14 @@ export function fixtureMessage(f: EmailFixture): GmailFullMessage {
 export function automationSource(): AutomationSource {
   if (process.env.STERN_LLM_MODE === "fixture") {
     const fixtures = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests/fixtures/stern/emails.json"), "utf8")) as EmailFixture[];
-    return { list: async (email, since) => fixtures.filter(f => f.account === email && Date.parse(f.date) >= since).map(f => f.id),
+    return { list: async (email, since, options) => fixtures.filter(f => f.account === email && (options?.threadId ? f.threadId === options.threadId : Date.parse(f.date) >= since)).map(f => f.id),
       full: async (email, id) => { const f = fixtures.find(f => f.account === email && f.id === id); if (!f) throw new Error("Missing fixture"); return fixtureMessage(f); },
       calendar: async () => [], createEvent: async (_, input) => ({ id: `dry-run:${input.id}` }), createDraft: async () => ({ id: "dry-run:draft" }) };
   }
   return { list: gmailListSince, full: gmailFetchFull, calendar: calendarEventsBetween, createEvent: calendarCreateEvent, createDraft: gmailCreateDraft };
 }
 const g = globalThis as typeof globalThis & { __sternAutomationQueue?: Promise<unknown> };
-/** One process-wide writer lane, including manual jobs and scheduled jobs. */
+/** Full background scan lane only. User mutations and hot threads never enter this queue. */
 export function automationJob<T>(fn: () => Promise<T>): Promise<T> {
   const next = (g.__sternAutomationQueue || Promise.resolve()).catch(() => {}).then(fn);
   g.__sternAutomationQueue = next.catch(() => {});

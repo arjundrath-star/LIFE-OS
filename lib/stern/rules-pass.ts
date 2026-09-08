@@ -15,7 +15,7 @@ export async function runRulesPass(options: { now?: Date; audit?: AuditMeta } = 
     JOIN stern_clubs c ON c.id=ch.club_id JOIN stern_processes s ON s.id=c.process_id
     WHERE ch.reply_needs_me=1 AND ch.gmail_thread_id<>'' AND ch.reply_at<>''
       AND p.archived=0 AND c.status<>'archived' AND s.status='active'
-      AND EXISTS (SELECT 1 FROM stern_email_messages m WHERE m.gmail_thread_id=ch.gmail_thread_id
+      AND EXISTS (SELECT 1 FROM stern_email_messages m WHERE m.gmail_thread_id=ch.gmail_thread_id AND (ch.gmail_account='' OR m.gmail_account=ch.gmail_account)
         AND m.direction='outbound' AND m.internal_date > (julianday(ch.reply_at)-2440587.5)*86400000)`).all() as { id: number }[];
   for (const chat of answered) observeCoffeeChat(chat.id, { reply_needs_me: 0 }, audit);
   for (const p of db.prepare("SELECT id FROM people WHERE archived=0 AND status='need_to_reach_out'").all() as { id: number }[]) ensureCoffeeChatsForPerson(p.id, audit);
@@ -27,7 +27,7 @@ export async function runRulesPass(options: { now?: Date; audit?: AuditMeta } = 
       try { if (await ensureDraft(chat.id, kind, audit)) result.drafts++; }
       catch (error) { result.errors.push(error instanceof Error ? error.message : "Draft generation failed"); }
     }
-    if (chat.state === "requested" && !chat.reply_at && age > 5) observeCoffeeChat(chat.id, { state: "no_reply" }, audit);
+    if (chat.state === "requested" && !chat.reply_at && !chat.scheduling_since && age > 5) observeCoffeeChat(chat.id, { state: "no_reply" }, audit);
   }
   return result;
 }

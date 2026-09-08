@@ -1,7 +1,7 @@
 // Server-only people domain. All mutations and audit rows share an IMMEDIATE transaction.
 import crypto from "node:crypto";
 import { getDb, nowIso } from "@/db";
-import { HOW_MET, PERSON_SOURCES, PERSON_STATUSES, RELATIONSHIP_TYPES, SPHERES, TOUCHPOINT_KINDS, TOUCHPOINT_SOURCES, type Person, type PersonDetail, type Affiliation, type Touchpoint, type PeopleFilters, type NetworkSnapshot, type AuditEntityType } from "@/lib/stern-types";
+import { coffeeChatPhase, HOW_MET, PERSON_SOURCES, PERSON_STATUSES, RELATIONSHIP_TYPES, SPHERES, TOUCHPOINT_KINDS, TOUCHPOINT_SOURCES, type Person, type PersonDetail, type Affiliation, type Touchpoint, type PeopleFilters, type NetworkSnapshot, type AuditEntityType } from "@/lib/stern-types";
 import { logChange, logCreate, logDelete, newBatchId, type AuditMeta, ENTITY_TABLES } from "./audit";
 import { SternError } from "./errors";
 import { writePersonNote } from "./people-note";
@@ -28,6 +28,7 @@ export function peopleWrite<T>(fn: () => T): T {
 
 type Input = Record<string, unknown>;
 export type WriteOptions = Partial<AuditMeta> & { overwrite?: boolean };
+const NYU_ADDRESS = /@(?:[^@]+\.)?nyu\.edu$/i;
 export const EDITABLE = ["first_name", "last_name", "display_name", "year", "major", "org", "title", "sphere", "relationship_type", "strength", "status", "how_met", "met_at", "met_event", "email", "email_alt", "phone", "instagram", "linkedin", "hometown", "dorm", "next_action", "next_action_at", "notes", "roster"] as const;
 const text = (v: unknown): string => typeof v === "string" ? v.trim() : "";
 function bounded(v: unknown, max: number, field: string): string {
@@ -35,7 +36,8 @@ function bounded(v: unknown, max: number, field: string): string {
   if (value.length > max) throw new SternError(400, `${field} is too long`);
   return value;
 }
-const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9\s]+/g, " ").replace(/\s+/g, " ").trim();
+export const normalizePersonName = (v: string) => v.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, "").replace(/\s+/g, " ").trim();
+const normalize = normalizePersonName;
 export const normalizeEmail = (v: unknown): string => text(v).toLowerCase();
 export function dedupeKeyFor(input: Input): string {
   return normalizeEmail(input.email) || `name:${normalize(text(input.display_name) || text(input.name) || `${text(input.first_name)} ${text(input.last_name)}`.trim())}:${normalize(text(input.org))}`;
@@ -128,19 +130,49 @@ function updateInside(id: number, patch: Input, m: AuditMeta): Person {
   if (patch.status && !canSetPersonStatus(before.status, String(patch.status))) throw new SternError(409, `Cannot change ${before.status} to ${patch.status}`);
   const after = { ...before, ...patch };
   if (!text(after.display_name)) throw new SternError(400, "Name is required");
-  const key = before.archived === 1 && before.dedupe_key.startsWith("merged:") ? before.dedupe_key : dedupeKeyFor(after);
+  let key = before.archived === 1 && before.dedupe_key.startsWith("merged:") ? before.dedupe_key : dedupeKeyFor(after);
   const duplicate = getDb().prepare("SELECT id FROM people WHERE dedupe_key = ? AND id <> ?").get(key, id);
-  if (duplicate) throw new SternError(409, "A person with this identity exists; merge the records first");
+  if (duplicate) {
+    const other=personRow((duplicate as {id:number}).id);
+    if(!after.email && before.dedupe_key.startsWith(`${key}:identity:`) && identityConflict(before,other)) key=before.dedupe_key;
+    else throw new SternError(409, "A person with this identity exists; merge the records first");
+  }
   if (Object.entries(patch).some(([k, v]) => (before as unknown as Input)[k] !== v) || key !== before.dedupe_key) {
     patchRow("person", id, { ...patch, dedupe_key: key, updated_at: nowIso() }, m);
   }
   return personRow(id);
 }
+// Compare known clubs separately from organization aliases; missing context is not a conflict.
+function identityContext(person: Pick<Person, "id" | "org">) {
+  const affiliations = getDb().prepare("SELECT club_id,org FROM people_affiliations WHERE person_id=?").all(person.id) as {club_id:number;org:string}[];
+  const orgKey = (value:string) => {
+    const normalized = normalize(value);
+    const clubs = getDb().prepare("SELECT id,name,short_name FROM stern_clubs").all() as {id:number;name:string;short_name:string}[];
+    return clubs.find(c=>[c.name,c.short_name].some(v=>normalize(v)===normalized))?.id.toString() || normalized;
+  };
+  const orgs=[person.org,...affiliations.map(a=>a.org)].filter(Boolean).map(orgKey);
+  return {clubs:new Set([...affiliations.filter(a=>a.club_id).map(a=>a.club_id),...orgs.filter(v=>/^\d+$/.test(v)).map(Number)]),
+    orgs:new Set([...orgs,...affiliations.filter(a=>a.club_id).map(a=>String(a.club_id))])};
+}
+function identityConflict(a: Pick<Person,"id"|"org">, b: Pick<Person,"id"|"org">) {
+  const left=identityContext(a),right=identityContext(b);
+  const disjoint=<T,>(x:Set<T>,y:Set<T>)=>x.size>0 && y.size>0 && ![...x].some(v=>y.has(v));
+  return disjoint(left.clubs,right.clubs) || disjoint(left.orgs,right.orgs);
+}
+function mergeReview(candidates:Person[], selected:number, reason:string, audit:AuditMeta) {
+  const ids=candidates.map(p=>p.id).sort((a,b)=>a-b);
+  const key=`person-merge-review:${ids.join(":")}:${selected}`;
+  if(!getDb().prepare("SELECT 1 FROM stern_suggestions WHERE dedupe_key=?").get(key)) insert("suggestion",{
+    dedupe_key:key,suggestion_type:"person_merge_review",entity_type:"person",entity_id:selected,
+    proposed_data:JSON.stringify({candidates:ids,selected,reason}),evidence_type:audit.evidenceType==="gmail"?"gmail":"manual",
+    evidence_excerpt:reason,gmail_account:audit.gmailAccount || "",gmail_message_id:audit.gmailMessageId || ""
+  },audit);
+}
 export function createPerson(input: Input, options: WriteOptions = {}): { person: Person; created: boolean } {
   object(input);
   const m = meta(options);
   const result = peopleWrite(() => {
-    const fields = normalized({ ...input, display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
+    const fields = normalized({ ...input, org: input.org || input.club_or_org || "", display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
     fields.display_name = text(fields.display_name) || bounded(input.name, 2000, "name") || `${text(fields.first_name)} ${text(fields.last_name)}`.trim();
     if (!fields.display_name) throw new SternError(400, "Name is required");
     if (!fields.first_name && !fields.last_name) {
@@ -150,8 +182,7 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
     // Enrich a prior name-only capture when its email becomes known, without joining two email identities.
     let existing = (getDb().prepare("SELECT * FROM people WHERE dedupe_key = ?").get(key)
       || (fields.email && getDb().prepare("SELECT * FROM people WHERE email_alt = ? AND archived = 0 ORDER BY id LIMIT 1").get(key))
-      || (fields.email && getDb().prepare("SELECT * FROM people WHERE archived=1 AND dedupe_key LIKE 'merged:%' AND (email=? OR email_alt=?) ORDER BY id LIMIT 1").get(key, key))
-      || (fields.email && getDb().prepare("SELECT * FROM people WHERE dedupe_key = ? AND email = ''").get(dedupeKeyFor({ ...fields, email: "" })))) as Person | undefined;
+      || (fields.email && getDb().prepare("SELECT * FROM people WHERE archived=1 AND dedupe_key LIKE 'merged:%' AND (email=? OR email_alt=?) ORDER BY id LIMIT 1").get(key, key))) as Person | undefined;
     // Tombstones also resolve older aliases when the survivor's alternate email is occupied.
     const seen = new Set<number>();
     while (existing && existing.dedupe_key.startsWith("merged:")) {
@@ -159,15 +190,41 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
       seen.add(existing.id);
       existing = personRow(Number(existing.dedupe_key.split(":")[2]));
     }
+    const importing=(input.source ?? m.source)==="import";
+    const incoming={id:0,org:text(input.club_or_org) || text(input.org)};
+    if(existing && importing && !fields.email && identityConflict(existing,incoming)) existing=undefined;
+    if (!existing) {
+      const candidates = (getDb().prepare("SELECT * FROM people WHERE archived=0 AND email='' ORDER BY created_at,id").all() as Person[])
+        .filter(p => normalize(p.display_name) === normalize(String(fields.display_name)));
+      const eligible=importing ? candidates.filter(p=>!identityConflict(p,incoming)) : candidates;
+      const org=normalize(incoming.org);
+      const matchesClub=(p:Person)=>org && (getDb().prepare(`SELECT a.org,c.name,c.short_name FROM people_affiliations a
+        LEFT JOIN stern_clubs c ON c.id=a.club_id WHERE a.person_id=?`).all(p.id) as {org:string;name:string;short_name:string}[])
+        .some(a=>[a.org,a.name,a.short_name].some(v=>v && normalize(v)===org));
+      existing=eligible.find(matchesClub) || eligible.find(p=>org && normalize(p.org)===org) || eligible[0];
+      if(candidates.length>1 || eligible.length<candidates.length) mergeReview(candidates,existing?.id || 0,
+        importing ? "Conflicting roster clubs or organizations require review; separate identities preserved" : "Name-only identity resolved by club affiliation, then oldest row",m);
+    }
+    // NYU students carry two addresses (netid@nyu.edu and first.last@stern.nyu.edu). The same name on two
+    // NYU addresses is one person: keep the primary email and record the other as email_alt.
+    let altEmail = "";
+    if (!existing && fields.email && NYU_ADDRESS.test(String(fields.email))) {
+      const twins = (getDb().prepare("SELECT * FROM people WHERE archived=0 AND email<>'' AND email<>? ORDER BY created_at,id").all(String(fields.email)) as Person[])
+        .filter(p => NYU_ADDRESS.test(p.email) && normalize(p.display_name) === normalize(String(fields.display_name)) && !(importing && identityConflict(p, incoming)));
+      if (twins.length === 1) { existing = twins[0]; altEmail = String(fields.email); }
+      else if (twins.length > 1) mergeReview(twins, 0, "Several NYU people share this name; the new address was kept separate for review", m);
+    }
     if (existing) {
       if (existing.archived) patchRow("person", existing.id, { archived: 0, updated_at: nowIso() }, m);
       const patch = Object.fromEntries(Object.entries(fields).filter(([k, v]) => options.overwrite || ((existing as unknown as Input)[k] === "" && v !== "")));
       // A real capture of a roster person (anything but another roster import) promotes them into the Network.
-      if (existing.roster === 1 && !("roster" in fields) && (input.source ?? m.source) !== "import") patch.roster = 0;
+      if (altEmail && !existing.email_alt) patch.email_alt = altEmail;
+      if (existing.roster === 1 && (input.source ?? m.source) !== "import") patch.roster = 0;
       return { person: updateInside(existing.id, patch, m), created: false };
     }
     const source = enumValue(input.source ?? (PERSON_SOURCES.includes(m.source as Person["source"]) ? m.source : "manual"), PERSON_SOURCES, "source");
-    const id = insert("person", { ...fields, dedupe_key: key, source, met_at: fields.met_at || nowIso() }, m);
+    const insertKey = getDb().prepare("SELECT 1 FROM people WHERE dedupe_key=?").get(key) ? `${key}:identity:${crypto.randomUUID()}` : key;
+    const id = insert("person", { ...fields, dedupe_key: insertKey, source, met_at: fields.met_at || nowIso() }, m);
     return { person: personRow(id), created: true };
   });
   syncPersonNote(result.person);
@@ -309,7 +366,7 @@ export function getPerson(id: number): PersonDetail {
     ) SELECT id, display_name FROM people WHERE id IN (SELECT id FROM merged) ORDER BY id`).all(id) as PersonDetail["mergedRecords"],
     affiliations: db.prepare("SELECT a.*, c.name club_name FROM people_affiliations a LEFT JOIN stern_clubs c ON c.id=a.club_id WHERE person_id=? ORDER BY is_eboard DESC, a.id").all(id) as Affiliation[],
     touchpoints: (db.prepare("SELECT * FROM people_touchpoints WHERE person_id=? ORDER BY id DESC LIMIT 50").all(id) as Touchpoint[]).reverse().map(t => ({ ...t, gmail_message_id: t.gmail_message_id.startsWith("local:") ? "" : t.gmail_message_id })),
-    coffeeChats: db.prepare("SELECT * FROM coffee_chats WHERE person_id=? ORDER BY id DESC").all(id) as PersonDetail["coffeeChats"],
+    coffeeChats: (db.prepare("SELECT * FROM coffee_chats WHERE person_id=? ORDER BY id DESC").all(id) as PersonDetail["coffeeChats"]).map(chat=>({...chat,phase:coffeeChatPhase(chat)})),
     drafts: db.prepare("SELECT * FROM stern_drafts WHERE person_id=? ORDER BY id DESC").all(id) as PersonDetail["drafts"],
   };
 }
@@ -383,5 +440,48 @@ export function observePersonStatus(id: number, status: "reached_out" | "replied
     patchRow("person", id, { status, updated_at: nowIso() }, m);
     syncPersonNote(personRow(id));
     return personRow(id);
+  });
+}
+
+/** Merge only groups with zero or one email-bearing row. Different email identities never collapse. */
+export function sweepDuplicates(options: WriteOptions = {}) {
+  const audit = meta(options);
+  return peopleWrite(() => {
+    const groups = new Map<string, Person[]>();
+    for (const person of getDb().prepare("SELECT * FROM people WHERE archived=0 ORDER BY created_at,id").all() as Person[]) {
+      const key = normalize(person.display_name);
+      if (key) groups.set(key, [...(groups.get(key) || []), person]);
+    }
+    let merged = 0, failures = 0;
+    for (const people of groups.values()) {
+      try {
+        merged += getDb().transaction(() => {
+          let count=0;
+          if(people.length>1 && people.filter(p=>p.email).length<=1) {
+            if(people.some((p,i)=>people.slice(i+1).some(other=>identityConflict(p,other)))) {
+              mergeReview(people,0,"Same name with conflicting clubs or organizations; automatic merge skipped",audit);
+            } else {
+              const keep=people.find(p=>p.email) || people[0];
+              for(const drop of people) if(drop.id!==keep.id) {
+                for(const entity of ["coffee_chat","draft","task","calendar_event"] as const) {
+                  for(const child of getDb().prepare(`SELECT id FROM ${ENTITY_TABLES[entity]} WHERE person_id=?`).all(drop.id) as {id:number}[]) patchRow(entity,child.id,{person_id:keep.id},audit);
+                }
+                mergePeople(keep.id,drop.id,audit);count++;
+              }
+            }
+          }
+          // Repair legacy normalization without violating unique keys of distinct identities.
+          for(const prior of people) {
+            const person=personRow(prior.id);
+            if(person.email || person.archived) continue;
+            const canonical=dedupeKeyFor(person as unknown as Input);
+            const collision=getDb().prepare("SELECT 1 FROM people WHERE dedupe_key=? AND id<>?").get(canonical,person.id);
+            patchRow("person",person.id,{dedupe_key:collision ? `${canonical}:identity:${person.id}` : canonical},audit);
+          }
+          return count;
+        }).immediate();
+      } catch { failures++; }
+    }
+    return {merged, failures, batchId:audit.batchId};
   });
 }

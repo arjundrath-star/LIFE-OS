@@ -1,3 +1,4 @@
+import { evaluateGoogleReauth, googleConsent } from "./google-reauth";
 import { getDb } from "@/db";
 import type { SternReminder, ReminderMessage, CoffeeChat, RecruitingProgram } from "@/lib/stern-types";
 import { notificationSettings } from "./notification-settings";
@@ -22,7 +23,7 @@ export function thankYouOwed(chat: CoffeeChat, now: Date) { return chat.state ==
 
 export function evaluateRules(now = new Date(), options: Pick<SendOptions, "audit"> = {}) {
   const today = nyDayBounds(now), audit = options.audit ?? reminderMeta();
-  let inserted = 0;
+  let inserted = evaluateGoogleReauth(now);
   const add = (rule: string, entity: string, entityId: number, fire: Date, body: string, urgent = false, fingerprint = "", validUntil = "") => {
     if (!Number.isFinite(fire.getTime()) || fire > now || (validUntil && Date.parse(validUntil) <= now.getTime())) return;
     const fireAt = fire.toISOString();
@@ -89,6 +90,7 @@ export function quietUntil(now: Date): Date | null {
   return nyWallTime(day, end);
 }
 function relevant(reminder: SternReminder, message: ReminderMessage, now: Date) {
+  if (reminder.entity_type.startsWith("google_account:")) return googleConsent(reminder.entity_type.slice("google_account:".length)) === message.fingerprint;
   if (message.validUntil && Date.parse(message.validUntil) <= now.getTime()) return false;
   if (reminder.entity_type.startsWith("program_")) {
     const p = reminderPrograms().find(p => p.id === reminder.entity_id);

@@ -3,12 +3,12 @@ import { useState, type ReactNode } from "react";
 import { Mail, Plus } from "lucide-react";
 import { apiPost } from "@/hooks/useApi";
 import { EmptyState, StatusChip } from "@/components/stern/Page";
-import { CHAT_TRANSITIONS, type CoffeeChat, type RecruitingClubDetail } from "@/lib/stern-types";
+import { coffeeChatPhase, CHAT_TRANSITIONS, type CoffeeChat, type RecruitingClubDetail } from "@/lib/stern-types";
 import { RecruitingButton, RecruitingDialog, Field, dateLabel, StatusSelect } from "./Controls";
 import type { RecruitingMutation } from "./useRecruiting";
 
 export function CoffeeChatChip({ chat }: { chat: CoffeeChat | null }) {
-  return <span data-component="CoffeeChatChip" data-testid="stern-chat-chip">{chat ? <StatusChip value={chat.state}/> : <span className="stern-muted">No chat tracked</span>}</span>;
+  return <span data-component="CoffeeChatChip" data-testid="stern-chat-chip">{chat ? <StatusChip value={coffeeChatPhase(chat)}/> : <span className="stern-muted">No chat tracked</span>}</span>;
 }
 export function People({ club, disabled, draftsAvailable, mutate, compact = false, error }: { error?: string; club: RecruitingClubDetail; disabled: boolean; draftsAvailable: boolean; mutate: RecruitingMutation; compact?: boolean }) {
   const [scheduling, setScheduling] = useState<number | null>(null); const [notice, setNotice] = useState(""); const [draftBusy, setDraftBusy] = useState(false);

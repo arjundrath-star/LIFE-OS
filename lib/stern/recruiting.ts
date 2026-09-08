@@ -1,4 +1,6 @@
 import publicCatalog from "@/docs/plans/stern/seeds/clubs-catalog.json";
+import { resolveTime } from "./time-review";
+import { coffeeChatPhase } from "@/lib/stern-types";
 import { getDb, nowIso } from "@/db";
 import {
   CLUB_CATEGORIES, CLUB_TRANSITIONS, PROGRAM_TRACKS, PROGRAM_TRANSITIONS, CHECKLIST_KEYS, CHECKLIST_LABELS, statusLabel,
@@ -145,6 +147,10 @@ export function upsertProgram(input: Record<string, unknown>, options: ChangeMet
     if (fields.track !== undefined && !(PROGRAM_TRACKS as readonly string[]).includes(String(fields.track))) throw new SternError(400, "Invalid track");
     if (!existing && (!fields.name || !fields.track)) throw new SternError(400, "Program name and track are required");
     if (!existing) existing = getDb().prepare("SELECT * FROM stern_programs WHERE club_id = ? AND track = ? AND name = ?").get(clubId, fields.track, fields.name) as RecruitingProgram | undefined;
+    if(fields.interview_at) {
+      const value=resolveTime(String(fields.interview_at),"interview_at","program",existing?.id || 0,meta(options));
+      if(value) fields.interview_at=value; else delete fields.interview_at;
+    }
     for (const key of ["app_opens_at", "app_deadline_at", "interview_start", "interview_end", "decision_at", "interview_at"]) {
       if (fields[key] !== undefined && !validDate(String(fields[key]))) throw new SternError(400, `${key} must be a date or ISO time with timezone`);
     }
@@ -290,6 +296,7 @@ export function recruitingSnapshot(now: Date = new Date()): RecruitingSnapshot {
     const progress = db.prepare("SELECT COUNT(*) checklistTotal, COALESCE(SUM(done_at <> ''), 0) checklistDone FROM stern_checklist_items WHERE club_id = ?").get(club.id) as { checklistTotal: number; checklistDone: number };
     const chatsDone = (db.prepare("SELECT COUNT(DISTINCT person_id) n FROM coffee_chats WHERE club_id = ? AND state IN ('done','thank_you_sent')").get(club.id) as { n: number }).n;
     const chats = db.prepare("SELECT * FROM coffee_chats WHERE club_id = ? ORDER BY id DESC LIMIT 500").all(club.id) as CoffeeChat[];
+    for (const chat of chats) chat.phase = coffeeChatPhase(chat);
     chats.reverse();
     const people = (db.prepare(`SELECT p.id, p.display_name, p.email, p.year, p.title, p.roster, MAX(a.is_eboard) is_eboard, GROUP_CONCAT(DISTINCT a.role) role FROM people p
       JOIN people_affiliations a ON a.person_id = p.id WHERE a.club_id = ? AND p.archived = 0 GROUP BY p.id ORDER BY MAX(a.is_eboard) DESC, p.roster ASC, p.display_name COLLATE NOCASE`).all(club.id) as Omit<RecruitingPerson, "chat">[])

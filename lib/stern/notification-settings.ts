@@ -6,6 +6,8 @@ import { SternError } from "./errors";
 export function notificationSettings(): SternNotificationSettings {
   const read = (key: string, fallback: string) => kvGet<string>(key) ?? fallback;
   return {
+    "stern.verifier_provider": read("stern.verifier_provider", "codex"),
+    "stern.verifier_model": read("stern.verifier_model", "gpt-6-astra"),
     "stern.threshold_auto": read("stern.threshold_auto", String(STERN_THRESHOLDS.auto)),
     "stern.threshold_suggest": read("stern.threshold_suggest", String(STERN_THRESHOLDS.suggest)),
     "stern.hermes_alias": read("stern.hermes_alias", STERN_SETTINGS_DEFAULTS.hermesAlias),
@@ -31,6 +33,8 @@ export function updateNotificationSettings(input: unknown) {
   for (const [key, value] of entries) {
     if (!(STERN_NOTIFICATION_KEYS as readonly string[]).includes(key) || key === "stern.memo_last_date") throw new SternError(400, `Setting is not editable: ${key}`);
     if (typeof value !== "string" || value.length > 320 || /[\r\n\0]/.test(value)) throw new SternError(400, `Invalid setting: ${key}`);
+    if (key === "stern.verifier_provider" && !["codex","claude"].includes(value)) throw new SternError(400, "Unknown verifier provider");
+    if (key === "stern.verifier_model" && !/^[a-zA-Z0-9._-]{1,100}$/.test(value)) throw new SternError(400, "Invalid verifier model");
     if (key === "stern.hermes_alias" && !HERMES_ALIAS.test(value)) throw new SternError(400, "Hermes alias must be a command name");
     if (key === "stern.imessage_target" && value !== "" && !HERMES_TARGET.test(value)) throw new SternError(400, "Invalid Hermes target");
     if (key.startsWith("stern.threshold_")) thresholdNumber(value);
@@ -43,6 +47,7 @@ export function updateNotificationSettings(input: unknown) {
     const merged = { ...notificationSettings(), ...Object.fromEntries(entries) };
     validateThresholds(merged["stern.threshold_auto"], merged["stern.threshold_suggest"]);
     for (const [key, value] of entries) writeNotificationSetting(key, value as string, audit);
+    if(entries.some(([key])=>key==="stern.verifier_provider")) getDb().prepare("INSERT INTO connections(service,surface,enabled) VALUES (?,'dashboard',1) ON CONFLICT(service,surface) DO UPDATE SET enabled=1").run(`stern-llm-${merged["stern.verifier_provider"]}`);
   }).immediate();
   return { settings: notificationSettings(), batchId: audit.batchId };
 }

@@ -79,7 +79,7 @@ test('audit and suggestions resolve names and actual classifier effects without 
  db.prepare("INSERT INTO stern_audit_log(entity_type,entity_id,action,source) VALUES('person',99999,'delete','manual')").run();
  assert.equal(auditTail().at(-1)?.entity_label,'Person #99999');
 });
-test('connection read models use scheduler cache and carry five cards over the live snapshot',async()=>{
+test('connection read models use scheduler cache and carry six cards over the live snapshot',async()=>{
  const {db,sternSnapshot}=await setup;
  const {getDef}=await import('@/lib/connections/registry');
  const def=getDef('stern-llm-codex')!,original=def.check;
@@ -87,7 +87,7 @@ test('connection read models use scheduler cache and carry five cards over the l
  try {
  db.prepare("INSERT OR REPLACE INTO connections(service,surface,state,detail,last_checked) VALUES('stern-llm-codex','dashboard','on_healthy','Cached classifier','2026-09-05T12:00Z')").run();
  const cards=sternSnapshot().automation.connections;
- assert.equal(cards.length,5);assert.equal(cards.find(c=>c.id==='stern-llm-codex')?.detail,'Cached classifier');
+ assert.equal(cards.length,6);assert.equal(cards.find(c=>c.id==='stern-llm-codex')?.detail,'Cached classifier');
  db.prepare("UPDATE connections SET state='on_broken',detail='Cached failure' WHERE service='stern-llm-codex'").run();
  assert.equal(sternSnapshot().automation.connections.find(c=>c.id==='stern-llm-codex')?.detail,'Cached failure');
  }finally{def.check=original;}

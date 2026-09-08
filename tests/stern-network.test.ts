@@ -110,7 +110,9 @@ test("merge can transfer an email or name+org identity into a blank survivor", a
   for (const email of ["", "transfer@example.test"]) {
     const name = email ? "Email Transfer Student" : "Org Transfer Student";
     const keep = p.createPerson({ name }).person;
-    const drop = p.createPerson({ name, org: "Transfer Organization", email }).person;
+    // Model a duplicate written before name-stage resolution shipped.
+    const dropId=Number(db.prepare("INSERT INTO people(display_name,org,email,dedupe_key) VALUES (?,?,?,?)").run(name,"Transfer Organization",email,p.dedupeKeyFor({name,org:"Transfer Organization",email})).lastInsertRowid);
+    const drop=p.getPerson(dropId);
     const batchId = audit.newBatchId();
     const merged = p.mergePeople(keep.id, drop.id, { batchId });
     assert.equal(merged.org, drop.org); assert.equal(merged.email, email);
@@ -358,4 +360,14 @@ test("roster people stay out of the Network list and counts until a real interac
   assert.equal(p.networkSnapshot().counts.total, before + 1);
   const other = p.createPerson({ name: "Second Officer", org: "Roster Club", roster: 1, source: "import" }).person;
   assert.equal(p.setStatus(other.id, "need_to_reach_out").roster, 0, "a status change promotes");
+});
+
+test("NYU dual addresses for the same name resolve to one person with email_alt; other domains stay separate", async () => {
+  const { people: p } = await setup();
+  const a = p.createPerson({ name: "Dual Address", email: "dual.address@stern.nyu.edu", org: "Scholars of Finance" }).person;
+  const b = p.createPerson({ name: "Dual Address", email: "da1234@nyu.edu" });
+  assert.equal(b.created, false); assert.equal(b.person.id, a.id);
+  assert.equal(b.person.email, "dual.address@stern.nyu.edu"); assert.equal(b.person.email_alt, "da1234@nyu.edu");
+  const c = p.createPerson({ name: "Dual Address", email: "dual@example.test" });
+  assert.notEqual(c.person.id, a.id);
 });

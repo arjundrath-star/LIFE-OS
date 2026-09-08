@@ -2,9 +2,9 @@ import { thresholds } from "./notification-settings";
 import crypto from "node:crypto";
 import { createTask, updateTask, EDITABLE as TASK_EDITABLE } from "@/lib/stern/tasks";
 import { upsertAssignmentFromEmail, gradeAssignment } from "@/lib/stern/classes";
-import { getDb, nowIso } from "@/db";
+import { getDb, kvGet, kvSet, nowIso } from "@/db";
 import { type EmailClassification, type SternEmailMessage, type Person, type CoffeeChat, type RecruitingClub, type RecruitingProgram } from "@/lib/stern-types";
-import { newBatchId, type AuditMeta } from "./audit";
+import { logChange, newBatchId, type AuditMeta } from "./audit";
 import { insert, patch, row, type Row } from "./recruiting-write";
 import { createPerson, addAffiliation, addTouchpoint, observePersonStatus, peopleWrite } from "./people";
 import { createCoffeeChat, observeCoffeeChat } from "./coffee";
@@ -12,7 +12,7 @@ import { setInterested, upsertProgram, observeProgramStatus, reconcileThankYous 
 import { automationSource, dryRunDefault, sternAccount, type AutomationSource } from "./automation-source";
 import { ScopeMissing } from "@/lib/sources/google";
 import { SternError } from "./errors";
-import { nyDayBounds, nyDateKey } from "./time";
+import { nyDayBounds, nyDateKey, parseEventTime, validDate } from "./time";
 
 export function addresses(value: string): string[] { return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(s => s.toLowerCase()))]; }
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -37,6 +37,39 @@ export function suggest(key: string, effects: Effect[], message: SternEmailMessa
 function clubFor(name?: string | null): RecruitingClub | undefined {
   if (!name) return undefined;
   return getDb().prepare(`SELECT c.* FROM stern_clubs c JOIN stern_processes p ON p.id=c.process_id WHERE p.status='active' AND c.status<>'archived' AND (lower(c.name)=? OR lower(c.short_name)=?) ORDER BY c.id DESC LIMIT 1`).get(normalize(name), normalize(name)) as RecruitingClub | undefined;
+}
+export function matchCourse(cls:EmailClassification,message:SternEmailMessage):number {
+  const courses=getDb().prepare("SELECT id,code,title,professor_email FROM courses WHERE archived=0").all() as {id:number;code:string;title:string;professor_email:string}[];
+  const norm=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const evidence=` ${norm(`${message.subject} ${message.snippet}`)} `;
+  const choose=(matches:typeof courses)=>{
+    if(matches.length>1) throw new SternError(409,"Unknown or ambiguous course");
+    return matches[0]?.id;
+  };
+  const code=choose(courses.filter(c=>norm(c.code) && (norm(c.code)===norm(cls.course_code || '') || evidence.includes(` ${norm(c.code)} `))));
+  if(code) return code;
+  const title=choose(courses.filter(c=>norm(c.title) && evidence.includes(` ${norm(c.title)} `)));
+  if(title) return title;
+  const professor=choose(courses.filter(c=>c.professor_email && addresses(message.from_addr).includes(c.professor_email.toLowerCase())));
+  if(professor) return professor;
+  throw new SternError(409,"Unknown or ambiguous course");
+}
+export function mutedSender(from:string) {
+  const muted=kvGet<string[]>('stern.muted_senders') || [];
+  return addresses(from).some(sender=>muted.includes(sender));
+}
+export function eligibleOtherNyu(message:SternEmailMessage,cls:EmailClassification,now=new Date()) {
+  if(message.list_mail || /no[._-]?reply|marketing|servicenow|service-now/i.test(message.from_addr)) return false;
+  const own=(getDb().prepare('SELECT email FROM google_accounts').all() as {email:string}[]).map(a=>a.email.toLowerCase());
+  const direct=addresses(message.direct_to || '');
+  const personal=direct.length>0 && direct.every(email=>own.includes(email));
+  const required=/\b(mandatory|required)\b/i.test(`${message.subject} ${message.snippet}`);
+  if(!personal && !required) return false;
+  return (cls.deadline_mentions || []).some(d=>{
+    if(!validDate(d.date)) return false;
+    const at=Date.parse(d.date.length===10 ? nyDayBounds(`${d.date}T12:00:00Z`).endIso : d.date);
+    return Number.isFinite(at) && at>=now.getTime() && at<=now.getTime()+30*86400000;
+  });
 }
 function matchingProgram(club: RecruitingClub, cls: EmailClassification, audit: AuditMeta) {
   const track = cls.program_track || "exploratory";
@@ -80,6 +113,28 @@ function assignment(cls: EmailClassification, message: SternEmailMessage, course
   return saved.id;
 }
 export type CalendarIntent = { chatId: number; personId: number; email: string; title: string; start: string; location: string; hash: string };
+/** Established instants from this account/thread only; rejected and future classifications cannot resolve a clock. */
+function knownThreadTimes(message: SternEmailMessage): string[] {
+  if (!message.gmail_thread_id) return [];
+  const db = getDb();
+  const times = (db.prepare("SELECT scheduled_at FROM coffee_chats WHERE gmail_account=? AND gmail_thread_id=? AND scheduled_at<>''")
+    .all(message.gmail_account, message.gmail_thread_id) as {scheduled_at:string}[]).map(chat => chat.scheduled_at);
+  const earlier = db.prepare(`SELECT classification,internal_date FROM stern_email_messages
+    WHERE gmail_account=? AND gmail_thread_id=? AND applied='auto_applied' AND verified<>'flagged'
+    AND (internal_date<? OR (internal_date=? AND gmail_message_id<?)) ORDER BY internal_date,id`)
+    .all(message.gmail_account, message.gmail_thread_id, message.internal_date, message.internal_date, message.gmail_message_id) as {classification:string;internal_date:number}[];
+  for (const evidence of earlier) {
+    let cls: EmailClassification;
+    try { cls = JSON.parse(evidence.classification); } catch { continue; }
+    if (!cls || !['calendar_invite','scheduling_confirmed','scheduling_proposal','coffee_chat_reply_positive'].includes(cls.category)) continue;
+    for (const value of [cls.confirmed_time, ...(Array.isArray(cls.proposed_times) ? cls.proposed_times : [])]) {
+      if (!value) continue;
+      const parsed = parseEventTime(value, new Date(evidence.internal_date).toISOString());
+      if (parsed) times.push(parsed.iso);
+    }
+  }
+  return times;
+}
 function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audit: AuditMeta): CalendarIntent[] {
   const db = getDb(), at = new Date(message.internal_date).toISOString(), club = clubFor(cls.club);
   const own = (db.prepare("SELECT email FROM google_accounts").all() as { email: string }[]).map(r => r.email.toLowerCase());
@@ -93,8 +148,7 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
   const intents: CalendarIntent[] = [];
   for (const email of counterparts) {
     const extracted = cls.people.find(p => p.email.toLowerCase() === email);
-    let person = db.prepare("SELECT * FROM people WHERE lower(email)=? OR lower(email_alt)=?").get(email, email) as Person | undefined;
-    if (!person) person = createPerson({ display_name: extracted?.name || email, email, org: club?.name || extracted?.club_or_org || "", how_met: "email", relationship_type: club ? "club_connect" : "general_connect", source: "auto_email" }, audit).person;
+    const person = createPerson({ display_name: extracted?.name || email, email, org: club?.name || extracted?.club_or_org || "", how_met: "email", relationship_type: club ? "club_connect" : "general_connect", source: "auto_email" }, audit).person;
     if (person.archived) throw new SternError(409, "Person is archived");
     if (club) addAffiliation(person.id, { club_id: club.id, role: extracted?.role || "", is_eboard: !!extracted?.is_eboard, relevant_for_recruiting: true }, audit);
     const newRequest = ["coffee_chat_request_sent", "follow_up_sent"].includes(cls.category);
@@ -108,22 +162,41 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
     addTouchpoint(person.id, kind, { source: "gmail", gmail_account: message.gmail_account, gmail_message_id: message.gmail_message_id, occurred_at: at, summary: cls.summary, detail: JSON.stringify({ coffee_chat_id: chat.id }) }, audit);
     const laterReply = db.prepare("SELECT 1 FROM stern_email_messages WHERE gmail_account=? AND gmail_thread_id=? AND direction='outbound' AND internal_date>? LIMIT 1").get(message.gmail_account, message.gmail_thread_id, message.internal_date);
     const needsReply = message.direction === "inbound" && !laterReply && (cls.requires_reply_from_me || !!cls.proposed_times?.length) ? 1 : 0;
-    const update: Parameters<typeof observeCoffeeChat>[1] = { gmail_thread_id: message.gmail_thread_id };
-    if (cls.proposed_times?.length) update.prep_notes = `${chat.prep_notes}${chat.prep_notes ? "\n" : ""}Proposed: ${cls.proposed_times.join(", ")}`;
-    if (c === "coffee_chat_request_sent") { update.state = "requested"; update.requested_at = at; observePersonStatus(person.id, "reached_out", audit); }
-    if (c === "coffee_chat_reply_positive") { update.state = "reply_received"; update.reply_at = at; update.reply_needs_me = needsReply; observePersonStatus(person.id, "replied", audit); }
-    if (c === "scheduling_proposal") { update.reply_needs_me = needsReply; if (message.direction === "inbound") { update.state = "reply_received"; update.reply_at = at; } }
-    if (c === "coffee_chat_reply_negative") { update.state = "declined"; update.reply_at = at; }
-    if (c === "follow_up_sent") { update.last_follow_up_at = at; if (chat.state === "to_request" || chat.state === "no_reply") { update.state = "requested"; update.requested_at = chat.requested_at || at; } }
-    if (c === "thank_you_sent") { update.state = "thank_you_sent"; update.thank_you_sent_at = at; observePersonStatus(person.id, "chatted", audit); }
-    if (["scheduling_confirmed", "calendar_invite", "coffee_chat_reply_positive"].includes(c) && cls.confirmed_time) {
-      update.state = "scheduled"; update.scheduled_at = cls.confirmed_time; update.location = cls.location || "";
-      const hash = crypto.createHash("sha256").update(`${chat.id}:${new Date(cls.confirmed_time).toISOString()}`).digest("hex");
-      if (c === "calendar_invite") {
-        const id = `invite:${message.content_hash}`;
-        upsertCalendar({ account: message.gmail_account, event_id: id, title: message.subject, start_at: cls.confirmed_time, end_at: new Date(Date.parse(cls.confirmed_time) + 30 * 60000).toISOString(), location: cls.location || "", attendees: JSON.stringify([email]), kind: "coffee_chat", person_id: person.id, coffee_chat_id: chat.id, synced_at: nowIso() }, audit);
-        update.calendar_event_id = chat.calendar_event_id || id;
-      } else if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") || Date.parse(chat.scheduled_at) !== Date.parse(cls.confirmed_time)) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
+    const update: Parameters<typeof observeCoffeeChat>[1] = { gmail_thread_id: message.gmail_thread_id, gmail_account: message.gmail_account };
+    const calendarEstablished = !!chat.scheduled_at && !!chat.calendar_event_id && !chat.calendar_event_id.startsWith("dry-run:");
+    const proseConfirmation = c === "scheduling_confirmed" || (c === "coffee_chat_reply_positive" && !!cls.confirmed_time);
+    if (calendarEstablished && proseConfirmation) {
+      // Calendar evidence outranks prose. Keep the touchpoint above, but leave
+      // state, location, scheduling flags and external calendar entirely intact.
+      if (cls.confirmed_time && Date.parse(cls.confirmed_time) !== Date.parse(chat.scheduled_at)) {
+        const original = (() => { try { return JSON.parse(message.classification) as EmailClassification; } catch { return cls; } })();
+        insert("suggestion", {dedupe_key:`calendar-time-conflict:${message.id}:${chat.id}:${audit.batchId}`,suggestion_type:"time_parse_review",entity_type:"coffee_chat",entity_id:chat.id,
+          gmail_account:message.gmail_account,gmail_message_id:message.gmail_message_id,evidence_subject:message.subject,
+          evidence_excerpt:`Reply says ${cls.confirmed_time}, calendar invite says ${chat.scheduled_at}`,
+          proposed_data:JSON.stringify({classification:original,unparsed:[{field:"confirmed_time",raw:original.confirmed_time || cls.confirmed_time}],calendarTime:chat.scheduled_at,replyTime:cls.confirmed_time}),confidence:cls.confidence},audit);
+      }
+    } else {
+      if ((c === "coffee_chat_reply_positive" && cls.proposed_times?.length) || c === "scheduling_proposal" || (c === "scheduling_confirmed" && !cls.confirmed_time)) {
+        update.scheduling_since = chat.scheduling_since || nowIso();
+        update.hot_until = new Date(Date.now() + 30 * 60000).toISOString();
+        if (["to_request","no_reply"].includes(chat.state)) { update.state = "requested"; update.requested_at = chat.requested_at || at; }
+      }
+      if (cls.proposed_times?.length) update.prep_notes = `${chat.prep_notes}${chat.prep_notes ? "\n" : ""}Proposed: ${cls.proposed_times.join(", ")}`;
+      if (c === "coffee_chat_request_sent") { update.state = "requested"; update.requested_at = at; observePersonStatus(person.id, "reached_out", audit); }
+      if (c === "coffee_chat_reply_positive") { update.state = "reply_received"; update.reply_at = at; update.reply_needs_me = needsReply; observePersonStatus(person.id, "replied", audit); }
+      if (c === "scheduling_proposal") { update.reply_needs_me = needsReply; if (message.direction === "inbound") { update.state = "reply_received"; update.reply_at = at; } }
+      if (c === "coffee_chat_reply_negative") { update.state = "declined"; update.reply_at = at; }
+      if (c === "follow_up_sent") { update.last_follow_up_at = at; if (chat.state === "to_request" || chat.state === "no_reply") { update.state = "requested"; update.requested_at = chat.requested_at || at; } }
+      if (c === "thank_you_sent") { update.state = "thank_you_sent"; update.thank_you_sent_at = at; observePersonStatus(person.id, "chatted", audit); }
+      if (["scheduling_confirmed", "calendar_invite", "coffee_chat_reply_positive"].includes(c) && cls.confirmed_time) {
+        update.state = "scheduled"; update.scheduled_at = cls.confirmed_time; update.location = cls.location || "";
+        const hash = crypto.createHash("sha256").update(`${chat.id}:${new Date(cls.confirmed_time).toISOString()}`).digest("hex");
+        if (c === "calendar_invite") {
+          const id = `invite:${message.content_hash}`;
+          upsertCalendar({ account: message.gmail_account, event_id: id, title: message.subject, start_at: cls.confirmed_time, end_at: new Date(Date.parse(cls.confirmed_time) + 30 * 60000).toISOString(), location: cls.location || "", attendees: JSON.stringify([email]), kind: "coffee_chat", person_id: person.id, coffee_chat_id: chat.id, synced_at: nowIso() }, audit);
+          update.calendar_event_id = !chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") ? id : chat.calendar_event_id;
+        } else if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") || Date.parse(chat.scheduled_at) !== Date.parse(cls.confirmed_time)) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
+      }
     }
     observeCoffeeChat(chat.id, update, audit);
     if (c === "thank_you_sent") reconcileThankYous(chat.club_id, audit);
@@ -182,8 +255,7 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
       if (!date) throw new SternError(409, "Meeting date missing");
       upsertAutomationTask({ title: `Attend ${club.name} general meeting`, club_id: club.id, due_at: date, domain: "campus", dedupe_key: `meeting:${club.id}:${date}` }, audit);
     } else if (effect.kind === "academic") {
-      const courses = db.prepare("SELECT id FROM courses WHERE lower(code)=? AND archived=0").all(normalize(cls.course_code || "")) as { id: number }[];
-      if (courses.length !== 1) throw new SternError(409, "Unknown or ambiguous course");
+      const courses = [{id:matchCourse(cls,message)}];
       if (cls.assignment) assignment(cls, message, courses[0].id, audit);
       else for (const d of deadlines) upsertAutomationTask({ title: d.label, due_at: d.date, course_id: courses[0].id, domain: "academic", dedupe_key: `course:${courses[0].id}:${normalize(d.label)}:${d.date}` }, audit);
     } else if (effect.kind === "tasks") {
@@ -194,6 +266,9 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
 }
 async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage, audit: AuditMeta, source: AutomationSource, dryRun: boolean, retry: boolean) {
   const account = sternAccount();
+  // A user may have changed the chat while the verifier was running.
+  const current = row<CoffeeChat>("coffee_chat", intent.chatId);
+  if(current.state !== "scheduled" || Date.parse(current.scheduled_at) !== Date.parse(intent.start)) return;
   try {
     if (!account) throw new ScopeMissing("calendar.events (connect a Stern account)");
     const end = new Date(Date.parse(intent.start) + 30 * 60000).toISOString();
@@ -218,15 +293,35 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
     }).immediate();
   }
 }
-export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
-  const audit = options.audit || messageMeta(message, cls), effects = options.effects || effectsFor(cls);
+export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; now?:Date; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
+  const audit = options.audit || messageMeta(message, cls);
+  if(!options.accept && (mutedSender(message.from_addr) || (cls.category==='other_nyu' && !eligibleOtherNyu(message,cls,options.now)))) {
+    getDb().transaction(()=>getDb().prepare("UPDATE stern_email_messages SET applied='ignored',processed_at=? WHERE id=?").run(nowIso(),message.id)).immediate();
+    return {applied:'ignored',batchId:audit.batchId,calendarIntents:[] as CalendarIntent[]};
+  }
+  const originalClassification = structuredClone(cls);
+  const unparsed: {field:string;raw:string}[] = [];
+  const reference = new Date(message.internal_date).toISOString();
+  const knownTimes = knownThreadTimes(message);
+  const parse = (value:string,field:string) => { const result=parseEventTime(value,reference,{knownTimes}); if(!result) unparsed.push({field,raw:value}); return result?.iso || ""; };
+  cls = {...cls, confirmed_time:cls.confirmed_time ? parse(cls.confirmed_time,"confirmed_time") : cls.confirmed_time,
+    proposed_times:cls.proposed_times?.map((value,i)=>parse(value,`proposed_times.${i}`)).filter(Boolean)};
+  // Preserve the fact of a proposal even when the times require review.
+  const rawProposal = !!originalClassification.proposed_times?.length;
+  if(rawProposal && !cls.proposed_times?.length) cls.proposed_times = originalClassification.proposed_times;
+  const effects = options.effects ? options.effects.map(e => 'classification' in e ? {...e,classification:cls} : e) : effectsFor(cls);
+  if(unparsed.length) getDb().transaction(() => {
+    const key=`unparsed-time:${message.id}:${audit.batchId}`;
+    insert("suggestion",{dedupe_key:key,suggestion_type:"time_parse_review",proposed_data:JSON.stringify({classification:originalClassification,unparsed}),
+      gmail_account:message.gmail_account,gmail_message_id:message.gmail_message_id,evidence_subject:message.subject,evidence_excerpt:JSON.stringify(unparsed).slice(0,300)},audit);
+  }).immediate();
   let intents: CalendarIntent[] = [], applied = "ignored";
   const confidenceThresholds = thresholds();
   const outboundOnly = ["coffee_chat_request_sent", "follow_up_sent", "thank_you_sent"].includes(cls.category);
   const forceSuggest = !options.accept && (cls.category === "other_nyu" || cls.category === "club_other" || (outboundOnly && message.direction !== "outbound"));
   if (effects.length && cls.confidence >= confidenceThresholds.suggest) {
     if (!options.accept && (cls.confidence < confidenceThresholds.auto || forceSuggest)) {
-      getDb().transaction(() => suggest(`message:${message.id}`, effects, message, audit)).immediate(); applied = "suggested";
+      getDb().transaction(() => suggest(`message:${message.id}`, effects, message, audit, cls.category === "other_nyu" ? "other_nyu" : "classification")).immediate(); applied = "suggested";
     } else {
       try { intents = peopleWrite(() => executeEffects(effects, message, audit)); applied = "auto_applied"; }
       catch (error) {
@@ -235,24 +330,91 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
       }
     }
   }
+  getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
+  if(applied === "auto_applied" && !options.accept) {
+    const { verifyBatch } = await import("./verify");
+    const verification = await verifyBatch(audit.batchId,{context:{message,classification:originalClassification},dryRun:options.dryRun});
+    if(verification.rollback) { applied="suggested"; intents=[]; }
+  }
   const retryCalendarOnly = !!options.accept && effects.every(effect => effect.kind === "calendar_create");
   for (const intent of intents) await calendarIntent(intent, message, audit, options.source || automationSource(), dryRunDefault(options.dryRun), retryCalendarOnly);
   getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
   return { applied, batchId: audit.batchId, calendarIntents: intents };
 }
-export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource } = {}) {
+export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource; correction?: boolean; timeCorrections?:Record<string,string> } = {}) {
   const suggestion = row<Row>("suggestion", id);
   if (suggestion.state !== "pending") throw new SternError(409, "Suggestion already reviewed");
-  const effects = JSON.parse(String(suggestion.proposed_data)) as Effect[];
+  const payload = JSON.parse(String(suggestion.proposed_data));
+  if (["review_flag","person_merge_review"].includes(String(suggestion.suggestion_type)) || (suggestion.suggestion_type === "time_parse_review" && (!payload.classification || !options.timeCorrections))) {
+    const batchId=newBatchId("review");
+    getDb().transaction(()=>patch("suggestion",id,{state:"accepted",reviewed_at:nowIso()},{source:"manual",batchId})).immediate();
+    return {batchId,applied:"accepted",calendarIntents:[] as CalendarIntent[]};
+  }
+  let corrected: EmailClassification | undefined;
+  if(suggestion.suggestion_type === "verification_correction" || suggestion.suggestion_type === "time_parse_review") {
+    corrected = structuredClone(payload.classification);
+    if(suggestion.suggestion_type === "time_parse_review" && options.timeCorrections) {
+      if(typeof options.timeCorrections!=='object' || Array.isArray(options.timeCorrections)) throw new SternError(400,"Time corrections must be an object");
+      const pending=payload.unparsed as {field:string;raw:string}[];
+      if(!pending?.length || Object.keys(options.timeCorrections).some(field=>!pending.some(p=>p.field===field))) throw new SternError(400,"Unknown time correction field");
+      for(const item of pending) {
+        const raw=options.timeCorrections[item.field];
+        const parsed=typeof raw==='string' && /^\d{4}-\d{2}-\d{2}T/.test(raw) ? parseEventTime(raw,nowIso()) : null;
+        if(!parsed) throw new SternError(400,"Supply a valid ISO time for every unparsed field");
+        if(item.field==='confirmed_time') corrected!.confirmed_time=parsed.iso;
+        else if(/^proposed_times\.\d+$/.test(item.field)) corrected!.proposed_times![Number(item.field.split('.')[1])]=parsed.iso;
+        else throw new SternError(400,"Unsupported time correction field");
+      }
+    }
+    if(options.correction) {
+      for(const issue of payload.issues || []) {
+        const keys=String(issue.field).replace(/^classification\./,"").split(".");
+        if(keys.some((k:string)=>["__proto__","prototype","constructor"].includes(k))) throw new SternError(400,"Invalid correction field");
+        let target = corrected as unknown as Record<string,unknown>;
+        for(const key of keys.slice(0,-1)) { if(!target[key] || typeof target[key]!=="object") throw new SternError(400,"Correction needs review"); target=target[key] as Record<string,unknown>; }
+        if(!Object.prototype.hasOwnProperty.call(target,keys.at(-1)!)) throw new SternError(400,"Correction field is not in classification");
+        try { target[keys.at(-1)!]=JSON.parse(issue.suggested_value); } catch { target[keys.at(-1)!]=issue.suggested_value; }
+      }
+      const {validateSchema} = await import("./llm");
+      const schema = (await import("../../docs/plans/stern/schema/email-classifier.schema.json")).default;
+      if(!validateSchema(corrected,schema)) throw new SternError(400,"Correction does not match classification schema");
+    }
+  }
+  const effects = corrected ? effectsFor(corrected) : payload as Effect[];
   if (!effects.length) throw new SternError(409, "Reconnect Google from Connections, then retry the calendar sync");
   const message = getDb().prepare("SELECT * FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(suggestion.gmail_account, suggestion.gmail_message_id) as SternEmailMessage | undefined;
   if (!message) throw new SternError(404, "Suggestion evidence missing");
-  const cls = JSON.parse(message.classification) as EmailClassification;
+  const cls = corrected || JSON.parse(message.classification) as EmailClassification;
   const audit = messageMeta(message, cls, "suggestion_accept");
   const result = await applyClassification(message, cls, { ...options, audit, accept: true, effects });
   getDb().transaction(() => patch("suggestion", id, { state: "accepted", reviewed_at: nowIso() }, audit)).immediate();
   return result;
 }
-export function dismissSuggestion(id: number) {
-  return getDb().transaction(() => { const s = row<Row>("suggestion", id); if (s.state !== "pending") throw new SternError(409, "Suggestion already reviewed"); patch("suggestion", id, { state: "dismissed", reviewed_at: nowIso() }, { source: "manual", batchId: newBatchId("dismiss") }); }).immediate();
+export function dismissSuggestion(id: number, mute = false) {
+  return getDb().transaction(() => {
+    const s = row<Row>("suggestion", id);
+    if (s.state !== "pending") throw new SternError(409, "Suggestion already reviewed");
+    const audit={source:"manual",batchId:newBatchId("dismiss")};
+    if(mute) {
+      const message=getDb().prepare("SELECT from_addr FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(s.gmail_account,s.gmail_message_id) as {from_addr:string}|undefined;
+      const senders=addresses(message?.from_addr || '');
+      if(!senders.length) throw new SternError(400,"Suggestion has no sender to mute");
+      const key='stern.muted_senders',before=getDb().prepare('SELECT v FROM kv WHERE k=?').get(key) as {v:string}|undefined;
+      const after=[...new Set([...(kvGet<string[]>(key) || []),...senders])].sort();
+      kvSet(key,after);
+      logChange({...audit,entityType:'notification_setting',entityId:0,action:'update',field:key,before:before?.v || '',after:JSON.stringify(after)});
+    }
+    patch("suggestion", id, { state: "dismissed", reviewed_at: nowIso() }, audit);
+    return {batchId:audit.batchId};
+  }).immediate();
+}
+export function dismissAllSuggestionsOfType(type:string) {
+  if(typeof type!=='string' || !type.trim() || type.length>200) throw new SternError(400,"Suggestion type is required");
+  return getDb().transaction(()=>{
+    const audit={source:'manual',batchId:newBatchId('dismiss-type')};
+    const rows=getDb().prepare(`SELECT id FROM stern_suggestions WHERE state='pending' AND (suggestion_type=? OR
+      (?='other_nyu' AND json_valid(proposed_data) AND EXISTS(SELECT 1 FROM json_each(proposed_data) e WHERE json_extract(CASE WHEN json_valid(e.value) THEN e.value ELSE '{}' END,'$.classification.category')='other_nyu')))`).all(type,type) as {id:number}[];
+    for(const s of rows) patch('suggestion',s.id,{state:'dismissed',reviewed_at:nowIso()},audit);
+    return {dismissed:rows.length,batchId:audit.batchId};
+  }).immediate();
 }
