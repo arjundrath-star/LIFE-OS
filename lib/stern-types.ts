@@ -21,7 +21,7 @@ export const CLUB_CATEGORIES = ["finance", "consulting", "entrepreneurship", "te
 export const CLUB_STATUSES = ["considering", "applying", "interviewing", "accepted", "rejected", "declined", "archived"] as const;
 export const PROGRAM_TRACKS = ["exploratory", "teams", "other"] as const;
 export const PROGRAM_STATUSES = ["not_open", "open", "drafting", "submitted", "interview_invited", "interview_done", "accepted", "rejected", "declined", "withdrawn", "missed"] as const;
-export const CHECKLIST_KEYS = ["general_meeting", "coffee_chat_1", "coffee_chat_2", "draft", "submit", "thank_yous", "interview_prep"] as const;
+export const CHECKLIST_KEYS = ["coffee_chat_form", "general_meeting", "coffee_chat_1", "coffee_chat_2", "draft", "submit", "thank_yous", "interview_prep"] as const;
 export const CHECKLIST_SOURCES = ["manual", "auto", "seed"] as const;
 
 // ---------- network ----------
@@ -131,7 +131,7 @@ export const CLUB_CATEGORY_LABELS: Record<ClubCategory, string> = {
   finance: "Finance", consulting: "Consulting", entrepreneurship: "Entrepreneurship", tech: "Tech", marketing: "Marketing", social_impact: "Social impact", identity: "Identity", industry: "Industry", accounting: "Accounting", law: "Law",
 };
 export const CHECKLIST_LABELS: Record<ChecklistKey, string> = {
-  general_meeting: "Attend a general meeting", coffee_chat_1: "Coffee chat 1", coffee_chat_2: "Coffee chat 2", draft: "Draft application", submit: "Submit", thank_yous: "Thank-you emails sent", interview_prep: "Interview prep",
+  coffee_chat_form: "Club coffee chat form submitted", general_meeting: "Attend a general meeting", coffee_chat_1: "Coffee chat 1", coffee_chat_2: "Coffee chat 2", draft: "Draft application", submit: "Submit", thank_yous: "Thank-you emails sent", interview_prep: "Interview prep",
 };
 export const COFFEE_CHAT_LABELS: Record<CoffeeChatState, string> = {
   to_request: "To request", requested: "Requested", reply_received: "Reply received", scheduled: "Scheduled", done: "Done", thank_you_sent: "Thank-you sent", no_reply: "No reply", declined: "Declined",
@@ -322,6 +322,7 @@ export type RecruitingDeadline = { id: number; clubId: number; club: string; nam
 export type RecruitingClubDetail = RecruitingClub & {
   programs: RecruitingProgram[]; checklist: RecruitingChecklistItem[]; checklistDone: number; checklistTotal: number;
   chatsDone: number; chats: CoffeeChat[]; people: RecruitingPerson[]; nextDeadline: RecruitingDeadline | null;
+  hasForm: boolean; formSubmittedAt: string; formItemId: number;
   prep: InterviewPrep[]; timeline: RecruitingActivity[];
 };
 export type RecruitingWindow = { track: ProgramTrack; applications_open: string; applications_close: string; interviews_start: string; interviews_end: string; decisions: string };
