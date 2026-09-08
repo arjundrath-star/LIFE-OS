@@ -200,7 +200,31 @@ $ npm run agent-event -- --agent rathworkspace-platform-developer --run stern-wp
 {"eventId":6025,"run":"stern-wp9-fix2","agent":"rathworkspace-platform-developer","status":"running"}
 ```
 
-The full mechanical gate is run after committing the implementation; its final output is recorded below before handoff. All new scenarios use the isolated test DB, fixture providers or local function stubs; no real account/model/calendar calls occur.
+The full mechanical gate passed against implementation commit `f5fc7cf`:
+
+```text
+$ bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp9 /home/Arjun/stern-build/db/wp9.db wp9
+=== typecheck (20260908T210859Z) ===
+--- typecheck rc=0
+=== tests (20260908T210906Z) ===
+# tests 381
+# pass 381
+# fail 0
+--- tests rc=0
+=== migrate-1 (20260908T211003Z) ===
+--- migrate-1 rc=0
+=== migrate-2 (20260908T211004Z) ===
+--- migrate-2 rc=0
+=== build (20260908T211004Z) ===
+✓ Compiled successfully in 17.9s
+--- build rc=0
+GATE wp9 result=PASS log=/home/Arjun/stern-build/logs/gate-wp9-20260908T210859Z.log
+
+{"eventId":6026,"run":"stern-wp9-fix2","agent":"rathworkspace-platform-developer","status":"running"}
+{"eventId":6027,"run":"stern-wp9-fix2","agent":"rathworkspace-platform-developer","status":"completed"}
+```
+
+All new scenarios use the isolated test DB, fixture providers or local function stubs; no real account/model/calendar calls occur. `git status --short` was empty after the gate. Only this report changed after the implementation gate; it is committed in the final documentation handoff.
 
 ### Known gaps and follow-ups for the orchestrator
 
