@@ -54,6 +54,7 @@ export async function POST(req: Request) {
         case "affiliation.update": return people.updateAffiliation(id, body.patch, m);
         case "affiliation.remove": return people.removeAffiliation(id, m) ?? { removed: true };
         case "touchpoint.add": return people.addTouchpoint(Number(body.personId), body.kind || "note", { ...(body.touchpoint || body), source: "manual" }, m);
+        case "people.sweep_duplicates": return people.sweepDuplicates(m);
         case "people.import": return people.importPeople(body.people, m);
         default: throw new SternError(400, "Unknown network action");
       }

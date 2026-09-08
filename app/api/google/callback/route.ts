@@ -36,6 +36,7 @@ export async function GET(req: Request) {
   try {
     const { email } = await handleCallback(code);
     if (target !== "generic" || sternFlow) kvSet(errorKey, "");
+    kvSet(`stern.google_consent.${email.toLowerCase()}`, new Date().toISOString());
     ensureSeeded();
     pushEvent("email", `Connected Google account ${email}`, "success");
     // connecting an account IS the user enabling the Google reader — flip it on so the

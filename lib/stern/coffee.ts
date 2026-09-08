@@ -3,6 +3,7 @@ import { getDb, nowIso } from "@/db";
 import { CHAT_TRANSITIONS, COFFEE_CHAT_LABELS, type CoffeeChat, type CoffeeChatState, type RecruitingClub, type RecruitingProgram, type TouchpointKind } from "@/lib/stern-types";
 import { SternError } from "./errors";
 import { meta, row, insert, patch, textFields, id, type ChangeMeta, type Row } from "./recruiting-write";
+import { resolveTime } from "./time-review";
 import { validDate } from "./time";
 
 function validateClub(clubId: number) {
@@ -40,11 +41,14 @@ export function transition(chatId: number, next: CoffeeChatState, options: ChatT
     if (typeof at !== "string" || !validDate(at) || !at.includes("T")) throw new SternError(400, "Transition time must include timezone");
     const audit = meta(options);
     const fields: Row = { state: next };
+    if (["scheduled","declined","no_reply","done","thank_you_sent"].includes(next)) Object.assign(fields, {scheduling_since:"",hot_until:""});
     const timestamp: Partial<Record<CoffeeChatState, string>> = { requested: "requested_at", reply_received: "reply_at", scheduled: "scheduled_at", done: "occurred_at", thank_you_sent: "thank_you_sent_at" };
     if (timestamp[next]) fields[timestamp[next]!] = at;
     if (next === "scheduled") {
-      if (typeof options.scheduled_at !== "string" || !options.scheduled_at.includes("T") || !validDate(options.scheduled_at)) throw new SternError(400, "Scheduled chat needs a date and time with timezone");
-      fields.scheduled_at = options.scheduled_at;
+      if(typeof options.scheduled_at !== "string" || !options.scheduled_at.trim()) throw new SternError(400,"Scheduled chat needs a date and time");
+      const scheduled = resolveTime(options.scheduled_at, "scheduled_at", "coffee_chat", chatId, audit, at);
+      if(!scheduled) return chatId;
+      fields.scheduled_at = scheduled;
     }
     if (options.reply_needs_me !== undefined && typeof options.reply_needs_me !== "boolean") throw new SternError(400, "reply_needs_me must be a boolean");
     fields.reply_needs_me = next === "reply_received" ? (options.reply_needs_me === false ? 0 : 1) : 0;
@@ -96,6 +100,7 @@ export function ensureCoffeeChatsForPerson(personId: number, options: ChangeMeta
 
 /** Reconcile an observed email/calendar fact without inventing intermediate touchpoints. */
 export function observeCoffeeChat(chatId: number, input: {
+  scheduling_since?: string; hot_until?: string; last_thread_check_at?: string; gmail_account?: string;
   state?: CoffeeChatState; requested_at?: string; reply_at?: string; reply_needs_me?: number;
   scheduled_at?: string; location?: string; calendar_event_id?: string; occurred_at?: string;
   thank_you_sent_at?: string; last_follow_up_at?: string; gmail_thread_id?: string; prep_notes?: string;
@@ -106,12 +111,19 @@ export function observeCoffeeChat(chatId: number, input: {
     const audit = meta(options);
     if (!["auto_email", "auto_calendar", "suggestion_accept", "agent"].includes(String(audit.source))) throw new SternError(400, "Observed facts require automation evidence");
     const fields: Row = { ...input };
+    if(input.scheduled_at) {
+      const scheduled=resolveTime(input.scheduled_at,"scheduled_at","coffee_chat",chatId,audit);
+      if(scheduled) fields.scheduled_at=scheduled;
+      else { delete fields.scheduled_at; if(fields.state==="scheduled") { delete fields.state; fields.scheduling_since=chat.scheduling_since || nowIso(); fields.hot_until=new Date(Date.now()+30*60000).toISOString(); } }
+    }
     const rank: Record<CoffeeChatState, number> = { to_request: 0, requested: 1, no_reply: 1, reply_received: 2, scheduled: 3, done: 4, thank_you_sent: 5, declined: 5 };
     if (input.state && rank[input.state] < rank[chat.state]) delete fields.state;
+    if(chat.state==='scheduled' && input.scheduling_since && !['scheduled','declined','no_reply','done','thank_you_sent'].includes(String(input.state))) fields.state='reply_received';
     for (const key of ["requested_at", "reply_at", "scheduled_at", "occurred_at", "thank_you_sent_at", "last_follow_up_at"] as const) {
-      if (input[key] && (!validDate(input[key]!) || !input[key]!.includes("T"))) throw new SternError(400, `Invalid ${key}`);
+      if (fields[key] && (!validDate(String(fields[key])) || !String(fields[key]).includes("T"))) throw new SternError(400, `Invalid ${key}`);
     }
     if ((fields.state || chat.state) === "scheduled" && !(fields.scheduled_at || chat.scheduled_at)) throw new SternError(400, "Scheduled chat needs a time");
+    if (["scheduled","declined","no_reply","done","thank_you_sent"].includes(String(fields.state))) Object.assign(fields, {scheduling_since:"",hot_until:""});
     if (input.reply_needs_me !== undefined && ![0, 1].includes(input.reply_needs_me)) throw new SternError(400, "Invalid reply flag");
     if (["scheduled", "done", "thank_you_sent", "declined"].includes(String(fields.state || chat.state))) fields.reply_needs_me = 0;
     if (input.last_follow_up_at) fields.follow_up_count = (getDb().prepare("SELECT COUNT(*) n FROM people_touchpoints WHERE person_id=? AND kind='follow_up_sent' AND json_valid(detail) AND json_extract(detail,'$.coffee_chat_id')=?").get(chat.person_id, chatId) as { n: number }).n;

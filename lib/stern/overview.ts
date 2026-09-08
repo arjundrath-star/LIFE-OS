@@ -30,11 +30,12 @@ export function todaySchedule(now = new Date()): SternScheduleItem[] {
 
 export function needsYou(): SternNeed[] {
   const db=getDb();
-  const chats=db.prepare(`SELECT c.id,c.person_id,c.state,c.reply_needs_me,c.reply_at,c.occurred_at,p.display_name
+  const chats=db.prepare(`SELECT c.id,c.person_id,c.state,c.reply_needs_me,c.reply_at,c.occurred_at,c.scheduling_since,p.display_name,
+    (SELECT MAX(internal_date) FROM stern_email_messages m WHERE m.gmail_account=c.gmail_account AND m.gmail_thread_id=c.gmail_thread_id) last_message_at
     FROM coffee_chats c JOIN people p ON p.id=c.person_id WHERE p.archived=0 AND
-    ((c.reply_needs_me=1 AND c.state NOT IN ('done','thank_you_sent','declined','no_reply')) OR (c.state='done' AND c.thank_you_sent_at='')) ORDER BY c.id LIMIT 100`).all() as {id:number;person_id:number;state:string;reply_at:string;occurred_at:string;display_name:string}[];
+    ((c.scheduling_since<>'' AND c.state IN ('requested','reply_received')) OR (c.reply_needs_me=1 AND c.state NOT IN ('done','thank_you_sent','declined','no_reply')) OR (c.state='done' AND c.thank_you_sent_at='')) ORDER BY c.id LIMIT 100`).all() as {id:number;person_id:number;state:string;reply_at:string;occurred_at:string;display_name:string;scheduling_since:string;last_message_at:number}[];
   const rows: SternNeed[]=chats.map(c=>({key:`chat-${c.id}`,kind:c.state==='done'?'thank_you':'reply',
-    title:`${c.state==='done'?'Thank-you due':'Reply waiting on you'} · ${c.display_name}`,at:c.state==='done'?c.occurred_at:c.reply_at,
+    title:`${c.state==='done'?'Thank-you due':c.scheduling_since?'Scheduling in progress':'Reply waiting on you'} · ${c.display_name}`,at:c.state==='done'?c.occurred_at:c.scheduling_since&&c.last_message_at?new Date(c.last_message_at).toISOString():c.reply_at,
     href:`/stern/network?person=${c.person_id}`,actionLabel:c.state==='done'?'Draft':'Open'}));
   const drafts=db.prepare(`SELECT d.id,d.person_id,d.subject,d.created_at,p.display_name FROM stern_drafts d
     LEFT JOIN people p ON p.id=d.person_id WHERE d.state='generated' AND (p.id IS NULL OR p.archived=0) ORDER BY d.id DESC LIMIT 100`).all().reverse() as {id:number;person_id:number;subject:string;created_at:string;display_name:string}[];
@@ -49,7 +50,7 @@ export function needsYouTotal(): number {
   const db=getDb();
   const {n}=db.prepare(`SELECT
     (SELECT COUNT(*) FROM coffee_chats c JOIN people p ON p.id=c.person_id WHERE p.archived=0 AND
-      ((c.reply_needs_me=1 AND c.state NOT IN ('done','thank_you_sent','declined','no_reply')) OR (c.state='done' AND c.thank_you_sent_at=''))) +
+      ((c.scheduling_since<>'' AND c.state IN ('requested','reply_received')) OR (c.reply_needs_me=1 AND c.state NOT IN ('done','thank_you_sent','declined','no_reply')) OR (c.state='done' AND c.thank_you_sent_at=''))) +
     (SELECT COUNT(*) FROM stern_drafts d LEFT JOIN people p ON p.id=d.person_id WHERE d.state='generated' AND (p.id IS NULL OR p.archived=0)) +
     (SELECT COUNT(*) FROM stern_suggestions WHERE state='pending') n`).get() as {n:number};
   return n;

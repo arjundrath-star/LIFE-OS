@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { getDb, kvGet } from "@/db";
+import { getDb, kvGet, kvSet } from "@/db";
 import { accountScopes, SCOPE_SETS } from "@/lib/sources/google";
 import type { ConnectionDef } from "@/lib/connections/registry";
 type Account = { email: string; enabled: number; last_error: string; refresh_token_enc: string };
@@ -45,3 +45,24 @@ export async function sternConnectionSummary() {
     return { id: def.id, state: health.ok ? "on_healthy" : "on_broken", detail: health.detail };
   }));
 }
+
+const claudeGlobal = globalThis as typeof globalThis & {__sternClaudeProbe?:{at:number;result:Promise<{ok:boolean;detail:string}>}};
+export function claudeProbe() {
+  if (process.env.STERN_LLM_MODE === "fixture" || process.env.STERN_LLM_MODE === "off") return Promise.resolve({ok:false,detail:`LLM mode is ${process.env.STERN_LLM_MODE}`});
+  if(claudeGlobal.__sternClaudeProbe && Date.now()-claudeGlobal.__sternClaudeProbe.at<3600000) return claudeGlobal.__sternClaudeProbe.result;
+  const cached=getDb().transaction(()=>{
+    const prior=kvGet<{at:number;ok:boolean;detail:string}>("stern.claude_probe");
+    if(prior && Date.now()-prior.at<3600000) return prior;
+    kvSet("stern.claude_probe",{at:Date.now(),ok:false,detail:"Claude authentication check in progress"});
+    return null;
+  }).immediate();
+  if(cached) return Promise.resolve({ok:cached.ok,detail:cached.detail});
+  const result=(async()=>{
+    const {claudeExecute}=await import("./verify");
+    try { await claudeExecute('Reply OK',false,{probe:true,timeoutMs:5000}); return {ok:true,detail:"Claude subscription authenticated"}; }
+    catch(error) {return {ok:false,detail:error instanceof Error?error.message:"Claude verifier unavailable"};}
+  })().then(health=>{getDb().transaction(()=>kvSet("stern.claude_probe",{at:Date.now(),...health})).immediate();return health;});
+  claudeGlobal.__sternClaudeProbe={at:Date.now(),result}; return result;
+}
+sternConnections.push({id:"stern-llm-claude",label:"Stern verifier · Claude",surfaces:["dashboard"],reconnect:"device_code",defaultEnabled:false,
+  configured:()=>true,check:claudeProbe,note:"Hourly headless subscription auth check. On auth failure, run: claude setup-token"});

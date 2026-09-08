@@ -1,0 +1,6 @@
+{
+  "person": { "name": "Casey Example", "email": "casey@example.com", "rosterOrg": "EEG", "captureOrg": "Entrepreneurship club recruiting" },
+  "reference": "2026-09-08T23:00:00-04:00",
+  "times": ["2026-09-09T11:00:00", "2026-09-09 11:00", "tomorrow at 11am", "September 9 at 11 AM", "Wed 9/9 3pm"],
+  "disagreement": { "verdict": "disagree", "confidence": 0.95, "issues": [{ "field": "confirmed_time", "problem": "The message says eleven, not three", "suggested_value": "\"2026-09-09T11:00:00-04:00\"" }] }
+}
