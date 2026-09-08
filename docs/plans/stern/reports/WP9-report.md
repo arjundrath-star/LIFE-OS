@@ -84,7 +84,34 @@ Assigned-DB lifecycle output:
 {"eventId":6023,"run":"stern-wp9-fix1","agent":"rathworkspace-platform-developer","status":"running"}
 ```
 
-The first round-1 gate passed all stages at `20260908T195557Z`. Final-review improvements to manual acceptance and malformed deadline handling were made during that gate, so a second gate is required on the final commit. Final gate output is recorded below when complete.
+The final gate ran against implementation commit `3308e45` (following `a75681d`). Actual output:
+
+```text
+$ bash scripts/stern-build/gate.sh /home/Arjun/stern-build/wt/wp9 /home/Arjun/stern-build/db/wp9.db wp9
+=== typecheck (20260908T195957Z) ===
+--- typecheck rc=0
+=== tests (20260908T200014Z) ===
+# tests 373
+# pass 373
+# fail 0
+--- tests rc=0
+=== migrate-1 (20260908T200115Z) ===
+--- migrate-1 rc=0
+=== migrate-2 (20260908T200116Z) ===
+--- migrate-2 rc=0
+=== build (20260908T200116Z) ===
+✓ Compiled successfully in 14.1s
+--- build rc=0
+GATE wp9 result=PASS log=/home/Arjun/stern-build/logs/gate-wp9-20260908T195957Z.log
+```
+
+The earlier gate at `20260908T195557Z` also passed. It was repeated because final-review fixes landed while it was running. Only this report changed after the final gate. `git diff --check` passed; the implementation worktree was clean before recording this final report, which is committed separately.
+
+Completion event on the assigned DB:
+
+```text
+{"eventId":6024,"run":"stern-wp9-fix1","agent":"rathworkspace-platform-developer","status":"completed"}
+```
 
 ## Decisions made
 
@@ -114,7 +141,7 @@ All findings are addressed. The numbered mapping below uses the orchestrator's r
 | 2: Claude argv limit/privacy | `lib/stern/verify.ts:18`; prompt streams to stdin. Executable stub checks a 180 KB prompt is absent from argv. `tests/stern-trust.test.ts:171`. |
 | 3: verifier outage spam | `lib/stern/verify.ts:80`, `:112`; empty verdict, retained failed attempt, automatic later retry, no review flag. `tests/stern-trust.test.ts:262`. |
 | 4: blocking Claude probe | `lib/stern/connections.ts:62`; independent five-second probe, hourly cache. Held-queue test at `tests/stern-trust.test.ts:171`. |
-| 5: infinite time review replay | `lib/stern/apply.ts:307`; acknowledge-only default and validated `timeCorrections`; input controls at `components/stern/automation/AutomationView.tsx:26`. Tests at `:244`, `:253`, `:346`. |
+| 5: infinite time review replay | `lib/stern/apply.ts:307`; acknowledge-only default and validated `timeCorrections`; input controls at `components/stern/automation/AutomationView.tsx:26`. Tests at `tests/stern-trust.test.ts:244`, `:253`, `:346`. |
 | 6: bookkeeping blocks Undo | `lib/stern/audit.ts:275`; later-edit guard checks manual provenance. `tests/stern-trust.test.ts:277` also retains concurrent-manual-edit coverage. |
 | 7: natural clock forms | `lib/stern/time.ts:109`; Sept/noon/midnight/shared meridiem and next same weekday. `tests/stern-trust.test.ts:240`. |
 | 8: reschedule hot lane | `lib/stern/coffee.ts:119`; incoming terminal state clears scheduling, a new proposal returns a scheduled chat to reply_received. `tests/stern-trust.test.ts:287`. |
@@ -127,9 +154,9 @@ All findings are addressed. The numbered mapping below uses the orchestrator's r
 
 ## Known gaps
 
-- The supplied DB copy did not contain Stern tables before the session migration, and no worktree note contained suggestion 2's raw scheduled-time value. The requested read therefore could not supply that exact regression case. Tests cover all specified time formats with placeholders; the original value remains an evidence gap for the orchestrator.
+- The original WP9 build found no Stern tables in the initial supplied DB copy, and this worktree still has no note containing suggestion 2's raw scheduled-time value. The requested read therefore could not supply that exact regression case. Tests cover all specified time formats with placeholders; the original value remains an evidence gap for the orchestrator.
 - No new implementation gaps remain for the review findings. No real provider authentication smoke or production deployment was performed. The supplied notes say Claude headless auth is expired; the exact remediation is tested with an executable stub and displayed when the health check sees that failure.
-- During initial regression work, an existing test temporarily selecting live LLM mode reached the new verifier boundary before its own fixture mode was added. That run was interrupted. Final tests independently force verifier fixtures or explicit local CLI stubs.
+- During the original WP9 implementation run, an existing test temporarily selecting live LLM mode reached the new verifier boundary before its own fixture mode was added. That run was interrupted. Final tests independently force verifier fixtures or explicit local CLI stubs.
 
 ## Follow-ups for the orchestrator
 
