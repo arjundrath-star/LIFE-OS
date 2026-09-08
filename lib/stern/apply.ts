@@ -12,7 +12,7 @@ import { setInterested, upsertProgram, observeProgramStatus, reconcileThankYous 
 import { automationSource, dryRunDefault, sternAccount, type AutomationSource } from "./automation-source";
 import { ScopeMissing } from "@/lib/sources/google";
 import { SternError } from "./errors";
-import { nyDayBounds, nyDateKey } from "./time";
+import { nyDayBounds, nyDateKey, parseEventTime } from "./time";
 
 export function addresses(value: string): string[] { return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(s => s.toLowerCase()))]; }
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -93,8 +93,7 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
   const intents: CalendarIntent[] = [];
   for (const email of counterparts) {
     const extracted = cls.people.find(p => p.email.toLowerCase() === email);
-    let person = db.prepare("SELECT * FROM people WHERE lower(email)=? OR lower(email_alt)=?").get(email, email) as Person | undefined;
-    if (!person) person = createPerson({ display_name: extracted?.name || email, email, org: club?.name || extracted?.club_or_org || "", how_met: "email", relationship_type: club ? "club_connect" : "general_connect", source: "auto_email" }, audit).person;
+    const person = createPerson({ display_name: extracted?.name || email, email, org: club?.name || extracted?.club_or_org || "", how_met: "email", relationship_type: club ? "club_connect" : "general_connect", source: "auto_email" }, audit).person;
     if (person.archived) throw new SternError(409, "Person is archived");
     if (club) addAffiliation(person.id, { club_id: club.id, role: extracted?.role || "", is_eboard: !!extracted?.is_eboard, relevant_for_recruiting: true }, audit);
     const newRequest = ["coffee_chat_request_sent", "follow_up_sent"].includes(cls.category);
@@ -108,7 +107,12 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
     addTouchpoint(person.id, kind, { source: "gmail", gmail_account: message.gmail_account, gmail_message_id: message.gmail_message_id, occurred_at: at, summary: cls.summary, detail: JSON.stringify({ coffee_chat_id: chat.id }) }, audit);
     const laterReply = db.prepare("SELECT 1 FROM stern_email_messages WHERE gmail_account=? AND gmail_thread_id=? AND direction='outbound' AND internal_date>? LIMIT 1").get(message.gmail_account, message.gmail_thread_id, message.internal_date);
     const needsReply = message.direction === "inbound" && !laterReply && (cls.requires_reply_from_me || !!cls.proposed_times?.length) ? 1 : 0;
-    const update: Parameters<typeof observeCoffeeChat>[1] = { gmail_thread_id: message.gmail_thread_id };
+    const update: Parameters<typeof observeCoffeeChat>[1] = { gmail_thread_id: message.gmail_thread_id, gmail_account: message.gmail_account };
+    if ((c === "coffee_chat_reply_positive" && cls.proposed_times?.length) || c === "scheduling_proposal" || (c === "scheduling_confirmed" && !cls.confirmed_time)) {
+      update.scheduling_since = chat.scheduling_since || nowIso();
+      update.hot_until = new Date(Date.now() + 30 * 60000).toISOString();
+      if (["to_request","no_reply"].includes(chat.state)) { update.state = "requested"; update.requested_at = chat.requested_at || at; }
+    }
     if (cls.proposed_times?.length) update.prep_notes = `${chat.prep_notes}${chat.prep_notes ? "\n" : ""}Proposed: ${cls.proposed_times.join(", ")}`;
     if (c === "coffee_chat_request_sent") { update.state = "requested"; update.requested_at = at; observePersonStatus(person.id, "reached_out", audit); }
     if (c === "coffee_chat_reply_positive") { update.state = "reply_received"; update.reply_at = at; update.reply_needs_me = needsReply; observePersonStatus(person.id, "replied", audit); }
@@ -219,7 +223,22 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
   }
 }
 export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
-  const audit = options.audit || messageMeta(message, cls), effects = options.effects || effectsFor(cls);
+  const audit = options.audit || messageMeta(message, cls);
+  const originalClassification = structuredClone(cls);
+  const unparsed: {field:string;raw:string}[] = [];
+  const reference = new Date(message.internal_date).toISOString();
+  const parse = (value:string,field:string) => { const result=parseEventTime(value,reference); if(!result) unparsed.push({field,raw:value}); return result?.iso || ""; };
+  cls = {...cls, confirmed_time:cls.confirmed_time ? parse(cls.confirmed_time,"confirmed_time") : cls.confirmed_time,
+    proposed_times:cls.proposed_times?.map((value,i)=>parse(value,`proposed_times.${i}`)).filter(Boolean)};
+  // Preserve the fact of a proposal even when the times require review.
+  const rawProposal = !!originalClassification.proposed_times?.length;
+  if(rawProposal && !cls.proposed_times?.length) cls.proposed_times = originalClassification.proposed_times;
+  const effects = options.effects ? options.effects.map(e => 'classification' in e ? {...e,classification:cls} : e) : effectsFor(cls);
+  if(unparsed.length) getDb().transaction(() => {
+    const key=`unparsed-time:${message.id}:${audit.batchId}`;
+    insert("suggestion",{dedupe_key:key,suggestion_type:"time_parse_review",proposed_data:JSON.stringify({classification:originalClassification,unparsed}),
+      gmail_account:message.gmail_account,gmail_message_id:message.gmail_message_id,evidence_subject:message.subject,evidence_excerpt:JSON.stringify(unparsed).slice(0,300)},audit);
+  }).immediate();
   let intents: CalendarIntent[] = [], applied = "ignored";
   const confidenceThresholds = thresholds();
   const outboundOnly = ["coffee_chat_request_sent", "follow_up_sent", "thank_you_sent"].includes(cls.category);
@@ -235,19 +254,48 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
       }
     }
   }
+  getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
+  if(applied === "auto_applied" && !options.accept) {
+    const { verifyBatch } = await import("./verify");
+    const verification = await verifyBatch(audit.batchId,{context:{message,classification:originalClassification},dryRun:options.dryRun});
+    if(verification.rollback) { applied="suggested"; intents=[]; }
+  }
   const retryCalendarOnly = !!options.accept && effects.every(effect => effect.kind === "calendar_create");
   for (const intent of intents) await calendarIntent(intent, message, audit, options.source || automationSource(), dryRunDefault(options.dryRun), retryCalendarOnly);
   getDb().transaction(() => getDb().prepare("UPDATE stern_email_messages SET applied=?,processed_at=?,error='' WHERE id=?").run(applied, nowIso(), message.id)).immediate();
   return { applied, batchId: audit.batchId, calendarIntents: intents };
 }
-export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource } = {}) {
+export async function acceptSuggestion(id: number, options: { dryRun?: boolean; source?: AutomationSource; correction?: boolean } = {}) {
   const suggestion = row<Row>("suggestion", id);
   if (suggestion.state !== "pending") throw new SternError(409, "Suggestion already reviewed");
-  const effects = JSON.parse(String(suggestion.proposed_data)) as Effect[];
+  const payload = JSON.parse(String(suggestion.proposed_data));
+  if (["review_flag","person_merge_review"].includes(String(suggestion.suggestion_type)) || (suggestion.suggestion_type === "time_parse_review" && !payload.classification)) {
+    const batchId=newBatchId("review");
+    getDb().transaction(()=>patch("suggestion",id,{state:"accepted",reviewed_at:nowIso()},{source:"manual",batchId})).immediate();
+    return {batchId,applied:"accepted",calendarIntents:[] as CalendarIntent[]};
+  }
+  let corrected: EmailClassification | undefined;
+  if(suggestion.suggestion_type === "verification_correction" || suggestion.suggestion_type === "time_parse_review") {
+    corrected = structuredClone(payload.classification);
+    if(options.correction) {
+      for(const issue of payload.issues || []) {
+        const keys=String(issue.field).replace(/^classification\./,"").split(".");
+        if(keys.some((k:string)=>["__proto__","prototype","constructor"].includes(k))) throw new SternError(400,"Invalid correction field");
+        let target = corrected as unknown as Record<string,unknown>;
+        for(const key of keys.slice(0,-1)) { if(!target[key] || typeof target[key]!=="object") throw new SternError(400,"Correction needs review"); target=target[key] as Record<string,unknown>; }
+        if(!Object.prototype.hasOwnProperty.call(target,keys.at(-1)!)) throw new SternError(400,"Correction field is not in classification");
+        try { target[keys.at(-1)!]=JSON.parse(issue.suggested_value); } catch { target[keys.at(-1)!]=issue.suggested_value; }
+      }
+      const {validateSchema} = await import("./llm");
+      const schema = (await import("../../docs/plans/stern/schema/email-classifier.schema.json")).default;
+      if(!validateSchema(corrected,schema)) throw new SternError(400,"Correction does not match classification schema");
+    }
+  }
+  const effects = corrected ? effectsFor(corrected) : payload as Effect[];
   if (!effects.length) throw new SternError(409, "Reconnect Google from Connections, then retry the calendar sync");
   const message = getDb().prepare("SELECT * FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(suggestion.gmail_account, suggestion.gmail_message_id) as SternEmailMessage | undefined;
   if (!message) throw new SternError(404, "Suggestion evidence missing");
-  const cls = JSON.parse(message.classification) as EmailClassification;
+  const cls = corrected || JSON.parse(message.classification) as EmailClassification;
   const audit = messageMeta(message, cls, "suggestion_accept");
   const result = await applyClassification(message, cls, { ...options, audit, accept: true, effects });
   getDb().transaction(() => patch("suggestion", id, { state: "accepted", reviewed_at: nowIso() }, audit)).immediate();

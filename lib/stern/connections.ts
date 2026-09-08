@@ -45,3 +45,17 @@ export async function sternConnectionSummary() {
     return { id: def.id, state: health.ok ? "on_healthy" : "on_broken", detail: health.detail };
   }));
 }
+
+const claudeGlobal = globalThis as typeof globalThis & {__sternClaudeProbe?:{at:number;result:Promise<{ok:boolean;detail:string}>}};
+export function claudeProbe() {
+  if (process.env.STERN_LLM_MODE === "fixture" || process.env.STERN_LLM_MODE === "off") return Promise.resolve({ok:false,detail:`LLM mode is ${process.env.STERN_LLM_MODE}`});
+  if(claudeGlobal.__sternClaudeProbe && Date.now()-claudeGlobal.__sternClaudeProbe.at<3600000) return claudeGlobal.__sternClaudeProbe.result;
+  const result=(async()=>{
+    const {claudeExecute}=await import("./verify");
+    try { await claudeExecute('Reply OK',false); return {ok:true,detail:"Claude subscription authenticated"}; }
+    catch(error) {return {ok:false,detail:error instanceof Error?error.message:"Claude verifier unavailable"};}
+  })();
+  claudeGlobal.__sternClaudeProbe={at:Date.now(),result}; return result;
+}
+sternConnections.push({id:"stern-llm-claude",label:"Stern verifier · Claude",surfaces:["dashboard"],reconnect:"device_code",defaultEnabled:false,
+  configured:()=>true,check:claudeProbe,note:"Hourly headless subscription auth check. On auth failure, run: claude setup-token"});

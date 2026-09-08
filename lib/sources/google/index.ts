@@ -649,8 +649,12 @@ export async function gmailFetchFull(email: string, messageId: string): Promise<
   const h = (name: string) => headers.find(h => h.name.toLowerCase() === name)?.value || "";
   return { id: msg.id, threadId: msg.threadId, from: h("from"), to: h("to"), cc: h("cc"), subject: h("subject"), text: decodeGmailBody(msg.payload || {}), headers, labelIds: msg.labelIds || [], internalDate: Number(msg.internalDate) };
 }
-export async function gmailListSince(email: string, sinceInternalDateMs: number, options: { labels?: ("INBOX" | "SENT")[] } = {}): Promise<string[]> {
+export async function gmailListSince(email: string, sinceInternalDateMs: number, options: { labels?: ("INBOX" | "SENT")[]; threadId?: string } = {}): Promise<string[]> {
   const token = await sternToken(email), ids = new Set<string>();
+  if(options.threadId) {
+    const thread = await gapi(token, `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(options.threadId)}?format=minimal`);
+    return (thread.messages || []).map((m:{id:string})=>m.id);
+  }
   for (const label of options.labels || ["INBOX", "SENT"]) {
     let pageToken = "";
     do {

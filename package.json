@@ -60,7 +60,8 @@
     "stern:memo": "tsx scripts/stern-memo.ts",
     "test:stern-overview": "tsx --test tests/stern-overview.test.ts",
     "test:stern-search": "tsx --test tests/stern-search.test.ts",
-    "e2e:stern-wp6": "tsx scripts/stern-wp6-e2e.ts"
+    "e2e:stern-wp6": "tsx scripts/stern-wp6-e2e.ts",
+    "test:stern-trust": "tsx --test tests/stern-trust.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

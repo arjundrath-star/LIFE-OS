@@ -12,6 +12,7 @@ const tmp = fs.mkdtempSync(path.join(process.cwd(), ".stern-automation-test-"));
 process.env.RATHWORKSPACE_DB = path.join(tmp, "test.db");
 process.env.STERN_VAULT_WRITE = "0";
 process.env.STERN_LLM_MODE = "fixture";
+process.env.STERN_VERIFIER_MODE = "fixture";
 const fetchBefore = globalThis.fetch;
 let forbiddenFetches = 0;
 globalThis.fetch = async () => { forbiddenFetches++; throw new Error("NETWORK CALL FORBIDDEN IN AUTOMATION TESTS"); };
@@ -366,7 +367,7 @@ test("Automation API authenticates, dispatches all actions, broadcasts snapshots
     || q("SELECT batch_id FROM stern_audit_log WHERE entity_type='draft' AND entity_id=? AND action='update' ORDER BY id DESC LIMIT 1", d.id);
   await success({ action: "batch.undo", batchId: copy.batch_id });
   const data = await (await route.GET()).json();
-  assert.equal(data.scanState.length, 2); assert.deepEqual(data.connections.map((c: {id:string}) => c.id), ["stern-google-stern", "stern-google-nyu", "career-google-personal", "stern-llm-codex", "hermes"]); assert.ok(data.audit.length);
+  assert.equal(data.scanState.length, 2); assert.deepEqual(data.connections.map((c: {id:string}) => c.id), ["stern-google-stern", "stern-google-nyu", "career-google-personal", "stern-llm-codex", "stern-llm-claude", "hermes"]); assert.ok(data.audit.length);
   assert.deepEqual(data.recentMessages.map((m: { id: number }) => m.id), [...data.recentMessages.map((m: { id: number }) => m.id)].sort((a: number, b: number) => a - b));
   for (const body of [null, [], { action: "invalid" }, { action: "scan.now", dryRun: "false" }, { action: "draft.regenerate", id: -1 }, { action: "batch.undo" }]) assert.equal((await post(body)).status, 400);
   assert.equal((await post({ action: "draft.mark_copied", id: 999999 })).status, 404);

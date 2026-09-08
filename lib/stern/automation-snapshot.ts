@@ -1,5 +1,5 @@
 import { suggestionSummary } from "./display";
-import type { SternScanState, SternDraft, SternSuggestion, SternAutomationResponse } from "@/lib/stern-types";
+import type { SternVerification, SternScanState, SternDraft, SternSuggestion, SternAutomationResponse } from "@/lib/stern-types";
 import { nowIso } from "@/db";
 import { automationConnections } from "./automation-connections";
 import { reminderTail } from "./reminder-store";
@@ -11,6 +11,7 @@ export function automationDetails() {
   const db = getDb();
   return {
     connections: automationConnections(),
+    verifications: db.prepare("SELECT * FROM stern_verifications ORDER BY id DESC LIMIT 20").all().reverse() as SternVerification[],
     reminders: reminderTail(),
     notificationSettings: notificationSettings(),
     messageErrors: db.prepare("SELECT gmail_account, COUNT(*) count FROM stern_email_messages WHERE applied='error' GROUP BY gmail_account").all(),

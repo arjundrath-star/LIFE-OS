@@ -197,6 +197,7 @@ export type SternSnapshot = {
     assignmentsDueSoon: number; // within 7 days
   };
   automation: {
+    verifications: SternVerification[];
     connections: SternConnectionCard[];
     lastScanAt: string;        // '' until the first Gmail scan
     lastCalendarSyncAt: string;
@@ -245,7 +246,7 @@ export const STATUS_TONES: Record<string, StatusTone> = {
 
 /** Single lookup for any enum value across the Stern vocabularies. */
 const ALL_LABELS: Record<string, string> = {
-  ...CLUB_STATUS_LABELS, ...PROGRAM_STATUS_LABELS, ...COFFEE_CHAT_LABELS, ...PERSON_STATUS_LABELS, ...RELATIONSHIP_LABELS,
+  scheduling: "Scheduling in progress", ...CLUB_STATUS_LABELS, ...PROGRAM_STATUS_LABELS, ...COFFEE_CHAT_LABELS, ...PERSON_STATUS_LABELS, ...RELATIONSHIP_LABELS,
   ...TASK_STATUS_LABELS, ...TASK_DOMAIN_LABELS, ...ASSIGNMENT_STATUS_LABELS, ...ASSIGNMENT_KIND_LABELS, ...SUGGESTION_STATE_LABELS,
   ...EMAIL_APPLIED_LABELS, ...REMINDER_DELIVERY_LABELS, ...CLUB_CATEGORY_LABELS, ...MEETING_KIND_LABELS, ...DRAFT_STATE_LABELS,
   ...CALENDAR_EVENT_KIND_LABELS, ...PROGRAM_TRACK_LABELS,
@@ -274,7 +275,7 @@ export type Touchpoint = { id: number; person_id: number; kind: TouchpointKind; 
 export type PersonDetail = Person & {
   affiliations: Affiliation[]; touchpoints: Touchpoint[];
   mergedRecords: { id: number; display_name: string }[];
-  coffeeChats: { id: number; state: CoffeeChatState; requested_at: string; scheduled_at: string; occurred_at: string; thank_you_sent_at: string; location: string; takeaways: string }[];
+  coffeeChats: { id: number; state: CoffeeChatState; scheduling_since?: string; phase?: CoffeeChatState | "scheduling"; requested_at: string; scheduled_at: string; occurred_at: string; thank_you_sent_at: string; location: string; takeaways: string }[];
   drafts: { id: number; kind: DraftKind; subject: string; body: string; state: DraftState; gmail_account: string; gmail_draft_id: string }[];
 };
 export type PeopleFilters = { q?: string; includeRoster?: boolean; rosterOnly?: boolean; relationshipType?: string[]; strengthMin?: number; status?: string[]; clubId?: number; sphere?: string; followUpOwed?: boolean; archived?: boolean; sort?: "name" | "recent" | "strength" | "last_contact"; page?: number };
@@ -313,6 +314,7 @@ export type CoffeeChat = {
   id: number; person_id: number; club_id: number; program_id: number; state: CoffeeChatState;
   requested_at: string; reply_at: string; reply_needs_me: number; scheduled_at: string; location: string;
   calendar_event_id: string; occurred_at: string; thank_you_sent_at: string; last_follow_up_at: string;
+  scheduling_since?: string; hot_until?: string; last_thread_check_at?: string; gmail_account?: string; phase?: "scheduling" | CoffeeChatState;
   follow_up_count: number; gmail_thread_id: string; prep_notes: string; takeaways: string;
 };
 export type RecruitingPerson = { id: number; display_name: string; email: string; year: string; title: string; role: string; roster: number; is_eboard: number; chat: CoffeeChat | null };
@@ -369,14 +371,14 @@ export type SternEmailMessage = {
   id: number; gmail_account: string; gmail_message_id: string; gmail_thread_id: string;
   direction: "inbound" | "outbound"; from_addr: string; to_addrs: string; subject: string;
   internal_date: number; snippet: string; content_hash: string; classification: string;
-  category: string; confidence: number; applied: string; error: string; processed_at: string;
+  category: string; confidence: number; applied: string; verified?: string; error: string; processed_at: string;
 };
 
 // WP5 delivery read model. message contains a version-independent JSON envelope; body is display text.
 export const HERMES_ALIAS = /^[a-z0-9-]{1,64}$/;
 // Photon project, thread, and E.164-style destination. Empty is allowed only in settings.
 export const HERMES_TARGET = /^photon:[a-z0-9_-]+;[a-z0-9_+-]*;\+?[0-9]{7,15}$/i;
-export const STERN_NOTIFICATION_KEYS = ["stern.hermes_alias", "stern.imessage_target", "stern.memo_email", "stern.quiet_hours_start", "stern.quiet_hours_end", "stern.memo_last_date", "stern.threshold_auto", "stern.threshold_suggest"] as const;
+export const STERN_NOTIFICATION_KEYS = ["stern.verifier_provider", "stern.verifier_model","stern.hermes_alias", "stern.imessage_target", "stern.memo_email", "stern.quiet_hours_start", "stern.quiet_hours_end", "stern.memo_last_date", "stern.threshold_auto", "stern.threshold_suggest"] as const;
 export type SternNotificationSettings = Record<Exclude<(typeof STERN_NOTIFICATION_KEYS)[number], "stern.memo_last_date">, string>;
 export type ReminderMessage = { key: string; subject: string; body: string; urgent: boolean; scheduledAt: string; validUntil?: string; fingerprint?: string };
 export type SternReminder = { id: number; rule_key: string; entity_type: string; entity_id: number; fire_at: string; channel: ReminderChannel; message: string; delivery_status: (typeof REMINDER_DELIVERY_STATUSES)[number]; sent_at: string; error: string; created_at: string };
@@ -389,5 +391,12 @@ export type SternAuditRow = {entity_label?:string;id:number;entity_type:string;e
 export type SternSuggestion = {summary:string;created_at:string;evidence_type:string;entity_type:string;entity_id:number;id:number;suggestion_type:string;evidence_subject:string;evidence_excerpt:string;confidence:number;state:string;proposed_data:string;gmail_account:string;gmail_message_id:string};
 export type SternDraft = {id:number;person_id:number;kind:DraftKind;subject:string;body:string;state:DraftState;to_email:string;updated_at:string};
 export type SternScanState = {account:string;last_checked:string;last_error:string;messages_seen:number};
-export type SternConnectionCard = {id:string;label:string;state:string;detail:string;account:string;scopes:string[];lastScan:string;reconnectHref:string};
-export type SternAutomationResponse = Pick<SternSnapshot['automation'],'scanState'|'recentMessages'|'suggestions'|'drafts'|'audit'|'reminders'|'notificationSettings'> & {connections:SternConnectionCard[];connectHref?:string;updatedAt:string};
+export type SternConnectionCard = {tokenExpiresInDays?:number;id:string;label:string;state:string;detail:string;account:string;scopes:string[];lastScan:string;reconnectHref:string};
+export type SternAutomationResponse = Pick<SternSnapshot['automation'],'scanState'|'recentMessages'|'suggestions'|'drafts'|'audit'|'reminders'|'notificationSettings'|'verifications'> & {connections:SternConnectionCard[];connectHref?:string;updatedAt:string};
+
+export type VerificationIssue = {field:string;problem:string;suggested_value:string};
+export type VerificationResult = {verdict:'agree'|'disagree'|'unsure';confidence:number;issues:VerificationIssue[]};
+export type SternVerification = {id:number;gmail_message_id:string;gmail_account:string;batch_id:string;provider:string;model:string;verdict:string;confidence:number;issues:string;latency_ms:number;created_at:string};
+export function coffeeChatPhase(chat: Pick<CoffeeChat,'state'|'scheduling_since'>): CoffeeChatState | 'scheduling' {
+  return chat.scheduling_since && ['requested','reply_received'].includes(chat.state) ? 'scheduling' : chat.state;
+}

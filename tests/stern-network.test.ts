@@ -110,7 +110,9 @@ test("merge can transfer an email or name+org identity into a blank survivor", a
   for (const email of ["", "transfer@example.test"]) {
     const name = email ? "Email Transfer Student" : "Org Transfer Student";
     const keep = p.createPerson({ name }).person;
-    const drop = p.createPerson({ name, org: "Transfer Organization", email }).person;
+    // Model a duplicate written before name-stage resolution shipped.
+    const dropId=Number(db.prepare("INSERT INTO people(display_name,org,email,dedupe_key) VALUES (?,?,?,?)").run(name,"Transfer Organization",email,p.dedupeKeyFor({name,org:"Transfer Organization",email})).lastInsertRowid);
+    const drop=p.getPerson(dropId);
     const batchId = audit.newBatchId();
     const merged = p.mergePeople(keep.id, drop.id, { batchId });
     assert.equal(merged.org, drop.org); assert.equal(merged.email, email);

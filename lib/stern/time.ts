@@ -104,3 +104,44 @@ export function nyClock(now: Date): string {
   const parts = tzParts(now, STERN_TIMEZONE);
   return `${String(parts.h).padStart(2, "0")}:${String(parts.mi).padStart(2, "0")}`;
 }
+
+/** Parse explicit instants or bounded natural wall times relative to the email's New York date. */
+export function parseEventTime(text: string, referenceIso: string): { iso: string; confidence: number } | null {
+  if (typeof text !== 'string' || !text.trim() || !Number.isFinite(Date.parse(referenceIso))) return null;
+  const raw = text.trim();
+  if (validDate(raw) && raw.includes('T')) return { iso: raw, confidence: 1 };
+  const reference = nyDateKey(referenceIso);
+  let day = '', hour = 0, minute = 0, second = 0, confidence = .9;
+  const iso = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{1,3})?$/);
+  if (iso) { day = iso[1]; hour = +iso[2]; minute = +iso[3]; second = +(iso[4] || 0); confidence = .95; }
+  else {
+    const value = raw.toLowerCase().replace(/\b(?:eastern(?: time)?|america\/new_york|edt|est|et)\b/g, '').trim();
+    const clock = value.match(/(?:\bat\s+|\s|^)(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/)
+      || value.match(/(?:\bat\s+|\s|^)(\d{1,2}):(\d{2})(?!\d)/);
+    if (!clock) return null;
+    hour = +clock[1]; minute = +(clock[2] || 0);
+    if (clock[3]) { if (hour < 1 || hour > 12) return null; hour = hour % 12 + (clock[3].startsWith('p') ? 12 : 0); }
+    const numeric = value.match(/\b(?:(\d{4})-)?(\d{1,2})[/-](\d{1,2})(?:\/(\d{4}))?\b/);
+    const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const named = value.match(/\b([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/);
+    const month = named ? months.findIndex(m => m === named[1] || m.slice(0,3) === named[1]) : -1;
+    if (/\btomorrow\b/.test(value)) day = nyDayBounds(referenceIso, 1).dateKey;
+    else if (/\btoday\b/.test(value)) day = reference;
+    else if (numeric) day = `${numeric[1] || numeric[4] || reference.slice(0,4)}-${numeric[2].padStart(2,'0')}-${numeric[3].padStart(2,'0')}`;
+    else if (named && month >= 0) day = `${named[3] || reference.slice(0,4)}-${String(month+1).padStart(2,'0')}-${named[2].padStart(2,'0')}`;
+    else {
+      const weekdays = ['sun','mon','tue','wed','thu','fri','sat'];
+      const weekday = value.match(/\b(sun|mon|tue|wed|thu|fri|sat)(?:day|sday|nesday|rsday|urday)?\b/);
+      if (!weekday) return null;
+      let offset = (weekdays.indexOf(weekday[1]) - new Date(`${reference}T12:00Z`).getUTCDay() + 7) % 7;
+      if (/\bnext\b/.test(value) && offset === 0) offset = 7;
+      day = nyDayBounds(referenceIso, offset).dateKey; confidence = .8;
+    }
+  }
+  if (!validDate(day) || hour > 23 || minute > 59 || second > 59) return null;
+  const time = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+  const instant = new Date(nyWallTime(day, time).getTime() + second * 1000);
+  // Reject nonexistent DST wall times instead of silently moving the appointment.
+  if (nyDateKey(instant) !== day || nyClock(instant) !== time) return null;
+  return { iso: instant.toISOString(), confidence };
+}

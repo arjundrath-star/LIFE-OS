@@ -7,6 +7,8 @@ import { classifyEmail, llmMode } from "./llm";
 import { addresses, applyClassification, messageMeta } from "./apply";
 import { row } from "./recruiting-write";
 import { accountsToScan, automationJob, automationSource, type AutomationSource } from "./automation-source";
+import { sweepDuplicates } from "./people";
+import { queueGoogleReauth } from "./google-reauth";
 import { runRulesPass } from "./rules-pass";
 export { accountsToScan } from "./automation-source";
 export function contentHash(msg: Pick<GmailFullMessage, "from" | "subject" | "text">): string {
@@ -18,11 +20,11 @@ export function contentHash(msg: Pick<GmailFullMessage, "from" | "subject" | "te
   const normalized = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
   return crypto.createHash("sha256").update(`${addresses(from)[0] || normalized(from)}|${normalized(msg.subject.replace(/^(?:fwd?:\s*)+/i, ""))}|${normalized(body).slice(0, 2000)}`).digest("hex");
 }
-export function runSternEmailScan(options: { dryRun?: boolean; source?: AutomationSource; now?: Date } = {}) {
-  return automationJob(async () => {
+export function runSternEmailScan(options: { dryRun?: boolean; source?: AutomationSource; now?: Date; thread?: {account:string;id:string} } = {}) {
+  const work = async () => {
     const counts = { accounts: 0, failures: 0, messages: 0, duplicates: 0, applied: 0, suggested: 0, ignored: 0, errors: 0, calendarIntents: [] as unknown[] };
     if (llmMode() === "off" && !options.source) return counts;
-    const db = getDb(), source = options.source || automationSource(), accounts = accountsToScan();
+    const db = getDb(), source = options.source || automationSource(), accounts = options.thread ? accountsToScan().filter(a=>a===options.thread!.account) : accountsToScan();
     if (!accounts.length) return counts;
     const own = (db.prepare("SELECT email FROM google_accounts").all() as { email: string }[]).map(r => r.email.toLowerCase());
     const runId = `stern-email-${crypto.randomUUID()}`;
@@ -36,7 +38,7 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
           // Retry independently of the Gmail watermark. After three failures, cool down
           // for six hours without ever discarding unclassified messages.
           const retryRows = db.prepare("SELECT gmail_message_id FROM stern_email_messages WHERE gmail_account=? AND applied IN ('pending','error')").all(account) as { gmail_message_id: string }[];
-          const ids = [...new Set([...await source.list(account, watermark, { labels: ["INBOX", "SENT"] }), ...retryRows.map(r => r.gmail_message_id)])];
+          const ids = [...new Set([...await source.list(account, watermark, { labels: ["INBOX", "SENT"],threadId:options.thread?.id }), ...(options.thread ? [] : retryRows).map(r => r.gmail_message_id)])];
           const full: GmailFullMessage[] = [];
           for (const id of ids) {
             const prior = db.prepare("SELECT * FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(account, id) as SternEmailMessage | undefined;
@@ -44,8 +46,9 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
             try {
               const msg = await source.full(account, id);
               if (!Number.isFinite(msg.internalDate) || msg.internalDate <= 0) throw new Error("Invalid Gmail internal date");
-              full.push(msg);
+              if (!options.thread || msg.threadId === options.thread.id) full.push(msg);
             } catch (error) {
+              if (/invalid_grant|needs re-auth/i.test(error instanceof Error ? error.message : "")) queueGoogleReauth(account, options.now || new Date(), true);
               db.transaction(() => {
                 db.prepare("INSERT OR IGNORE INTO stern_email_messages(gmail_account,gmail_message_id) VALUES (?,?)").run(account, id);
                 const m = db.prepare("SELECT * FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?").get(account, id) as SternEmailMessage;
@@ -88,21 +91,25 @@ export function runSternEmailScan(options: { dryRun?: boolean; source?: Automati
               else counts.ignored++;
               counts.calendarIntents.push(...applied.calendarIntents);
             }
+            db.transaction(()=>db.prepare("UPDATE coffee_chats SET last_thread_check_at=? WHERE gmail_account=? AND gmail_thread_id=?").run((options.now || new Date()).toISOString(),account,msg.threadId)).immediate();
             watermark = Math.max(watermark, msg.internalDate);
           }
-          db.transaction(() => db.prepare(`INSERT INTO stern_scan_state(account,last_internal_date,last_checked,last_error,messages_seen) VALUES (?,?,?,?,(SELECT COUNT(*) FROM stern_email_messages WHERE gmail_account=?)) ON CONFLICT(account) DO UPDATE SET last_internal_date=excluded.last_internal_date,last_checked=excluded.last_checked,last_error=excluded.last_error,messages_seen=excluded.messages_seen`).run(account, watermark, nowIso(), errorSummary(account), account)).immediate();
+          if (!options.thread) db.transaction(() => db.prepare(`INSERT INTO stern_scan_state(account,last_internal_date,last_checked,last_error,messages_seen) VALUES (?,?,?,?,(SELECT COUNT(*) FROM stern_email_messages WHERE gmail_account=?)) ON CONFLICT(account) DO UPDATE SET last_internal_date=excluded.last_internal_date,last_checked=excluded.last_checked,last_error=excluded.last_error,messages_seen=excluded.messages_seen`).run(account, watermark, nowIso(), errorSummary(account), account)).immediate();
         } catch (error) {
           counts.failures++;
+          if (/invalid_grant|needs re-auth/i.test(error instanceof Error ? error.message : "")) queueGoogleReauth(account, options.now || new Date(), true);
           db.transaction(() => db.prepare(`INSERT INTO stern_scan_state(account,last_checked,last_error) VALUES (?,?,?) ON CONFLICT(account) DO UPDATE SET last_checked=excluded.last_checked,last_error=excluded.last_error`).run(account, nowIso(), error instanceof Error ? error.message.slice(0, 200) : "Account scan failed")).immediate();
         }
       }
+      sweepDuplicates({source:"agent",batchId:runId});
       const rules = await runRulesPass({ now: options.now });
       counts.errors += rules.errors.length;
       emit("gmail_scan", "running", "Stern email scan counts");
       emit(counts.failures ? "failed" : "completed", counts.failures ? "failed" : "completed", "Stern email scan finished");
       return counts;
     } catch (error) { emit("failed", "failed", "Stern email scan failed"); throw error; }
-  });
+  };
+  return options.thread ? work() : automationJob(work);
 }
 
 function attempts(message: SternEmailMessage): number { return Number(message.error.match(/^\[attempt (\d+)\]/)?.[1] || 0); }
@@ -118,4 +125,17 @@ function recordFailure(message: SternEmailMessage, error: string) {
 function errorSummary(account: string): string {
   const { n } = getDb().prepare("SELECT COUNT(*) n FROM stern_email_messages WHERE gmail_account=? AND applied='error'").get(account) as { n: number };
   return n ? `${n} message(s) awaiting retry; inspect message errors (six-hour cooldown after three failures)` : "";
+}
+
+/** Independent from the full scan lane; individual model calls still share the LLM queue. */
+export async function runSternHotThreads(options:{source?:AutomationSource;dryRun?:boolean;now?:Date}={}) {
+  const now=options.now || new Date();
+  const chats=getDb().prepare(`SELECT DISTINCT gmail_account,gmail_thread_id FROM coffee_chats WHERE hot_until>? AND gmail_thread_id<>'' AND gmail_account<>''
+    AND state IN ('requested','reply_received') AND (last_thread_check_at='' OR julianday(last_thread_check_at)<=julianday(?))`).all(now.toISOString(),new Date(now.getTime()-5*60000).toISOString()) as {gmail_account:string;gmail_thread_id:string}[];
+  for(const chat of chats) {
+    const result=await runSternEmailScan({...options,thread:{account:chat.gmail_account,id:chat.gmail_thread_id}});
+    if(!result.failures && !result.errors) getDb().transaction(()=>getDb().prepare('UPDATE coffee_chats SET last_thread_check_at=? WHERE gmail_account=? AND gmail_thread_id=?')
+      .run(now.toISOString(),chat.gmail_account,chat.gmail_thread_id)).immediate();
+  }
+  return {checked:chats.length};
 }

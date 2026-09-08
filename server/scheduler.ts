@@ -283,6 +283,11 @@ async function tickSternEmail() {
   await runSternEmailScan();
   await tickStern();
 }
+export async function tickSternHotThreads() {
+  const { runSternHotThreads } = await import("@/lib/stern/gmail-scan");
+  await runSternHotThreads();
+  await tickStern();
+}
 async function tickSternCalendar() {
   const { runSternCalendarSync } = await import("@/lib/stern/calendar-sync");
   await runSternCalendarSync();
@@ -343,6 +348,7 @@ export function startScheduler() {
   const careerHunter = guarded("careerHunter", tickCareerHunter);
   const stern = guarded("stern", tickStern);
   const sternEmail = guarded("sternEmail", tickSternEmail);
+  const sternHotThreads = guarded("sternHotThreads", tickSternHotThreads);
   const sternCalendar = guarded("sternCalendar", tickSternCalendar);
   const sternReminders = guarded("sternReminders", tickSternReminders);
   const sternMemo = guarded("sternMemo", tickSternMemo);
@@ -386,6 +392,7 @@ export function startScheduler() {
     setInterval(careerHunter, 24 * 60 * 60 * 1000), // bounded configurable watchlist fetch
     setInterval(sternReminders, 60_000),
     setInterval(sternMemo, 60_000),
+    setInterval(sternHotThreads, 60_000),
     setInterval(sternEmail, 10 * 60 * 1000),
     setInterval(sternCalendar, 5 * 60 * 1000),
     setInterval(stern, 15000), // Stern tab snapshot: SQL counts + broadcast, cheap and bounded

@@ -9,7 +9,7 @@ import { isConnectionEnabled } from "@/lib/connections/enabled";
 import type { GmailFullMessage } from "@/lib/sources/google";
 
 const schemaPath = path.join(process.cwd(), "docs/plans/stern/schema/email-classifier.schema.json");
-type Schema = { type?: string | string[]; enum?: unknown[]; required?: string[]; properties?: Record<string, Schema>; items?: Schema; additionalProperties?: boolean; minimum?: number; maximum?: number; maxLength?: number };
+export type Schema = { type?: string | string[]; enum?: unknown[]; required?: string[]; properties?: Record<string, Schema>; items?: Schema; additionalProperties?: boolean; minimum?: number; maximum?: number; maxLength?: number };
 export function validateSchema(value: unknown, schema: Schema): boolean {
   const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
   if (schema.type && !(Array.isArray(schema.type) ? schema.type : [schema.type]).includes(type)) return false;
@@ -29,7 +29,7 @@ export function validateSchema(value: unknown, schema: Schema): boolean {
   return true;
 }
 const globalQueue = globalThis as typeof globalThis & { __sternLlmQueue?: Promise<unknown> };
-function queued<T>(fn: () => Promise<T>): Promise<T> {
+export function queued<T>(fn: () => Promise<T>): Promise<T> {
   const next = (globalQueue.__sternLlmQueue || Promise.resolve()).catch(() => {}).then(fn);
   globalQueue.__sternLlmQueue = next.catch(() => {});
   return next;
@@ -93,7 +93,7 @@ export function schemaMismatch(value: unknown, schema: Schema, at = "$"): string
   return null;
 }
 export function llmMode() { return process.env.STERN_LLM_MODE || "live"; }
-async function execute(prompt: string, schema: Schema, file?: string): Promise<unknown> {
+export async function execute(prompt: string, schema: Schema, file?: string, modelOverride?: string): Promise<unknown> {
   return queued(async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "stern-llm-"));
     try {
@@ -111,7 +111,7 @@ async function execute(prompt: string, schema: Schema, file?: string): Promise<u
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           await fs.rm(out, { force: true });
-          const model = kvGet<string>("stern.llm_model") || "gpt-6-astra";
+          const model = modelOverride || kvGet<string>("stern.llm_model") || "gpt-6-astra";
           await new Promise<void>((resolve, reject) => {
             const child = execFile(process.env.STERN_CODEX_BIN || "codex", ["exec", "--output-schema", localSchema, "-m", model, "--skip-git-repo-check", "--sandbox", "read-only", "-C", dir, "-c", 'web_search="disabled"', "-c", "features.shell_tool=false", "-o", out, "-"], { env: { NODE_ENV: "production", PATH: process.env.PATH, HOME: os.homedir(), LANG: process.env.LANG || "C.UTF-8", TMPDIR: dir, CODEX_HOME: codexHome }, timeout: 120000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 }, error => error ? reject(new Error(error.killed ? "Classifier timed out" : "Classifier command failed")) : resolve());
             // stdin avoids argv size limits and keeps email out of /proc command lines.
