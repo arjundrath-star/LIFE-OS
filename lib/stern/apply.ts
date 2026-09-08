@@ -198,6 +198,9 @@ function executeEffects(effects: Effect[], message: SternEmailMessage, audit: Au
 }
 async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage, audit: AuditMeta, source: AutomationSource, dryRun: boolean, retry: boolean) {
   const account = sternAccount();
+  // A user may have changed the chat while the verifier was running.
+  const current = row<CoffeeChat>("coffee_chat", intent.chatId);
+  if(current.state !== "scheduled" || Date.parse(current.scheduled_at) !== Date.parse(intent.start)) return;
   try {
     if (!account) throw new ScopeMissing("calendar.events (connect a Stern account)");
     const end = new Date(Date.parse(intent.start) + 30 * 60000).toISOString();

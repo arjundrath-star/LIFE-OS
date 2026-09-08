@@ -21,11 +21,12 @@ export async function claudeExecute(prompt: string, json = true): Promise<unknow
       const promptFile = path.join(dir,'prompt.txt');
       await fs.writeFile(promptFile,prompt,{mode:0o600});
       // -p takes prompt text, not a filename. Read our own file into argv; never use a shell.
+      const promptText = await fs.readFile(promptFile, "utf8");
       const output = await new Promise<string>((resolve,reject) => execFile(process.env.STERN_CLAUDE_BIN || 'claude',
-        ['-p',prompt,'--output-format','json','--max-turns','1','--tools','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--setting-sources',''],
+        ['-p',promptText,'--output-format','json','--max-turns','1','--tools','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--setting-sources',''],
         {cwd:dir,env:{NODE_ENV:"production",PATH:process.env.PATH,HOME:os.homedir(),LANG:process.env.LANG || 'C.UTF-8'},timeout:120000,killSignal:'SIGKILL',maxBuffer:1024*1024},
         (error,stdout,stderr) => {
-          if (/authenticate|oauth.*expired|not logged in|authentication/i.test(`${stdout}\n${stderr}`)) return reject(new Error('run: claude setup-token'));
+          if (/failed to authenticate|oauth.*expired|not logged in|authentication failed/i.test(`${stdout}\n${stderr}`)) return reject(new Error('run: claude setup-token'));
           if(error) return reject(new Error(error.killed?'Claude verifier timed out':'Claude verifier command failed'));
           resolve(stdout);
         }));

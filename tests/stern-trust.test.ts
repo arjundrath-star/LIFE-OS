@@ -194,3 +194,31 @@ test('Migration 0033 is idempotent through the real migration runner',async()=>{
  assert.equal(q("SELECT COUNT(*) n FROM _migrations WHERE name='0033_stern_hot_threads.sql'").n,1);
  for(const column of ['scheduling_since','hot_until','last_thread_check_at','gmail_account']) {const info=all('PRAGMA table_info(coffee_chats)').find(c=>c.name===column);assert.equal(info.notnull,1);assert.equal(info.dflt_value,"''");}
 });
+
+test('Quick-add API, people.import and iMessage CLI share name-stage identity resolution',async()=>{
+ const imported=people.importPeople([{name:'Capture Example',org:'Roster',roster:1}])[0].person;
+ const route=load<{POST:(r:Request)=>Promise<Response>}>('app/api/stern/network/route.ts',{'@/lib/guard':{requireUser:async()=>({email:'owner@example.com'})},'@/lib/stern/snapshot':{broadcastStern:()=>({})}});
+ const response=await route.POST(new Request('http://localhost:3190/api/stern/network',{method:'POST',body:JSON.stringify({action:'person.create',person:{name:'Capture Example',org:'New organization',email:'capture@example.com'}})}));
+ assert.equal(response.status,200);assert.equal((await response.json()).result.person.id,imported.id);
+ const other=people.importPeople([{name:'Message Example',org:'Roster',roster:1}])[0].person;
+ const {execFileSync}=await import('node:child_process');const result=JSON.parse(execFileSync('node_modules/.bin/tsx',['scripts/stern-cli.ts','add-person','--source','imessage','--json',JSON.stringify({name:'Message Example',org:'Different org',email:'message@example.com'})],{cwd:process.cwd(),encoding:'utf8',env:{...process.env,RATHWORKSPACE_DB:path.join(tmp,'test.db')}}));
+ assert.equal(result.ok,true);assert.equal(q("SELECT COUNT(*) n FROM people WHERE display_name='Message Example'").n,1);assert.equal(q('SELECT roster FROM people WHERE id=?',other.id).roster,0);
+});
+test('Calendar creation rechecks user changes made while the verifier is pending',async()=>{
+ await feed(['fx-001']);let announce!:()=>void,release!:()=>void;
+ const started=new Promise<void>(r=>announce=r),held=new Promise<void>(r=>release=r);
+ const apply=load<typeof policy>('lib/stern/apply.ts',{'./verify':{verifyBatch:async()=>{announce();await held;return {rollback:false};}}});
+ const message=q("SELECT * FROM stern_email_messages WHERE gmail_message_id='fx-001'");
+ const cls={...fixtures[0].expected,category:'scheduling_confirmed',confirmed_time:'2026-09-09T11:00:00-04:00'} as EmailClassification;
+ let creates=0;const base=sourceMod.automationSource();
+ const applying=apply.applyClassification(message,cls,{dryRun:true,source:{...base,createEvent:async()=>{creates++;return {id:'fixture'};}}});
+ await started;
+ try {(await import('@/lib/stern/coffee')).observeCoffeeChat(q('SELECT id FROM coffee_chats').id,{state:'declined'},{source:'agent'});} finally {release();}
+ await applying;assert.equal(creates,0);assert.equal(q('SELECT state FROM coffee_chats').state,'declined');
+});
+test('An invalid_grant scan queues an immediate reauth reminder only once per account and date',async()=>{
+ const base=sourceMod.automationSource(),now=new Date('2026-09-02T10:00:00Z');
+ for(let i=0;i<2;i++) await scan.runSternEmailScan({now,source:{...base,list:async()=>{throw new Error('invalid_grant');}}});
+ assert.equal(q("SELECT COUNT(*) n FROM stern_reminders WHERE rule_key='google_reauth_due'").n,2);
+ for(const reminder of all("SELECT * FROM stern_reminders WHERE rule_key='google_reauth_due'")) {assert.equal(reminder.fire_at,now.toISOString());assert.equal(JSON.parse(reminder.message).urgent,true);}
+});

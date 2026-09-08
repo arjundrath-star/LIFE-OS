@@ -18,7 +18,7 @@ import { sendMemo } from "@/lib/stern/memo";
 import { reminderMeta } from "@/lib/stern/reminder-store";
 import { updateNotificationSettings } from "@/lib/stern/notification-settings";
 export const dynamic = "force-dynamic";
-export async function GET(req?: Request) {
+export async function GET(req: Request) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const snapshot=await automationSnapshot(user.email);
