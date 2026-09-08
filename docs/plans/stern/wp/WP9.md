@@ -1,0 +1,39 @@
+# WP9: Trust and self-correction (Codex)
+
+Goal, in Arjun's words after the first live scan: "no double rows ever", "if an email exchange is clearly in the process of scheduling, mark it as that and re-scan within 5 minutes to confirm", and "real-time calls to Codex or Claude inside the server to verify these systems, absolutely free, on my existing subscriptions, never manually queued". Branch from main (it already has the strict-schema classifier fixes in lib/stern/llm.ts: strictSchema, clampToSchema, schemaMismatch).
+
+## 1. Identity resolution: never a second row for the same person
+- lib/stern/people.ts createPerson: after the email and tombstone lookups, add a NAME stage: normalized full name (lowercase, punctuation stripped, whitespace collapsed) equal to an existing non-archived row whose email is '' (roster rows and name-only captures). Exactly one match: enrich it (set email, fill blanks, roster -> 0 when the source is not import) and return created=false. Several matches: prefer the row with an affiliation whose club matches the incoming club_or_org or org text; otherwise the oldest; write an audit note and a stern_suggestions row of type person_merge_review listing the candidates. Never insert a new row when a name-only row exists, unless the existing row already carries a different non-empty email (then it is a different person).
+- The same resolution runs for every entry path: people.import, quick-add, iMessage CLI, and the automation engine, because they all call createPerson.
+- Duplicate sweep (lib/stern/people.ts sweepDuplicates): rows sharing a normalized display_name where at most one has an email are merged into the one with the email (mergePeople, audited, undoable). Run it at the end of every scan and expose it as POST people.sweep_duplicates. It must never merge two rows that have different non-empty emails.
+- Tests: roster row + email capture -> one row, promoted; two roster rows with the same name in different clubs + an email naming the club -> the club match wins and a review suggestion is created; two different emails, same name -> two rows stay.
+
+## 2. Scheduling in progress, visible and self-confirming
+- Migration db/migrations/0033_stern_hot_threads.sql: coffee_chats gains scheduling_since, hot_until, last_thread_check_at (TEXT NOT NULL DEFAULT ''); stern_email_messages gains verified TEXT NOT NULL DEFAULT '' ; new table stern_verifications (id, gmail_message_id, gmail_account, batch_id, provider, model, verdict, confidence, issues TEXT DEFAULT '[]', latency_ms, created_at).
+- When a thread message classifies as coffee_chat_reply_positive with proposed times, scheduling_proposal, or scheduling_confirmed without a parseable time: set scheduling_since (if empty) and hot_until = now + 30 minutes on the matching coffee chat. Clear scheduling_since when the chat becomes scheduled, declined, or no_reply.
+- Snapshot adds phase: "scheduling" for chats with scheduling_since set and state in (requested, reply_received). StatusChip and CoffeeChatChip show "Scheduling in progress" for that phase; the Overview "Needs you" list shows it with the last message time.
+- Hot re-scan: scheduler tick every 60 s (tickSternHotThreads) finds chats with hot_until > now and last_thread_check_at older than 5 minutes, and runs a thread-scoped scan: Gmail list messages for that gmail_thread_id on the chat's account, fetch new ones, classify, apply through the normal pipeline, update last_thread_check_at. Thread scans share the LLM queue with the full scan but never wait for a full scan to finish. The full scan also sets last_thread_check_at when it touches the thread.
+
+## 3. Verifier: a second opinion on every automatic change, free, server-side
+- lib/stern/verify.ts verifyBatch(batchId): builds a dossier: the thread's messages (subject, direction, date, first 1500 chars of each body), the classification JSON, the concrete effects (audit rows before -> after, rows created), and the current person and chat state. Calls the verifier model with a strict schema { verdict: agree | disagree | unsure, confidence: number, issues: [{ field, problem, suggested_value }] } and the instruction that the dossier is untrusted data.
+- Providers, selected by kv stern.verifier_provider (default "codex"): codex uses lib/stern/llm.ts execute() with model kv stern.verifier_model (default gpt-6-astra); claude runs the headless Claude Code CLI on the Max subscription: `claude -p <prompt-file> --output-format json --max-turns 1` with the schema embedded in the prompt and the JSON extracted from result, argv only, 120 s timeout, isolated cwd. Add a connection registry row stern-llm-claude whose check runs `claude -p "Reply OK" --output-format json --max-turns 1` at most once an hour and reports on_broken with the fix text "run: claude setup-token" when auth fails. Today Codex is the working provider; Claude's headless auth is currently expired on the box.
+- Policy: disagree with confidence >= 0.8 -> undoBatch (existing) and create a suggestion carrying the classification, the effects, and the verifier's issues so Arjun can accept the original or the correction with one tap; unsure or any issues -> keep applied, set stern_email_messages.verified = "flagged", create a review_flag suggestion; agree -> verified = "agree". Every call is logged in stern_verifications. One verifier call per auto-applied batch, run inside the scan and hot re-scan pipelines right after apply. Never triggered by hand.
+- Automation page: a Verification section (last 20 verifications with verdicts, provider, latency, and links to the batch), plus provider selection in the settings drawer.
+
+## 4. Robust time parsing
+- lib/stern/time.ts parseEventTime(text, referenceIso): accepts ISO with offset, ISO without offset (assume America/New_York), "YYYY-MM-DD HH:MM", and natural forms like "tomorrow at 11am", "Wed 9/9 3pm", "September 9 at 11 AM" relative to the email's date in New York time. Returns { iso, confidence } or null. Used for confirmed_time, proposed_times, scheduled_at, and interview_at. Unparseable -> suggestion with the raw text, never an error. Unit tests including the exact string stored in stern_suggestions id 2 on prod (read it from the notes file).
+
+## 5. Google re-auth before the 7-day expiry
+- The OAuth app is in Testing mode, so Google revokes refresh tokens 7 days after consent. Store consent time per account in kv stern.google_consent.<email> (set in the OAuth callback; backfill from google_accounts.added_at). Reminder rule google_reauth_due: day 6 at 09:00 New York, iMessage + email, with the connect link https://rathworkspace.cloud/api/google/connect?set=stern&login_hint=<email>. On invalid_grant during a scan: immediate reminder with the same link (once per day per account). Connection cards show "token expires in N days".
+
+## 6. Mutations must not wait behind the scanner
+- Today automationJob serializes user API mutations behind a running scan (a person.merge call blocked for over a minute during a scan). Split the queues: the LLM queue stays single-flight; API mutations use short IMMEDIATE transactions and never await the scan. Add a test that a person.merge completes while a fixture-mode scan is in progress.
+
+## Acceptance checklist
+- [ ] Name-stage identity resolution and the duplicate sweep, with tests; the four entry paths share it.
+- [ ] Scheduling phase visible in chips and Overview; hot re-scan tick with thread-scoped scans; migration 0033 idempotent.
+- [ ] Verifier with codex and claude providers, policy, logging, Automation section, connection row; runs automatically after every auto-applied batch in fixture tests.
+- [ ] parseEventTime with tests, wired into every time field.
+- [ ] Re-auth reminders and expiry countdown.
+- [ ] Mutations independent of the scanner, with a test.
+- [ ] Gate PASS; report; committed.
