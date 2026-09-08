@@ -113,6 +113,28 @@ function assignment(cls: EmailClassification, message: SternEmailMessage, course
   return saved.id;
 }
 export type CalendarIntent = { chatId: number; personId: number; email: string; title: string; start: string; location: string; hash: string };
+/** Established instants from this account/thread only; rejected and future classifications cannot resolve a clock. */
+function knownThreadTimes(message: SternEmailMessage): string[] {
+  if (!message.gmail_thread_id) return [];
+  const db = getDb();
+  const times = (db.prepare("SELECT scheduled_at FROM coffee_chats WHERE gmail_account=? AND gmail_thread_id=? AND scheduled_at<>''")
+    .all(message.gmail_account, message.gmail_thread_id) as {scheduled_at:string}[]).map(chat => chat.scheduled_at);
+  const earlier = db.prepare(`SELECT classification,internal_date FROM stern_email_messages
+    WHERE gmail_account=? AND gmail_thread_id=? AND applied='auto_applied' AND verified<>'flagged'
+    AND (internal_date<? OR (internal_date=? AND gmail_message_id<?)) ORDER BY internal_date,id`)
+    .all(message.gmail_account, message.gmail_thread_id, message.internal_date, message.internal_date, message.gmail_message_id) as {classification:string;internal_date:number}[];
+  for (const evidence of earlier) {
+    let cls: EmailClassification;
+    try { cls = JSON.parse(evidence.classification); } catch { continue; }
+    if (!cls || !['calendar_invite','scheduling_confirmed','scheduling_proposal','coffee_chat_reply_positive'].includes(cls.category)) continue;
+    for (const value of [cls.confirmed_time, ...(Array.isArray(cls.proposed_times) ? cls.proposed_times : [])]) {
+      if (!value) continue;
+      const parsed = parseEventTime(value, new Date(evidence.internal_date).toISOString());
+      if (parsed) times.push(parsed.iso);
+    }
+  }
+  return times;
+}
 function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audit: AuditMeta): CalendarIntent[] {
   const db = getDb(), at = new Date(message.internal_date).toISOString(), club = clubFor(cls.club);
   const own = (db.prepare("SELECT email FROM google_accounts").all() as { email: string }[]).map(r => r.email.toLowerCase());
@@ -141,26 +163,40 @@ function coffeeEffect(message: SternEmailMessage, cls: EmailClassification, audi
     const laterReply = db.prepare("SELECT 1 FROM stern_email_messages WHERE gmail_account=? AND gmail_thread_id=? AND direction='outbound' AND internal_date>? LIMIT 1").get(message.gmail_account, message.gmail_thread_id, message.internal_date);
     const needsReply = message.direction === "inbound" && !laterReply && (cls.requires_reply_from_me || !!cls.proposed_times?.length) ? 1 : 0;
     const update: Parameters<typeof observeCoffeeChat>[1] = { gmail_thread_id: message.gmail_thread_id, gmail_account: message.gmail_account };
-    if ((c === "coffee_chat_reply_positive" && cls.proposed_times?.length) || c === "scheduling_proposal" || (c === "scheduling_confirmed" && !cls.confirmed_time)) {
-      update.scheduling_since = chat.scheduling_since || nowIso();
-      update.hot_until = new Date(Date.now() + 30 * 60000).toISOString();
-      if (["to_request","no_reply"].includes(chat.state)) { update.state = "requested"; update.requested_at = chat.requested_at || at; }
-    }
-    if (cls.proposed_times?.length) update.prep_notes = `${chat.prep_notes}${chat.prep_notes ? "\n" : ""}Proposed: ${cls.proposed_times.join(", ")}`;
-    if (c === "coffee_chat_request_sent") { update.state = "requested"; update.requested_at = at; observePersonStatus(person.id, "reached_out", audit); }
-    if (c === "coffee_chat_reply_positive") { update.state = "reply_received"; update.reply_at = at; update.reply_needs_me = needsReply; observePersonStatus(person.id, "replied", audit); }
-    if (c === "scheduling_proposal") { update.reply_needs_me = needsReply; if (message.direction === "inbound") { update.state = "reply_received"; update.reply_at = at; } }
-    if (c === "coffee_chat_reply_negative") { update.state = "declined"; update.reply_at = at; }
-    if (c === "follow_up_sent") { update.last_follow_up_at = at; if (chat.state === "to_request" || chat.state === "no_reply") { update.state = "requested"; update.requested_at = chat.requested_at || at; } }
-    if (c === "thank_you_sent") { update.state = "thank_you_sent"; update.thank_you_sent_at = at; observePersonStatus(person.id, "chatted", audit); }
-    if (["scheduling_confirmed", "calendar_invite", "coffee_chat_reply_positive"].includes(c) && cls.confirmed_time) {
-      update.state = "scheduled"; update.scheduled_at = cls.confirmed_time; update.location = cls.location || "";
-      const hash = crypto.createHash("sha256").update(`${chat.id}:${new Date(cls.confirmed_time).toISOString()}`).digest("hex");
-      if (c === "calendar_invite") {
-        const id = `invite:${message.content_hash}`;
-        upsertCalendar({ account: message.gmail_account, event_id: id, title: message.subject, start_at: cls.confirmed_time, end_at: new Date(Date.parse(cls.confirmed_time) + 30 * 60000).toISOString(), location: cls.location || "", attendees: JSON.stringify([email]), kind: "coffee_chat", person_id: person.id, coffee_chat_id: chat.id, synced_at: nowIso() }, audit);
-        update.calendar_event_id = chat.calendar_event_id || id;
-      } else if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") || Date.parse(chat.scheduled_at) !== Date.parse(cls.confirmed_time)) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
+    const calendarEstablished = !!chat.scheduled_at && !!chat.calendar_event_id && !chat.calendar_event_id.startsWith("dry-run:");
+    const proseConfirmation = c === "scheduling_confirmed" || (c === "coffee_chat_reply_positive" && !!cls.confirmed_time);
+    if (calendarEstablished && proseConfirmation) {
+      // Calendar evidence outranks prose. Keep the touchpoint above, but leave
+      // state, location, scheduling flags and external calendar entirely intact.
+      if (cls.confirmed_time && Date.parse(cls.confirmed_time) !== Date.parse(chat.scheduled_at)) {
+        const original = (() => { try { return JSON.parse(message.classification) as EmailClassification; } catch { return cls; } })();
+        insert("suggestion", {dedupe_key:`calendar-time-conflict:${message.id}:${chat.id}:${audit.batchId}`,suggestion_type:"time_parse_review",entity_type:"coffee_chat",entity_id:chat.id,
+          gmail_account:message.gmail_account,gmail_message_id:message.gmail_message_id,evidence_subject:message.subject,
+          evidence_excerpt:`Reply says ${cls.confirmed_time}, calendar invite says ${chat.scheduled_at}`,
+          proposed_data:JSON.stringify({classification:original,unparsed:[{field:"confirmed_time",raw:original.confirmed_time || cls.confirmed_time}],calendarTime:chat.scheduled_at,replyTime:cls.confirmed_time}),confidence:cls.confidence},audit);
+      }
+    } else {
+      if ((c === "coffee_chat_reply_positive" && cls.proposed_times?.length) || c === "scheduling_proposal" || (c === "scheduling_confirmed" && !cls.confirmed_time)) {
+        update.scheduling_since = chat.scheduling_since || nowIso();
+        update.hot_until = new Date(Date.now() + 30 * 60000).toISOString();
+        if (["to_request","no_reply"].includes(chat.state)) { update.state = "requested"; update.requested_at = chat.requested_at || at; }
+      }
+      if (cls.proposed_times?.length) update.prep_notes = `${chat.prep_notes}${chat.prep_notes ? "\n" : ""}Proposed: ${cls.proposed_times.join(", ")}`;
+      if (c === "coffee_chat_request_sent") { update.state = "requested"; update.requested_at = at; observePersonStatus(person.id, "reached_out", audit); }
+      if (c === "coffee_chat_reply_positive") { update.state = "reply_received"; update.reply_at = at; update.reply_needs_me = needsReply; observePersonStatus(person.id, "replied", audit); }
+      if (c === "scheduling_proposal") { update.reply_needs_me = needsReply; if (message.direction === "inbound") { update.state = "reply_received"; update.reply_at = at; } }
+      if (c === "coffee_chat_reply_negative") { update.state = "declined"; update.reply_at = at; }
+      if (c === "follow_up_sent") { update.last_follow_up_at = at; if (chat.state === "to_request" || chat.state === "no_reply") { update.state = "requested"; update.requested_at = chat.requested_at || at; } }
+      if (c === "thank_you_sent") { update.state = "thank_you_sent"; update.thank_you_sent_at = at; observePersonStatus(person.id, "chatted", audit); }
+      if (["scheduling_confirmed", "calendar_invite", "coffee_chat_reply_positive"].includes(c) && cls.confirmed_time) {
+        update.state = "scheduled"; update.scheduled_at = cls.confirmed_time; update.location = cls.location || "";
+        const hash = crypto.createHash("sha256").update(`${chat.id}:${new Date(cls.confirmed_time).toISOString()}`).digest("hex");
+        if (c === "calendar_invite") {
+          const id = `invite:${message.content_hash}`;
+          upsertCalendar({ account: message.gmail_account, event_id: id, title: message.subject, start_at: cls.confirmed_time, end_at: new Date(Date.parse(cls.confirmed_time) + 30 * 60000).toISOString(), location: cls.location || "", attendees: JSON.stringify([email]), kind: "coffee_chat", person_id: person.id, coffee_chat_id: chat.id, synced_at: nowIso() }, audit);
+          update.calendar_event_id = !chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") ? id : chat.calendar_event_id;
+        } else if (!chat.calendar_event_id || chat.calendar_event_id.startsWith("dry-run:") || Date.parse(chat.scheduled_at) !== Date.parse(cls.confirmed_time)) intents.push({ chatId: chat.id, personId: person.id, email, title: `Coffee chat with ${person.display_name}`, start: cls.confirmed_time, location: cls.location || "", hash });
+      }
     }
     observeCoffeeChat(chat.id, update, audit);
     if (c === "thank_you_sent") reconcileThankYous(chat.club_id, audit);
@@ -266,7 +302,8 @@ export async function applyClassification(message: SternEmailMessage, cls: Email
   const originalClassification = structuredClone(cls);
   const unparsed: {field:string;raw:string}[] = [];
   const reference = new Date(message.internal_date).toISOString();
-  const parse = (value:string,field:string) => { const result=parseEventTime(value,reference); if(!result) unparsed.push({field,raw:value}); return result?.iso || ""; };
+  const knownTimes = knownThreadTimes(message);
+  const parse = (value:string,field:string) => { const result=parseEventTime(value,reference,{knownTimes}); if(!result) unparsed.push({field,raw:value}); return result?.iso || ""; };
   cls = {...cls, confirmed_time:cls.confirmed_time ? parse(cls.confirmed_time,"confirmed_time") : cls.confirmed_time,
     proposed_times:cls.proposed_times?.map((value,i)=>parse(value,`proposed_times.${i}`)).filter(Boolean)};
   // Preserve the fact of a proposal even when the times require review.

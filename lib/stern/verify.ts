@@ -101,7 +101,10 @@ export async function verifyBatch(batchId:string, options:{context?:{message:Ste
       proposed_data:JSON.stringify({batchId,classification:dossier.classification,effects:effectsFor(dossier.classification),auditEffects:dossier.effects,issues:result.issues,rolledBack:rollback}),
       gmail_account:dossier.message?.gmail_account || '',gmail_message_id:dossier.message?.gmail_message_id || '',evidence_subject:dossier.message?.subject || 'Automatic change verification',
       evidence_excerpt:result.issues.map(i=>i.problem).join('; ').slice(0,300),confidence:result.confidence},audit);
-    db.prepare('UPDATE stern_email_messages SET verified=? WHERE gmail_account=? AND gmail_message_id=?').run(flagged?'flagged':'agree',dossier.message?.gmail_account || '',dossier.message?.gmail_message_id || '');
+    // The verifier also runs from the automatic retry sweep, without an apply
+    // caller to reconcile message bookkeeping after undoing the domain effects.
+    db.prepare("UPDATE stern_email_messages SET verified=?,applied=CASE WHEN ? THEN 'suggested' ELSE applied END WHERE gmail_account=? AND gmail_message_id=?")
+      .run(flagged?'flagged':'agree',Number(rollback),dossier.message?.gmail_account || '',dossier.message?.gmail_message_id || '');
     db.prepare('INSERT INTO stern_verification_attempts(batch_id,provider,model,verdict,issues,latency_ms) VALUES (?,?,?,?,?,?)').run(batchId,provider,model,result.verdict,JSON.stringify(result.issues),Date.now()-started);
     db.prepare('UPDATE stern_verifications SET verdict=?,confidence=?,issues=?,latency_ms=?,created_at=? WHERE batch_id=?').run(result.verdict,result.confidence,JSON.stringify(result.issues),Date.now()-started,nowIso(),batchId);
   }).immediate();

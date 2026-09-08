@@ -106,14 +106,14 @@ export function nyClock(now: Date): string {
 }
 
 /** Parse explicit instants or bounded natural wall times relative to the email's New York date. */
-export function parseEventTime(text: string, referenceIso: string): { iso: string; confidence: number } | null {
+export function parseEventTime(text: string, referenceIso: string, options: { knownTimes?: string[] } = {}): { iso: string; confidence: number } | null {
   if (typeof text !== 'string' || !text.trim() || !Number.isFinite(Date.parse(referenceIso))) return null;
   const raw = text.trim();
   if (validDate(raw) && raw.includes('T')) return { iso: raw, confidence: 1 };
   const reference = nyDateKey(referenceIso);
-  let day = '', hour = 0, minute = 0, second = 0, confidence = .9;
+  let day = '', hour = 0, minute = 0, second = 0, confidence = .9, ambiguous = false;
   const iso = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{1,3})?$/);
-  if (iso) { day = iso[1]; hour = +iso[2]; minute = +iso[3]; second = +(iso[4] || 0); confidence = .95; }
+  if (iso) { day = iso[1]; hour = +iso[2]; minute = +iso[3]; second = +(iso[4] || 0); confidence = .95; ambiguous = hour >= 1 && hour <= 12; }
   else {
     const value = raw.toLowerCase().replace(/\bnoon\b/g, '12pm').replace(/\bmidnight\b/g, '12am').replace(/\b(\d{1,2})(?:\s+(?:or|and|to)\s+|\s*[-–,]\s*)(\d{1,2})\s*(am|pm)\b/g, '$1$3').replace(/\b(?:eastern(?: time)?|america\/new_york|edt|est|et)\b/g, '').trim();
     const clock = value.match(/(?:\bat\s+|\s|^)(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/)
@@ -121,6 +121,12 @@ export function parseEventTime(text: string, referenceIso: string): { iso: strin
     if (!clock) return null;
     hour = +clock[1]; minute = +(clock[2] || 0);
     if (clock[3]) { if (hour < 1 || hour > 12) return null; hour = hour % 12 + (clock[3].startsWith('p') ? 12 : 0); }
+    else if (hour >= 1 && hour <= 12) {
+      const morning = /\bmorning\b/.test(value), afternoon = /\b(?:afternoon|evening|night)\b/.test(value);
+      if (morning && afternoon) return null;
+      if (morning || afternoon) hour = hour % 12 + (afternoon && !(hour === 12 && /\bnight\b/.test(value)) ? 12 : 0);
+      else ambiguous = true;
+    }
     const numeric = value.match(/\b(?:(\d{4})-)?(\d{1,2})[/-](\d{1,2})(?:\/(\d{4}))?\b/);
     const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
     const named = value.match(/\b([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/);
@@ -132,13 +138,22 @@ export function parseEventTime(text: string, referenceIso: string): { iso: strin
     else {
       const weekdays = ['sun','mon','tue','wed','thu','fri','sat'];
       const weekday = value.match(/\b(sun|mon|tue|wed|thu|fri|sat)(?:day|sday|nesday|rsday|urday)?\b/);
-      if (!weekday) return null;
-      let offset = (weekdays.indexOf(weekday[1]) - new Date(`${reference}T12:00Z`).getUTCDay() + 7) % 7;
-      if (offset === 0 && (/\bnext\b/.test(value) || nyWallTime(reference, `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`).getTime() < Date.parse(referenceIso))) offset = 7;
+      // A clock alone refers to the email's local day; never guess its meridiem.
+      let offset = weekday ? (weekdays.indexOf(weekday[1]) - new Date(`${reference}T12:00Z`).getUTCDay() + 7) % 7 : 0;
+      if (weekday && offset === 0 && (/\bnext\b/.test(value) || (!ambiguous && nyWallTime(reference, `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`).getTime() < Date.parse(referenceIso)))) offset = 7;
       day = nyDayBounds(referenceIso, offset).dateKey; confidence = .8;
     }
   }
   if (!validDate(day) || hour > 23 || minute > 59 || second > 59) return null;
+  if (ambiguous) {
+    // Only explicit instants can establish context. Conflicting AM/PM candidates
+    // remain reviewable, even when one appeared more recently in the thread.
+    const matches = new Set((options.knownTimes || []).filter(value => validDate(value) && value.includes('T')).filter(value => {
+      const p = tzParts(new Date(value), STERN_TIMEZONE);
+      return nyDateKey(value) === day && p.h % 12 === hour % 12 && p.mi === minute && p.s === second;
+    }).map(value => new Date(value).toISOString()));
+    return matches.size === 1 ? { iso: [...matches][0], confidence: .8 } : null;
+  }
   const time = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
   const instant = new Date(nyWallTime(day, time).getTime() + second * 1000);
   // Reject nonexistent DST wall times instead of silently moving the appointment.
