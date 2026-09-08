@@ -28,6 +28,7 @@ export function peopleWrite<T>(fn: () => T): T {
 
 type Input = Record<string, unknown>;
 export type WriteOptions = Partial<AuditMeta> & { overwrite?: boolean };
+const NYU_ADDRESS = /@(?:[^@]+\.)?nyu\.edu$/i;
 export const EDITABLE = ["first_name", "last_name", "display_name", "year", "major", "org", "title", "sphere", "relationship_type", "strength", "status", "how_met", "met_at", "met_event", "email", "email_alt", "phone", "instagram", "linkedin", "hometown", "dorm", "next_action", "next_action_at", "notes", "roster"] as const;
 const text = (v: unknown): string => typeof v === "string" ? v.trim() : "";
 function bounded(v: unknown, max: number, field: string): string {
@@ -204,10 +205,20 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
       if(candidates.length>1 || eligible.length<candidates.length) mergeReview(candidates,existing?.id || 0,
         importing ? "Conflicting roster clubs or organizations require review; separate identities preserved" : "Name-only identity resolved by club affiliation, then oldest row",m);
     }
+    // NYU students carry two addresses (netid@nyu.edu and first.last@stern.nyu.edu). The same name on two
+    // NYU addresses is one person: keep the primary email and record the other as email_alt.
+    let altEmail = "";
+    if (!existing && fields.email && NYU_ADDRESS.test(String(fields.email))) {
+      const twins = (getDb().prepare("SELECT * FROM people WHERE archived=0 AND email<>'' AND email<>? ORDER BY created_at,id").all(String(fields.email)) as Person[])
+        .filter(p => NYU_ADDRESS.test(p.email) && normalize(p.display_name) === normalize(String(fields.display_name)) && !(importing && identityConflict(p, incoming)));
+      if (twins.length === 1) { existing = twins[0]; altEmail = String(fields.email); }
+      else if (twins.length > 1) mergeReview(twins, 0, "Several NYU people share this name; the new address was kept separate for review", m);
+    }
     if (existing) {
       if (existing.archived) patchRow("person", existing.id, { archived: 0, updated_at: nowIso() }, m);
       const patch = Object.fromEntries(Object.entries(fields).filter(([k, v]) => options.overwrite || ((existing as unknown as Input)[k] === "" && v !== "")));
       // A real capture of a roster person (anything but another roster import) promotes them into the Network.
+      if (altEmail && !existing.email_alt) patch.email_alt = altEmail;
       if (existing.roster === 1 && (input.source ?? m.source) !== "import") patch.roster = 0;
       return { person: updateInside(existing.id, patch, m), created: false };
     }
