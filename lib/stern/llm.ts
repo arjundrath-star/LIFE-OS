@@ -50,7 +50,8 @@ export function strictSchema(schema: Schema): Schema {
       let strict = strictSchema(child);
       if (!required.has(key)) {
         const types = strict.type === undefined ? [] : Array.isArray(strict.type) ? strict.type : [strict.type];
-        if (types.length && !types.includes("null")) strict = { ...strict, type: [...types, "null"] };
+        // Optional arrays stay arrays (empty when none); only scalars and objects become nullable.
+        if (types.length && !types.includes("null") && !types.includes("array")) strict = { ...strict, type: [...types, "null"] };
         if (strict.enum && !strict.enum.includes(null)) strict = { ...strict, enum: [...strict.enum, null] };
       }
       props[key] = strict;
@@ -61,6 +62,8 @@ export function strictSchema(schema: Schema): Schema {
 }
 // Strict mode drops maxLength, so trim model strings to the app schema's limits instead of failing.
 export function clampToSchema(value: unknown, schema: Schema): unknown {
+  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
+  if (value === null && types.includes("array") && !types.includes("null")) return [];
   if (typeof value === "string") return schema.maxLength !== undefined && value.length > schema.maxLength ? value.slice(0, schema.maxLength) : value;
   if (Array.isArray(value)) return schema.items ? value.map(v => clampToSchema(v, schema.items!)) : value;
   if (value !== null && typeof value === "object" && schema.properties) {
