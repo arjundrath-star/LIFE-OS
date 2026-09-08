@@ -1,6 +1,16 @@
 {
   "person": { "name": "Casey Example", "email": "casey@example.com", "rosterOrg": "EEG", "captureOrg": "Entrepreneurship club recruiting" },
   "reference": "2026-09-08T23:00:00-04:00",
-  "times": ["2026-09-09T11:00:00", "2026-09-09 11:00", "tomorrow at 11am", "September 9 at 11 AM", "Wed 9/9 3pm"],
+  "times": ["2026-09-09T15:00:00", "2026-09-09 15:00", "tomorrow at 11am", "September 9 at 11 AM", "Wed 9/9 3pm"],
+  "sofSequence": {
+    "account": "netid@stern.nyu.edu",
+    "thread": "sof-fixture",
+    "person": { "name": "Casey Example", "email": "casey@example.com", "role": "", "club_or_org": "FS", "is_eboard": false },
+    "subject": "SOF fixture coffee chat",
+    "inviteDate": "2026-09-08T16:00:00-04:00",
+    "replyDate": "2026-09-08T17:00:00-04:00",
+    "inviteTime": "2026-09-09T19:30:00-04:00",
+    "replyTime": "2026-09-09 at 7:30 (AM/PM and timezone unspecified)"
+  },
   "disagreement": { "verdict": "disagree", "confidence": 0.95, "issues": [{ "field": "confirmed_time", "problem": "The message says eleven, not three", "suggested_value": "\"2026-09-09T11:00:00-04:00\"" }] }
 }

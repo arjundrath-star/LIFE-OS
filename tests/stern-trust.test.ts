@@ -37,11 +37,12 @@ test.after(()=>{db.close();globalThis.fetch=originalFetch;fs.rmSync(tmp,{recursi
 
 test('New York time parser: offsets, naive ISO, numeric and natural dates, DST and invalid input',async()=>{
  const {parseEventTime}=await import('@/lib/stern/time');const ref=trustFixture.reference;
- for(const value of ['2026-09-09T11:00:00','2026-09-09 11:00','tomorrow at 11am','September 9 at 11 AM']) assert.equal(Date.parse(parseEventTime(value,ref)!.iso),Date.parse('2026-09-09T15:00:00Z'),value);
+ for(const value of ['tomorrow at 11am','September 9 at 11 AM']) assert.equal(Date.parse(parseEventTime(value,ref)!.iso),Date.parse('2026-09-09T15:00:00Z'),value);
+ for(const value of ['2026-09-09T15:00:00','2026-09-09 15:00']) assert.equal(parseEventTime(value,ref)?.iso,'2026-09-09T19:00:00.000Z',value);
  assert.equal(parseEventTime('Wed 9/9 3pm',ref)?.iso,'2026-09-09T19:00:00.000Z');
  assert.equal(parseEventTime('2026-09-09T11:00:00-04:00',ref)?.confidence,1);
- assert.equal(parseEventTime('2026-12-09 11:00',ref)?.iso,'2026-12-09T16:00:00.000Z');
- for(const value of ['whenever works','2026-02-30 11:00','2026-03-08 02:30','Wed 9/9 25pm']) assert.equal(parseEventTime(value,ref),null,value);
+ assert.equal(parseEventTime('2026-12-09 at 11am',ref)?.iso,'2026-12-09T16:00:00.000Z');
+ for(const value of ['whenever works','2026-02-30 15:00','2026-03-08 at 2:30am','Wed 9/9 25pm']) assert.equal(parseEventTime(value,ref),null,value);
 });
 test('Roster plus email capture resolves by normalized name despite different organization text and promotes',()=>{
  const first=people.createPerson({display_name:'Casey Example',org:'EEG',roster:1,source:'import'}).person;
@@ -120,7 +121,89 @@ for(const [verdict,confidence,issues,rolledBack,flagged] of [
  db.prepare("INSERT INTO stern_email_messages(gmail_account,gmail_message_id,classification,applied) VALUES ('netid@stern.nyu.edu','policy',?,'auto_applied')").run(JSON.stringify(fixtures[0].expected));
  const result=await verify.verifyBatch(batchId,{fixtureResult:{verdict,confidence,issues:[...issues]} as VerificationResult});
  assert.equal(result.rollback,rolledBack);assert.equal(!!q('SELECT id FROM people WHERE id=?',person.id),!rolledBack);assert.equal(q('SELECT verified FROM stern_email_messages').verified,flagged?'flagged':'agree');
+ assert.equal(q('SELECT applied FROM stern_email_messages').applied,rolledBack?'suggested':'auto_applied');
+ if(rolledBack) assert.equal(q('SELECT suggestion_type FROM stern_suggestions').suggestion_type,'verification_correction');
  if(flagged) assert.ok(q('SELECT proposed_data FROM stern_suggestions'));await verify.verifyBatch(batchId);assert.equal(q('SELECT COUNT(*) n FROM stern_verifications').n,1);
+});
+
+test('Fix round 2: ambiguous clocks need meridiem, day context, or a unique known time on the same NY date',async()=>{
+ const {parseEventTime:p}=await import('@/lib/stern/time');
+ const ref='2026-09-09T12:00:00-04:00',knownTimes=['2026-09-09T19:30:00-04:00'];
+ for(const text of ['7:30','07:30','12:30','2026-09-09 at 7:30 (AM/PM and timezone unspecified)','2026-09-09 07:30','2026-09-09T07:30:00']) assert.equal(p(text,ref),null,text);
+ assert.equal(p('7:30',ref,{knownTimes})?.iso,'2026-09-09T23:30:00.000Z');
+ assert.equal(p('7:30',ref,{knownTimes})?.confidence,.8);
+ for(const text of ['7:30 in the evening','7:30 at night','19:30']) assert.equal(p(text,ref)?.iso,'2026-09-09T23:30:00.000Z',text);
+ assert.equal(p('7:30 in the morning',ref)?.iso,'2026-09-09T11:30:00.000Z');
+ assert.equal(p('3:30 in the afternoon',ref)?.iso,'2026-09-09T19:30:00.000Z');
+ assert.equal(p('00:30',ref)?.iso,'2026-09-09T04:30:00.000Z');
+ assert.equal(p('7:30',ref,{knownTimes:['2026-09-10T19:30:00-04:00']}),null);
+ assert.equal(p('7:30',ref,{knownTimes:[...knownTimes,'2026-09-09T07:30:00-04:00']}),null);
+ assert.equal(p('7:30',ref,{knownTimes:['bad','2026-09-09T19:00:00-04:00']}),null);
+ assert.equal(p('2026-09-09 at 7:30 (AM/PM and timezone unspecified)','2026-09-08T16:00:00Z',{knownTimes})?.iso,'2026-09-09T23:30:00.000Z');
+});
+
+async function trustTimeMessage(id:string,category:EmailClassification['category'],time:string,options:{thread?:string;account?:string;date?:string;proposed?:string[]}={}) {
+ const fixture=trustFixture.sofSequence,account=options.account || fixture.account,thread=options.thread || fixture.thread;
+ const direction=category==='calendar_invite' || category==='scheduling_proposal'?'inbound':'outbound';
+ const cls:EmailClassification={category,confidence:.99,direction,people:[fixture.person],club:fixture.person.club_or_org,confirmed_time:time,proposed_times:options.proposed || [],requires_reply_from_me:false,summary:'Fixture scheduling exchange',evidence_excerpt:time};
+ db.prepare(`INSERT INTO stern_email_messages(gmail_account,gmail_message_id,gmail_thread_id,content_hash,direction,from_addr,to_addrs,subject,internal_date,snippet,classification) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(account,id,thread,id,direction,direction==='outbound'?account:fixture.person.email,direction==='outbound'?fixture.person.email:account,fixture.subject,Date.parse(options.date || fixture.inviteDate),time,JSON.stringify(cls));
+ return policy.applyClassification(q('SELECT * FROM stern_email_messages WHERE gmail_account=? AND gmail_message_id=?',account,id),cls,{dryRun:true});
+}
+test('Fix round 2: SOF invite at 19:30 followed by ambiguous prose retains calendar time without verifier rollback',async()=>{
+ await trustTimeMessage('invite','calendar_invite',trustFixture.sofSequence.inviteTime);
+ const before=q('SELECT * FROM coffee_chats');
+ db.prepare("INSERT INTO stern_drafts(coffee_chat_id,kind) VALUES (?,'reply_scheduling')").run(before.id);
+ const reply=await trustTimeMessage('reply','scheduling_confirmed',trustFixture.sofSequence.replyTime,{date:trustFixture.sofSequence.replyDate});
+ const after=q('SELECT * FROM coffee_chats');
+ assert.equal(Date.parse(after.scheduled_at),Date.parse(before.scheduled_at));assert.equal(after.calendar_event_id,before.calendar_event_id);assert.equal(after.state,'scheduled');assert.equal(after.scheduling_since,'');
+ assert.equal(reply.calendarIntents.length,0);assert.equal(reply.applied,'auto_applied');
+ assert.equal(q("SELECT COUNT(*) n FROM stern_suggestions WHERE suggestion_type='time_parse_review'").n,0);
+ assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id='reply'").n,1);
+ assert.equal(q('SELECT state FROM stern_drafts').state,'sent_detected');
+ assert.equal(q('SELECT COUNT(*) n FROM stern_verifications').n,2);assert.equal(q("SELECT COUNT(*) n FROM stern_audit_log WHERE action='undo'").n,0);
+});
+test('Fix round 2: conflicting explicit prose is reviewable and never overwrites calendar evidence',async()=>{
+ await trustTimeMessage('invite','calendar_invite','2026-09-09T19:30:00-04:00');
+ const reply=await trustTimeMessage('reply','scheduling_confirmed','2026-09-09 at 7:30 AM',{date:'2026-09-08T17:00:00-04:00'});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T19:30:00-04:00');assert.equal(reply.calendarIntents.length,0);
+ const review=q("SELECT * FROM stern_suggestions WHERE suggestion_type='time_parse_review'");assert.ok(review);assert.match(review.evidence_excerpt,/Reply says .*calendar invite says /);
+ assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE gmail_message_id='reply'").n,1);
+ assert.ok(audit.batchRows(reply.batchId).some(r=>r.entity_type==='suggestion'));
+ audit.undoBatch(reply.batchId);assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T19:30:00-04:00');assert.equal(q('SELECT COUNT(*) n FROM stern_suggestions').n,0);
+});
+test('Fix round 2: prior thread proposals resolve ambiguous confirmations and proposed times',async()=>{
+ await trustTimeMessage('proposal','scheduling_proposal','',{proposed:['2026-09-09T19:30:00-04:00']});
+ await trustTimeMessage('proposal-reply','scheduling_proposal','',{proposed:['2026-09-09 at 7:30'],date:'2026-09-08T16:30:00-04:00'});
+ assert.match(q('SELECT prep_notes FROM coffee_chats').prep_notes,/2026-09-09T23:30:00.000Z/);
+ const reply=await trustTimeMessage('reply','scheduling_confirmed','2026-09-09 at 7:30',{date:'2026-09-08T17:00:00-04:00'});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T23:30:00.000Z');assert.equal(reply.calendarIntents.length,1);
+});
+test('Fix round 2: unparseable prose preserves scheduled phase; new calendar evidence can reschedule',async()=>{
+ await trustTimeMessage('invite','calendar_invite',trustFixture.sofSequence.inviteTime);
+ await trustTimeMessage('reply','scheduling_confirmed','tomorrow at 8:30',{date:trustFixture.sofSequence.replyDate});
+ assert.equal(q('SELECT state FROM coffee_chats').state,'scheduled');assert.equal(q('SELECT scheduling_since FROM coffee_chats').scheduling_since,'');
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,trustFixture.sofSequence.inviteTime);
+ assert.ok(q("SELECT id FROM stern_suggestions WHERE suggestion_type='time_parse_review'"));
+ await trustTimeMessage('updated-invite','calendar_invite','2026-09-09T20:30:00-04:00',{date:'2026-09-08T18:00:00-04:00'});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T20:30:00-04:00');
+});
+test('Fix round 2: dry-run calendars do not outrank prose and real invites replace their marker',async()=>{
+ await trustTimeMessage('initial','scheduling_confirmed','2026-09-09T19:30:00-04:00');
+ assert.match(q('SELECT calendar_event_id FROM coffee_chats').calendar_event_id,/^dry-run:/);
+ await trustTimeMessage('reply','scheduling_confirmed','2026-09-09T07:30:00-04:00',{date:trustFixture.sofSequence.replyDate});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T07:30:00-04:00');
+ await trustTimeMessage('invite','calendar_invite',trustFixture.sofSequence.inviteTime,{date:'2026-09-08T18:00:00-04:00'});
+ assert.match(q('SELECT calendar_event_id FROM coffee_chats').calendar_event_id,/^invite:/);
+ await trustTimeMessage('late-reply','scheduling_confirmed','2026-09-09T07:30:00-04:00',{date:'2026-09-08T19:00:00-04:00'});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,trustFixture.sofSequence.inviteTime);
+});
+test('Fix round 2: ambiguity without usable thread evidence creates review and stays in scheduling',async()=>{
+ await trustTimeMessage('proposal','scheduling_proposal','',{thread:'unrelated',proposed:['2026-09-09T19:30:00-04:00']});
+ await trustTimeMessage('future','scheduling_proposal','',{date:'2026-09-10T16:00:00-04:00',proposed:['2026-09-09T19:30:00-04:00']});
+ await trustTimeMessage('other-account','scheduling_proposal','',{account:'netid@nyu.edu',proposed:['2026-09-09T19:30:00-04:00']});
+ await trustTimeMessage('reply','scheduling_confirmed','2026-09-09 at 7:30',{date:'2026-09-08T17:00:00-04:00'});
+ assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'');assert.ok(q('SELECT scheduling_since FROM coffee_chats').scheduling_since);
+ assert.ok(q("SELECT id FROM stern_suggestions WHERE suggestion_type='time_parse_review'"));
 });
 test('Reauth reminders: day six 09:00 NY, both channels, once/day/account, and reconnect supersedes reminder',async()=>{
  const mod=await import('@/lib/stern/google-reauth');
@@ -147,6 +230,21 @@ test('Verifier disagreement offers original and corrected one-tap replay without
  assert.equal(Date.parse(q('SELECT scheduled_at FROM coffee_chats').scheduled_at),Date.parse('2026-09-09T11:00:00-04:00'));
  assert.equal(q('SELECT COUNT(*) n FROM stern_verifications').n,before);
 });
+test('Fix round 2: automatic verifier retry persists suggested status and correction together after undo',async()=>{
+ await feed(['fx-001','fx-003']);
+ const latest=q("SELECT * FROM stern_verifications WHERE gmail_message_id='fx-003'");
+ db.prepare("UPDATE stern_verifications SET verdict='',created_at='2026-01-01T00:00:00Z' WHERE id=?").run(latest.id);
+ const llm=await import('@/lib/stern/llm');let calls=0;
+ const retry=load<typeof verify>('lib/stern/verify.ts',{'./llm':{...llm,llmMode:()=> 'live',execute:async()=>{calls++;return structuredClone(trustFixture.disagreement);}}});
+ const previous=process.env.STERN_VERIFIER_MODE;process.env.STERN_VERIFIER_MODE='live';
+ try { assert.equal((await retry.retryPendingVerifications()).retried,1); } finally {process.env.STERN_VERIFIER_MODE=previous;}
+ assert.equal(calls,1);
+ assert.deepEqual(q("SELECT applied,verified FROM stern_email_messages WHERE gmail_message_id='fx-003'"),{applied:'suggested',verified:'flagged'});
+ assert.ok(q("SELECT id FROM stern_suggestions WHERE gmail_message_id='fx-003' AND suggestion_type='verification_correction' AND state='pending'"));
+ assert.equal(q("SELECT COUNT(*) n FROM stern_email_messages WHERE applied='auto_applied'").n,1);
+ assert.equal(q("SELECT COUNT(*) n FROM stern_email_messages WHERE applied='suggested'").n,1);
+ assert.equal(q('SELECT state FROM coffee_chats').state,'requested');
+});
 test('Verifier cannot delete a newly created person after a concurrent manual edit',async()=>{
  const batchId=audit.newBatchId();const p=people.createPerson({name:'Concurrent Example'},{source:'auto_email',batchId}).person;
  people.updatePerson(p.id,{notes:'Keep my manual edit'});
@@ -157,7 +255,7 @@ test('Manual scheduling and interviews parse naive and natural times; invalid ra
  const coffee=await import('@/lib/stern/coffee'),recruiting=await import('@/lib/stern/recruiting');
  const p=people.createPerson({name:'Schedule Example'}).person,chat=coffee.createCoffeeChat(p.id,1);
  coffee.transition(chat,'requested');coffee.transition(chat,'reply_received');
- coffee.transition(chat,'scheduled',{scheduled_at:'2026-09-09 11:00'});assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T15:00:00.000Z');
+ coffee.transition(chat,'scheduled',{scheduled_at:'September 9 at 11am'});assert.equal(q('SELECT scheduled_at FROM coffee_chats').scheduled_at,'2026-09-09T15:00:00.000Z');
  const program=recruiting.upsertProgram({club_id:1,name:'Exploratory',track:'exploratory',interview_at:'2026-09-09 15:00'});
  assert.equal(q('SELECT interview_at FROM stern_programs WHERE id=?',program).interview_at,'2026-09-09T19:00:00.000Z');
  recruiting.upsertProgram({id:program,interview_at:'after lunch sometime'});assert.ok(q("SELECT id FROM stern_suggestions WHERE suggestion_type='time_parse_review'"));
