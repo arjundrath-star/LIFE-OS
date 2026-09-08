@@ -782,3 +782,14 @@ test("strictSchema satisfies OpenAI strict mode and strict-shaped output still v
   const modelOutput = { ...fixture("fx-001").expected, club: null, program_track: null, course_code: null, proposed_times: [], confirmed_time: null, location: null, assignment: null, deadline_mentions: [], people: [{ name: "Placeholder Officer", email: "placeholder@stern.nyu.edu", role: null, club_or_org: null, is_eboard: null }] };
   assert.ok(llm.validateSchema(modelOutput, permissive), "nulls from strict mode are accepted by the app validator");
 });
+
+test("model strings longer than the schema limit are clamped, and mismatches name the failing path", async () => {
+  const llm = await import("@/lib/stern/llm");
+  const permissive = JSON.parse(fs.readFileSync("docs/plans/stern/schema/email-classifier.schema.json", "utf8"));
+  const long = { ...fixture("fx-001").expected, summary: "x".repeat(500), evidence_excerpt: "y".repeat(900) };
+  assert.equal(llm.schemaMismatch(long, permissive), "$.summary (length 500)");
+  const clamped = llm.clampToSchema(long, permissive) as { summary: string; evidence_excerpt: string };
+  assert.equal(clamped.summary.length, 140); assert.equal(clamped.evidence_excerpt.length, 300);
+  assert.equal(llm.schemaMismatch(clamped, permissive), null);
+  assert.equal(llm.schemaMismatch({ ...fixture("fx-001").expected, people: [{ name: "P", email: 4 }] }, permissive), "$.people[0].email (type number)");
+});
