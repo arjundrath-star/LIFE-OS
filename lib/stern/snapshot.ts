@@ -38,7 +38,7 @@ export function sternSnapshot(now: Date = new Date()): SternSnapshot {
   const counts: SternSnapshot["counts"] = {
     people: count("SELECT COUNT(*) n FROM people WHERE archived = 0 AND roster = 0"),
     clubsInterested: count("SELECT COUNT(*) n FROM stern_clubs WHERE interested = 1 AND status <> 'archived'"),
-    coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND (state = 'to_request' OR (state = 'reply_received' AND reply_needs_me = 1))"),
+    coffeeChatsOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND ((state = 'to_request' AND NOT EXISTS (SELECT 1 FROM stern_checklist_items i WHERE i.club_id = coffee_chats.club_id AND i.key = 'coffee_chat_form' AND i.done_at <> '')) OR (state = 'reply_received' AND reply_needs_me = 1))"),
     replyOwed: count("SELECT COUNT(*) n FROM coffee_chats WHERE EXISTS (SELECT 1 FROM people p WHERE p.id=coffee_chats.person_id AND p.archived=0) AND reply_needs_me = 1 AND state NOT IN ('done','thank_you_sent','declined','no_reply')"),
     deadlines14d: count(
       `SELECT COUNT(*) n FROM stern_programs WHERE status IN ('open','drafting','not_open') AND ${between("app_deadline_at")}`,
