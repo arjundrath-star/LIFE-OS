@@ -336,12 +336,12 @@ test('Fix round 1: full scan processes each thread chronologically as one unit w
 test('Fix round 1: club-only affiliations guard imports, repeated conflict sweeps are idempotent',()=>{
  const first=people.importPeople([{name:'Club Only Example',roster:1}])[0].person;
  people.addAffiliation(first.id,{club_id:1});
- const second=people.importPeople([{name:'Club Only Example',org:'FS',roster:1}])[0].person;
+ const second=people.importPeople([{name:'Club Only Example',club_or_org:'FS',roster:1}])[0].person;
  assert.notEqual(second.id,first.id);people.addAffiliation(second.id,{club_id:2});
  assert.equal(people.sweepDuplicates().merged,0);
  const count=q('SELECT COUNT(*) n FROM stern_suggestions').n;
  assert.equal(people.sweepDuplicates().merged,0);assert.equal(q('SELECT COUNT(*) n FROM stern_suggestions').n,count);
- assert.equal(people.importPeople([{name:'Club Only Example',org:'FS',roster:1}])[0].person.id,second.id);
+ assert.equal(people.importPeople([{name:'Club Only Example',club_or_org:'FS',roster:1}])[0].person.id,second.id);
 });
 test('Fix round 1: authenticated API supports sender mute, legacy NYU cleanup and validated time corrections',async()=>{
  const route=load<{POST:(r:Request)=>Promise<Response>}>('app/api/stern/automation/route.ts',{'@/lib/guard':{requireUser:async()=>({email:'owner@example.com'})},'@/lib/stern/snapshot':{broadcastStern:()=>({})},'@/lib/stern/automation-snapshot':{automationSnapshot:async()=>({})}});
@@ -364,4 +364,15 @@ test('Fix round 1: list headers suppress other NYU suggestions through the real 
  const result=await scan.runSternEmailScan({dryRun:true,now:new Date('2026-09-08T12:00:00Z'),source:{...base,list:async(a)=>a===fixture.account?[fixture.id]:[],full:async(a,id)=>({...await base.full(a,id),headers:[{name:'List-Unsubscribe',value:'<mailto:unsubscribe@example.edu>'}]})}});
  assert.equal(result.ignored,1);assert.equal(q('SELECT COUNT(*) n FROM stern_suggestions').n,0);
  assert.equal(q('SELECT list_mail FROM stern_email_messages').list_mail,1);
+});
+
+test('Fix round 1: invalid NYU deadlines are ignored, while explicit manual acceptance still applies',async()=>{
+ await feed(['fx-001']);const message=q('SELECT * FROM stern_email_messages LIMIT 1');
+ const cls={...fixtures[0].expected,category:'other_nyu',deadline_mentions:[{label:'Respond',date:'not-a-date'}]} as EmailClassification;
+ assert.equal(policy.eligibleOtherNyu({...message,direct_to:'netid@stern.nyu.edu'},cls),false);
+ const valid={...cls,deadline_mentions:[{label:'Manual decision',date:'2026-09-15'}]};
+ db.prepare('UPDATE stern_email_messages SET classification=? WHERE id=?').run(JSON.stringify(valid),message.id);
+ const s=policy.suggest('manual-override',policy.effectsFor(valid),message,policy.messageMeta(message,valid));
+ await policy.acceptSuggestion(s,{dryRun:true});
+ assert.equal(q("SELECT COUNT(*) n FROM stern_tasks WHERE title='Manual decision'").n,1);
 });

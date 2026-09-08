@@ -12,7 +12,7 @@ import { setInterested, upsertProgram, observeProgramStatus, reconcileThankYous 
 import { automationSource, dryRunDefault, sternAccount, type AutomationSource } from "./automation-source";
 import { ScopeMissing } from "@/lib/sources/google";
 import { SternError } from "./errors";
-import { nyDayBounds, nyDateKey, parseEventTime } from "./time";
+import { nyDayBounds, nyDateKey, parseEventTime, validDate } from "./time";
 
 export function addresses(value: string): string[] { return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(s => s.toLowerCase()))]; }
 const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -59,14 +59,14 @@ export function mutedSender(from:string) {
   return addresses(from).some(sender=>muted.includes(sender));
 }
 export function eligibleOtherNyu(message:SternEmailMessage,cls:EmailClassification,now=new Date()) {
-  const evidence=message;
-  if(evidence.list_mail || /no[._-]?reply|marketing|servicenow|service-now/i.test(message.from_addr)) return false;
+  if(message.list_mail || /no[._-]?reply|marketing|servicenow|service-now/i.test(message.from_addr)) return false;
   const own=(getDb().prepare('SELECT email FROM google_accounts').all() as {email:string}[]).map(a=>a.email.toLowerCase());
-  const direct=addresses(evidence.direct_to || '');
+  const direct=addresses(message.direct_to || '');
   const personal=direct.length>0 && direct.every(email=>own.includes(email));
   const required=/\b(mandatory|required)\b/i.test(`${message.subject} ${message.snippet}`);
   if(!personal && !required) return false;
   return (cls.deadline_mentions || []).some(d=>{
+    if(!validDate(d.date)) return false;
     const at=Date.parse(d.date.length===10 ? nyDayBounds(`${d.date}T12:00:00Z`).endIso : d.date);
     return Number.isFinite(at) && at>=now.getTime() && at<=now.getTime()+30*86400000;
   });
@@ -259,7 +259,7 @@ async function calendarIntent(intent: CalendarIntent, message: SternEmailMessage
 }
 export async function applyClassification(message: SternEmailMessage, cls: EmailClassification, options: { dryRun?: boolean; now?:Date; source?: AutomationSource; audit?: AuditMeta; accept?: boolean; effects?: Effect[] } = {}) {
   const audit = options.audit || messageMeta(message, cls);
-  if(mutedSender(message.from_addr) || (cls.category==='other_nyu' && !eligibleOtherNyu(message,cls,options.now))) {
+  if(!options.accept && (mutedSender(message.from_addr) || (cls.category==='other_nyu' && !eligibleOtherNyu(message,cls,options.now)))) {
     getDb().transaction(()=>getDb().prepare("UPDATE stern_email_messages SET applied='ignored',processed_at=? WHERE id=?").run(nowIso(),message.id)).immediate();
     return {applied:'ignored',batchId:audit.batchId,calendarIntents:[] as CalendarIntent[]};
   }

@@ -171,7 +171,7 @@ export function createPerson(input: Input, options: WriteOptions = {}): { person
   object(input);
   const m = meta(options);
   const result = peopleWrite(() => {
-    const fields = normalized({ ...input, display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
+    const fields = normalized({ ...input, org: input.org || input.club_or_org || "", display_name: input.display_name || input.name || `${text(input.first_name)} ${text(input.last_name)}`.trim() });
     fields.display_name = text(fields.display_name) || bounded(input.name, 2000, "name") || `${text(fields.first_name)} ${text(fields.last_name)}`.trim();
     if (!fields.display_name) throw new SternError(400, "Name is required");
     if (!fields.first_name && !fields.last_name) {
