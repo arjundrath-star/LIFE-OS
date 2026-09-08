@@ -24,8 +24,9 @@ export async function ensureDraft(chatId: number, kind: DraftKind, audit: AuditM
 export async function regenerateDraft(id: number) {
   const d = row<Row>("draft", id);
   if (["sent_detected", "gmail_draft_created"].includes(String(d.state))) throw new SternError(409, "This draft has already left the tracker; create a new draft instead");
-  const draft = await generateDraft(d.kind as DraftKind, draftContext(row<Person>("person", Number(d.person_id)), row<CoffeeChat>("coffee_chat", Number(d.coffee_chat_id))));
-  getDb().transaction(() => patch("draft", id, { ...draft, state: "generated" }, { batchId: newBatchId("draft"), source: "manual" })).immediate();
+  const person = row<Person>("person", Number(d.person_id));
+  const draft = await generateDraft(d.kind as DraftKind, draftContext(person, row<CoffeeChat>("coffee_chat", Number(d.coffee_chat_id))));
+  getDb().transaction(() => patch("draft", id, { ...draft, to_email: person.email, state: "generated" }, { batchId: newBatchId("draft"), source: "manual" })).immediate();
   return id;
 }
 export function markDraftCopied(id: number) {

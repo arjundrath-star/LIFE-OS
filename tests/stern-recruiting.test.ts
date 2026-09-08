@@ -379,3 +379,21 @@ test("bundled seed works without runtime docs and insert rejects unknown SQL ide
   for (const key of ["unknown_column", "name) VALUES ('bad'); --", "id"]) bad(() => insert("club", { [key]: "bad" }, meta()));
   assert.equal(n("SELECT COUNT(*) n FROM stern_clubs"), 32);
 });
+
+test("clubs with a coffee chat form get a form step; submitting it counts and pauses the chats-owed count for that club", () => {
+  reset();
+  const c = club();
+  assert.equal(n("SELECT COUNT(*) n FROM stern_checklist_items WHERE club_id = ? AND key = 'coffee_chat_form'", c.id), 0, "no form, no form step");
+  recruiting.updateClub(c.id, { coffee_chat_form_url: "https://forms.example.test/coffee" });
+  const item = db.prepare("SELECT id, sort, done_at FROM stern_checklist_items WHERE club_id = ? AND key = 'coffee_chat_form'").get(c.id) as { id: number; sort: number; done_at: string };
+  assert.ok(item, "adding a form URL creates the form step"); assert.equal(item.sort, 0); assert.equal(item.done_at, "");
+  recruiting.updateClub(c.id, { coffee_chat_form_url: "https://forms.example.test/coffee" });
+  assert.equal(n("SELECT COUNT(*) n FROM stern_checklist_items WHERE club_id = ? AND key = 'coffee_chat_form'", c.id), 1, "idempotent");
+  const pid = person(c.id); coffee.createCoffeeChat(pid, c.id);
+  let snap = recruiting.recruitingSnapshot(); let detail = snap.clubs.find(x => x.id === c.id)!;
+  assert.equal(detail.hasForm, true); assert.equal(detail.formSubmittedAt, ""); assert.equal(detail.formItemId, item.id); assert.equal(snap.counts.coffeeChatsOwed, 1);
+  recruiting.toggleChecklist(item.id, true);
+  snap = recruiting.recruitingSnapshot(); detail = snap.clubs.find(x => x.id === c.id)!;
+  assert.ok(detail.formSubmittedAt, "submitted date recorded"); assert.equal(snap.counts.coffeeChatsOwed, 0, "form submitted pauses the owed count for that club");
+  assert.equal((db.prepare("SELECT state FROM coffee_chats WHERE person_id = ?").get(pid) as { state: string }).state, "to_request", "the form never marks individual chats requested");
+});

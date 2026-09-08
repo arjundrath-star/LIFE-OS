@@ -64,6 +64,7 @@ export function setInterested(clubId: number, interested: boolean, options: Chan
           app_opens_at: window.applications_open, app_deadline_at: window.applications_close, interview_start: window.interviews_start, interview_end: window.interviews_end, decision_at: window.decisions }, audit);
       }
       CHECKLIST_KEYS.forEach((key, sort) => {
+        if (key === "coffee_chat_form" && !club.coffee_chat_form_url) return; // only clubs with a form get the form step
         if (!getDb().prepare("SELECT id FROM stern_checklist_items WHERE club_id = ? AND program_id = 0 AND key = ?").get(clubId, key)) {
           insert("checklist_item", { club_id: clubId, program_id: 0, key, label: CHECKLIST_LABELS[key], sort, source: options.source && options.source !== "manual" ? "auto" : "manual" }, audit);
         }
@@ -92,8 +93,18 @@ export function updateClub(clubId: number, input: Record<string, unknown>, optio
       fields[key] = value;
     }
     patch("club", clubId, fields, meta(options));
+    if (fields.coffee_chat_form_url) ensureFormChecklist(clubId, meta(options));
     return clubId;
   }).immediate();
+}
+
+/** A club with its own coffee chat form gets a "form submitted" step; submitting it is the main outreach for that club. */
+export function ensureFormChecklist(clubId: number, audit: ReturnType<typeof meta>) {
+  const club = getDb().prepare("SELECT interested, coffee_chat_form_url FROM stern_clubs WHERE id = ?").get(clubId) as { interested: number; coffee_chat_form_url: string } | undefined;
+  if (!club || !club.interested || !club.coffee_chat_form_url) return null;
+  const existing = getDb().prepare("SELECT id FROM stern_checklist_items WHERE club_id = ? AND program_id = 0 AND key = 'coffee_chat_form'").get(clubId) as { id: number } | undefined;
+  if (existing) return existing.id;
+  return insert("checklist_item", { club_id: clubId, program_id: 0, key: "coffee_chat_form", label: CHECKLIST_LABELS.coffee_chat_form, sort: 0, source: audit.source && audit.source !== "manual" ? "auto" : "manual" }, audit);
 }
 export function setClubStatus(clubId: number, next: ClubStatus, options: ChangeMeta & { explicitArchive?: boolean } = {}) {
   return getDb().transaction(() => {
@@ -284,13 +295,16 @@ export function recruitingSnapshot(now: Date = new Date()): RecruitingSnapshot {
       JOIN people_affiliations a ON a.person_id = p.id WHERE a.club_id = ? AND p.archived = 0 GROUP BY p.id ORDER BY MAX(a.is_eboard) DESC, p.roster ASC, p.display_name COLLATE NOCASE`).all(club.id) as Omit<RecruitingPerson, "chat">[])
       .map(person => ({ ...person, chat: [...chats].reverse().find(c => c.person_id === person.id) ?? null }));
     const prep = db.prepare("SELECT i.* FROM stern_interview_prep i JOIN stern_programs p ON p.id = i.program_id WHERE p.club_id = ? ORDER BY i.sort, i.id").all(club.id) as InterviewPrep[];
-    return { ...club, programs, checklist, ...progress, chatsDone, chats, people, nextDeadline: deadlines.find(d => d.clubId === club.id) ?? null, prep, timeline: clubTimeline(club.id) };
+    const formItem = checklist.find(i => i.key === "coffee_chat_form");
+    return { ...club, programs, checklist, ...progress, chatsDone, chats, people, nextDeadline: deadlines.find(d => d.clubId === club.id) ?? null, prep, timeline: clubTimeline(club.id),
+      hasForm: !!club.coffee_chat_form_url, formSubmittedAt: formItem?.done_at ?? "", formItemId: formItem?.id ?? 0 };
   }).sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   const counts = db.prepare(`SELECT COUNT(*) interested, COALESCE(SUM(status = 'archived'),0) archived, COALESCE(SUM(status = 'applying'),0) applying,
     COALESCE(SUM(status = 'interviewing'),0) interviewing FROM stern_clubs WHERE process_id = ? AND interested = 1`).get(process?.id ?? 0) as RecruitingSnapshot["counts"];
   counts.coffeeChatsOwed = (db.prepare(`SELECT COUNT(*) n FROM coffee_chats h JOIN stern_clubs c ON c.id = h.club_id JOIN stern_processes r ON r.id = c.process_id
     WHERE c.interested = 1 AND c.status <> 'archived' AND r.slug = ? AND r.status = 'active'
-    AND (h.state = 'to_request' OR (h.state = 'reply_received' AND h.reply_needs_me = 1))`).get(PROCESS_SLUG) as { n: number }).n;
+    AND ((h.state = 'to_request' AND NOT EXISTS (SELECT 1 FROM stern_checklist_items i WHERE i.club_id = c.id AND i.key = 'coffee_chat_form' AND i.done_at <> ''))
+      OR (h.state = 'reply_received' AND h.reply_needs_me = 1))`).get(PROCESS_SLUG) as { n: number }).n;
   const today = nyDayBounds(now);
   const in14 = nyDayBounds(now, 14);
   counts.deadlines14d = (db.prepare(`SELECT COUNT(*) n FROM stern_programs p
