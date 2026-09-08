@@ -59,6 +59,36 @@ export function strictSchema(schema: Schema): Schema {
   }
   return s;
 }
+// Strict mode drops maxLength, so trim model strings to the app schema's limits instead of failing.
+export function clampToSchema(value: unknown, schema: Schema): unknown {
+  if (typeof value === "string") return schema.maxLength !== undefined && value.length > schema.maxLength ? value.slice(0, schema.maxLength) : value;
+  if (Array.isArray(value)) return schema.items ? value.map(v => clampToSchema(v, schema.items!)) : value;
+  if (value !== null && typeof value === "object" && schema.properties) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = schema.properties[k] ? clampToSchema(v, schema.properties[k]) : v;
+    return out;
+  }
+  return value;
+}
+// First failing path, for error messages. Mirrors validateSchema exactly.
+export function schemaMismatch(value: unknown, schema: Schema, at = "$"): string | null {
+  const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  if (schema.type && !(Array.isArray(schema.type) ? schema.type : [schema.type]).includes(type)) return `${at} (type ${type})`;
+  if (schema.enum && !schema.enum.includes(value)) return `${at} (enum ${JSON.stringify(value)?.slice(0, 40)})`;
+  if (typeof value === "number" && (!Number.isFinite(value) || value < (schema.minimum ?? -Infinity) || value > (schema.maximum ?? Infinity))) return `${at} (number ${value})`;
+  if (typeof value === "string" && value.length > (schema.maxLength ?? Infinity)) return `${at} (length ${value.length})`;
+  if (Array.isArray(value)) { if (!schema.items) return null; for (const [i, v] of value.entries()) { const m = schemaMismatch(v, schema.items, `${at}[${i}]`); if (m) return m; } return null; }
+  if (value !== null && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const missing = schema.required?.find(k => !(k in obj)); if (missing) return `${at}.${missing} (missing)`;
+    for (const [key, v] of Object.entries(obj)) {
+      const child = schema.properties?.[key];
+      if (!child && schema.additionalProperties === false) return `${at}.${key} (unexpected)`;
+      if (child) { const m = schemaMismatch(v, child, `${at}.${key}`); if (m) return m; }
+    }
+  }
+  return null;
+}
 export function llmMode() { return process.env.STERN_LLM_MODE || "live"; }
 async function execute(prompt: string, schema: Schema, file?: string): Promise<unknown> {
   return queued(async () => {
@@ -85,8 +115,9 @@ async function execute(prompt: string, schema: Schema, file?: string): Promise<u
             child.stdin?.on("error", () => {}); // exit callback handles early process failure
             child.stdin?.end(prompt);
           });
-          const parsed: unknown = JSON.parse(await fs.readFile(out, "utf8"));
-          if (!validateSchema(parsed, schema)) throw new Error("Classifier output does not match schema");
+          const parsed: unknown = clampToSchema(JSON.parse(await fs.readFile(out, "utf8")), schema);
+          const mismatch = schemaMismatch(parsed, schema);
+          if (mismatch) throw new Error(`Classifier output does not match schema at ${mismatch}`);
           return parsed;
         } catch (error) { last = error; }
       }
