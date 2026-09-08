@@ -361,3 +361,13 @@ test("roster people stay out of the Network list and counts until a real interac
   const other = p.createPerson({ name: "Second Officer", org: "Roster Club", roster: 1, source: "import" }).person;
   assert.equal(p.setStatus(other.id, "need_to_reach_out").roster, 0, "a status change promotes");
 });
+
+test("NYU dual addresses for the same name resolve to one person with email_alt; other domains stay separate", async () => {
+  const { people: p } = await setup();
+  const a = p.createPerson({ name: "Dual Address", email: "dual.address@stern.nyu.edu", org: "Scholars of Finance" }).person;
+  const b = p.createPerson({ name: "Dual Address", email: "da1234@nyu.edu" });
+  assert.equal(b.created, false); assert.equal(b.person.id, a.id);
+  assert.equal(b.person.email, "dual.address@stern.nyu.edu"); assert.equal(b.person.email_alt, "da1234@nyu.edu");
+  const c = p.createPerson({ name: "Dual Address", email: "dual@example.test" });
+  assert.notEqual(c.person.id, a.id);
+});
