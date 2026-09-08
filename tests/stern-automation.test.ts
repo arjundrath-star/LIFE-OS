@@ -768,3 +768,17 @@ test("merged WP4 helpers dedupe assignment punctuation, record grades and reject
   assert.equal((await policy.applyClassification(message, invalid, { source, dryRun: true })).applied, "suggested");
   assert.equal(q("SELECT COUNT(*) n FROM stern_tasks WHERE due_at='next Friday'").n, 0);
 });
+
+test("strictSchema satisfies OpenAI strict mode and strict-shaped output still validates against the permissive schema", async () => {
+  const llm = await import("@/lib/stern/llm");
+  const permissive = JSON.parse(fs.readFileSync("docs/plans/stern/schema/email-classifier.schema.json", "utf8"));
+  const strict = llm.strictSchema(permissive) as { required: string[]; properties: Record<string, { type?: unknown; required?: string[]; properties?: Record<string, { type?: unknown }>; items?: { required?: string[]; properties?: Record<string, { type?: unknown }> } }>; additionalProperties: boolean };
+  assert.deepEqual([...strict.required].sort(), Object.keys(strict.properties).sort(), "every top-level property is required");
+  const people = strict.properties.people.items!;
+  assert.deepEqual([...people.required!].sort(), Object.keys(people.properties!).sort());
+  assert.ok((people.properties!.role.type as string[]).includes("null"), "optional strings become nullable");
+  assert.equal(strict.additionalProperties, false);
+  assert.equal(JSON.stringify(strict).includes("maxLength"), false, "unsupported keywords stripped");
+  const modelOutput = { ...fixture("fx-001").expected, club: null, program_track: null, course_code: null, proposed_times: [], confirmed_time: null, location: null, assignment: null, deadline_mentions: [], people: [{ name: "Placeholder Officer", email: "placeholder@stern.nyu.edu", role: null, club_or_org: null, is_eboard: null }] };
+  assert.ok(llm.validateSchema(modelOutput, permissive), "nulls from strict mode are accepted by the app validator");
+});
