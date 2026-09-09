@@ -182,6 +182,8 @@ function priorityFromRow(row: Row): string {
 }
 
 function bestWindow(row: Row): string | null {
+  const researchedWindow = row["Best visit window"]?.trim();
+  if (researchedWindow) return researchedWindow;
   const category = `${row["Category"] || ""} ${row["Subcategory"] || ""}`.toLowerCase();
   if (/convenience|gas|market|arcade|entertainment|dessert|pizza/.test(category)) return "weekend or 7-10 PM";
   return row["Walk-in ease"] || null;
