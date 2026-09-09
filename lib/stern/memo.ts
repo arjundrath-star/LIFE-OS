@@ -37,7 +37,11 @@ export function buildMemo(date: Date = new Date()): SternMemo {
   for (const chat of todayChats) if (!calendar.some(e => e.coffee_chat_id === chat.id)) addSchedule(chat.scheduled_at, `Coffee chat with ${chat.person_name}`, chat.location);
   const interviews = reminderPrograms().filter(p => activeInterview(p) && localDateKey(p.interview_at) === today.dateKey);
   for (const p of interviews) if (!calendar.some(e => e.program_id === p.id && e.kind === "interview")) addSchedule(p.interview_at, `Interview: ${p.club_name}, ${p.name} (dress: ${p.dress_code || "not provided"})`, p.interview_location);
-  schedule.sort((a, b) => a.at.localeCompare(b.at));
+  // All-day entries lead the local day; timed entries compare instants across offsets.
+  schedule.sort((a, b) => {
+    if (a.at.length === 10 || b.at.length === 10) return Number(b.at.length === 10) - Number(a.at.length === 10);
+    return Date.parse(a.at) - Date.parse(b.at);
+  });
   const deadlines = stern.recruiting.deadlines.filter(d => d.days >= 0 && d.days <= 7);
   const replies = chats.filter(replyOwed), thanks = chats.filter(ch => thankYouOwed(ch, date));
   const autoApplied = (getDb().prepare(`SELECT COUNT(DISTINCT batch_id) n FROM stern_audit_log WHERE source IN ('auto_email','auto_calendar','imessage') AND action <> 'undo' AND undone_at='' AND ${dayWindowSql("created_at")}`).get(...dayWindowParams(yesterday, yesterday)) as { n: number }).n;

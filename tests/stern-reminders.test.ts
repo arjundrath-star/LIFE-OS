@@ -198,6 +198,36 @@ test("memo builds all sections from local fixtures and caps iMessage at eight li
   assert.doesNotMatch(result.subject + result.email + result.imessage, /[\u2013\u2014]/);
 });
 
+test("memo schedule sorts mixed-offset events, classes and chats by instant with all-day items first", () => {
+  db.exec("INSERT INTO courses(id,code,title) VALUES(1,'TEST-UB 103','Statistics'); INSERT INTO course_meetings(course_id,weekday,start_time,end_time) VALUES(1,3,'09:30','10:45')");
+  db.exec("INSERT INTO coffee_chats(person_id,state,scheduled_at) VALUES(1,'scheduled','2026-09-09T11:00:00-04:00')");
+  const insert = db.prepare("INSERT INTO stern_calendar_events(account,event_id,title,start_at) VALUES('fixture@stern.nyu.edu',?,?,?)");
+  insert.run('afternoon', 'Afternoon meeting', '2026-09-09T20:00:00+02:00');
+  insert.run('midnight', 'Midnight event', '2026-09-08T23:00:00-05:00'); // Midnight on the New York memo day.
+  insert.run('all-day', 'Campus event', '2026-09-09');
+  const schedule = memo.buildMemo(new Date('2026-09-09T12:00:00Z')).email.split("Today's schedule\n")[1].split('\n\n')[0];
+  assert.deepEqual(schedule.split('\n'), [
+    '- All day Campus event',
+    '- 00:00 Midnight event',
+    '- 09:30 TEST-UB 103 Statistics',
+    `- 11:00 Coffee chat with ${fixture.person}`,
+    '- 14:00 Afternoon meeting',
+  ]);
+});
+
+test("memo schedule preserves actual time order through the New York repeated DST hour", () => {
+  const insert = db.prepare("INSERT INTO stern_calendar_events(account,event_id,title,start_at) VALUES('fixture@stern.nyu.edu',?,?,?)");
+  insert.run('standard', 'After clocks turn back', '2026-11-01T01:15:00-05:00');
+  insert.run('daylight', 'Before clocks turn back', '2026-11-01T01:30:00-04:00');
+  insert.run('all-day', 'Campus event', '2026-11-01');
+  const schedule = memo.buildMemo(new Date('2026-11-01T13:00:00Z')).email.split("Today's schedule\n")[1].split('\n\n')[0];
+  assert.deepEqual(schedule.split('\n'), [
+    '- All day Campus event',
+    '- 01:30 Before clocks turn back',
+    '- 01:15 After clocks turn back',
+  ]);
+});
+
 test("memo dry-run preserves today's real send; daily marker and channels are idempotent", async () => {
   const preview = await memo.sendMemo(now, { runner: forbidden });
   assert.equal(preview.skipped, false); assert.equal(rows().length, 2); assert.ok(rows().every(r => r.error === "dry-run"));
