@@ -8,7 +8,10 @@ import { observeCoffeeChat } from "./coffee";
 import { addTouchpoint, peopleWrite } from "./people";
 import { automationJob, automationSource, accountsToScan, NYU_ACCOUNT, type AutomationSource } from "./automation-source";
 import { runRulesPass } from "./rules-pass";
+import { SternError } from "./errors";
 export function runSternCalendarSync(options: { source?: AutomationSource; now?: Date; dryRun?: boolean } = {}) {
+  // There is no side-effect-free preview for calendar reconciliation or its rules pass.
+  if (options.dryRun) return Promise.reject(new SternError(400, "Calendar sync does not support dry-run previews; no changes were made."));
   return automationJob(async () => {
     const counts = { accounts: 0, events: 0, failures: 0, errors: [] as string[] };
     if (process.env.STERN_LLM_MODE === "off" && !options.source) return counts;

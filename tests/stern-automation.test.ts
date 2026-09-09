@@ -166,6 +166,55 @@ test("calendar bookings remain scheduled after expiry; explicit completion alone
   process.env.STERN_LLM_MODE = "fixture";
 });
 
+test("calendar dryRun rejects before queueing or touching sources, database, audits, events or drafts", async () => {
+  reset(); await feed("fx-001");
+  const coffee = await import("@/lib/stern/coffee");
+  coffee.observeCoffeeChat(chatFor("fx-001").id, { state: "done", occurred_at: "2026-09-05T10:00:00Z" }, { source: "agent" });
+  assert.equal(q("SELECT COUNT(*) n FROM stern_drafts WHERE kind='thank_you'").n, 0);
+  let sourceCalls = 0;
+  const forbidden = async () => { sourceCalls++; throw new Error("Dry-run called a source"); };
+  const blockedSource: AutomationSource = { list: forbidden, full: forbidden, calendar: forbidden, createEvent: forbidden, createDraft: forbidden };
+  const before = db.serialize();
+  const queue = (globalThis as typeof globalThis & { __sternAutomationQueue?: Promise<unknown> }).__sternAutomationQueue;
+  await assert.rejects(calendar.runSternCalendarSync({ source: blockedSource, dryRun: true }), { name: "SternError", status: 400, message: /Calendar sync does not support dry-run previews/ });
+  assert.equal(sourceCalls, 0);
+  assert.equal((globalThis as typeof globalThis & { __sternAutomationQueue?: Promise<unknown> }).__sternAutomationQueue, queue);
+  assert.deepEqual(db.serialize(), before, "Every database table, including audits, events and drafts, must stay unchanged");
+  let boundaryCalls = 0;
+  const forbiddenBoundary = () => { boundaryCalls++; throw new Error("Dry-run crossed the work boundary"); };
+  const isolated = loadTs<typeof calendar>("lib/stern/calendar-sync.ts", {
+    "@/db": { getDb: forbiddenBoundary, nowIso: forbiddenBoundary },
+    "@/lib/agents": { recordAgentEvent: forbiddenBoundary },
+    "./automation-source": { ...sourceMod, automationJob: forbiddenBoundary, accountsToScan: forbiddenBoundary },
+    "./rules-pass": { runRulesPass: forbiddenBoundary },
+  });
+  await assert.rejects(isolated.runSternCalendarSync({ source: blockedSource, dryRun: true }), { status: 400, message: /no changes were made/i });
+  assert.equal(boundaryCalls, 0);
+});
+
+test("automation CLI distinguishes fixture calendar reconciliation from an explicit unsupported preview", async () => {
+  const compiled = ts.transpileModule(fs.readFileSync("scripts/stern-automation.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  for (const [command, explicit] of [["calendar", false], ["calendar", true], ["email", false]] as const) {
+    const calls: { kind: string; dryRun: boolean }[] = [];
+    const output: string[] = [], errors: string[] = [];
+    let broadcasts = 0;
+    const fakeProcess = { argv: ["node", "script", command, ...(explicit ? ["--dry-run"] : [])], env: { STERN_LLM_MODE: "fixture" }, exitCode: 0 };
+    const modules: Record<string, unknown> = {
+      "@/lib/stern/calendar-sync": { runSternCalendarSync: async (options: { dryRun: boolean }) => { calls.push({ kind: "calendar", ...options }); if (options.dryRun) throw new Error("Calendar sync does not support dry-run previews; no changes were made."); return {}; } },
+      "@/lib/stern/gmail-scan": { runSternEmailScan: async (options: { dryRun: boolean }) => { calls.push({ kind: "email", ...options }); return {}; } },
+      "@/lib/stern/snapshot": { broadcastStern: () => { broadcasts++; } },
+    };
+    new Function("require", "exports", "process", "console", compiled)((id: string) => { assert.ok(id in modules); return modules[id]; }, {}, fakeProcess, { log: (s: string) => output.push(s), error: (s: string) => errors.push(s) });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, [{ kind: command, dryRun: command === "email" || explicit }]);
+    assert.equal(fakeProcess.exitCode, explicit ? 1 : 0);
+    assert.equal(broadcasts, explicit ? 0 : 1);
+    assert.equal(output.length, explicit ? 0 : 1);
+    if (explicit) assert.match(errors[0], /does not support dry-run previews/);
+    else assert.deepEqual(errors, []);
+  }
+});
+
 test("draft rules: reach-out request, silent three-day follow-up and five-day no-reply; off mode cannot classify or draft", async () => {
   reset();
   const people = await import("@/lib/stern/people"), rules = await import("@/lib/stern/rules-pass");
@@ -371,7 +420,12 @@ test("Automation API authenticates, dispatches all actions, broadcasts snapshots
   };
   available.add("fx-001"); available.add("fx-002"); available.add("fx-017");
   await success({ action: "scan.now", dryRun: true });
-  await success({ action: "calendar.sync_now", dryRun: true });
+  const previewBroadcasts = broadcasts;
+  const preview = await post({ action: "calendar.sync_now", dryRun: true });
+  assert.equal(preview.status, 400);
+  assert.match((await preview.json()).error, /does not support dry-run previews/);
+  assert.equal(broadcasts, previewBroadcasts);
+  await success({ action: "calendar.sync_now" });
   const s = q("SELECT id FROM stern_suggestions WHERE gmail_message_id='fx-002'");
   await success({ action: "suggestion.accept", id: s.id, dryRun: true });
   await success({ action: "scan.now", dryRun: true }); // Rules generate the reply draft after acceptance.
