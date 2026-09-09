@@ -1,4 +1,5 @@
 import { getDb, kvGet } from "@/db";
+import { withoutSupersededInvites } from "./calendar-read";
 import { vendingSnapshot } from "@/lib/vending";
 import { pokemonOpsSnapshot } from "@/lib/pokemon-ops/snapshot";
 import { careerSnapshot } from "@/lib/career";
@@ -17,16 +18,16 @@ const clock = (at: string) => at.length === 10 ? "All day" : nyClock(new Date(at
 export function buildMemo(date: Date = new Date()): SternMemo {
   const stern = sternSnapshot(date), vending = vendingSnapshot(), pokemon = pokemonOpsSnapshot(date.toISOString()), career = careerSnapshot();
   const today = nyDayBounds(date), yesterday = nyDayBounds(date, -1);
-  const calendar = getDb().prepare(`SELECT * FROM stern_calendar_events WHERE ${dayWindowSql("start_at")} ORDER BY start_at,id`).all(...dayWindowParams(today, today)) as { title: string; start_at: string; location: string; coffee_chat_id: number; program_id: number; kind: string }[];
+  const calendar = withoutSupersededInvites(getDb().prepare(`SELECT * FROM stern_calendar_events WHERE ${dayWindowSql("start_at")} ORDER BY start_at,id`).all(...dayWindowParams(today, today)) as { account: string; event_id: string; person_id: number; title: string; start_at: string; location: string; coffee_chat_id: number; program_id: number; kind: string }[]);
   const schedule: { at: string; text: string }[] = [];
   const seen = new Set<string>();
-  const addSchedule = (at: string, title: string, location: string) => {
+  const addSchedule = (at: string, title: string, location: string, eventId?: string) => {
     const normalized = line(title);
-    const key = `${at.length === 10 ? at : new Date(at).toISOString()}:${normalized.toLowerCase()}`;
+    const key = `${at.length === 10 ? at : new Date(at).toISOString()}:${eventId ? `event:${eventId}` : normalized.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key); schedule.push({ at, text: `${clock(at)} ${normalized}${location ? `, ${line(location)}` : ""}` });
   };
-  for (const event of calendar) addSchedule(event.start_at, event.title, event.location);
+  for (const event of calendar) addSchedule(event.start_at, event.title, event.location, event.event_id);
   for (const meeting of stern.classes.schedule.filter(m => m.date === today.dateKey)) {
     if (calendar.some(e => e.kind === "class" && e.start_at.length > 10 && Date.parse(e.start_at) === Date.parse(meeting.start_at) && (e.title.toLowerCase().includes(meeting.code.toLowerCase()) || e.title.toLowerCase() === meeting.title.toLowerCase()))) continue;
     addSchedule(meeting.start_at, `${meeting.code} ${meeting.title}`, meeting.room);

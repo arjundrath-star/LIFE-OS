@@ -1,4 +1,5 @@
 import { getDb } from '@/db';
+import { withoutSupersededInvites } from './calendar-read';
 import type { SternNeed, SternScheduleItem, CourseMeeting } from '@/lib/stern-types';
 import { nyDayBounds, nyWallTime, dayWindowSql, dayWindowParams } from './time';
 
@@ -14,10 +15,10 @@ export function todaySchedule(now = new Date()): SternScheduleItem[] {
   const events = db.prepare(`SELECT e.*, COALESCE(NULLIF(ch.club_id,0),p.club_id,0) club_id
     FROM stern_calendar_events e LEFT JOIN coffee_chats ch ON ch.id=e.coffee_chat_id
     LEFT JOIN stern_programs p ON p.id=e.program_id WHERE e.kind <> 'class' AND ${dayWindowSql('e.start_at')}
-    ORDER BY e.id`).all(...dayWindowParams(day,day)) as {id:number;event_id:string;title:string;start_at:string;location:string;kind:string;club_id:number;person_id:number}[];
+    ORDER BY e.id`).all(...dayWindowParams(day,day)) as {id:number;account:string;event_id:string;title:string;start_at:string;location:string;kind:string;club_id:number;person_id:number;coffee_chat_id:number}[];
   // The same Google event may be visible in both connected accounts. Keep one occurrence.
   const seen = new Set<string>();
-  for (const e of events) {
+  for (const e of withoutSupersededInvites(events)) {
     const key = `${e.event_id || e.id}:${Date.parse(e.start_at)}`;
     if (seen.has(key)) continue;
     seen.add(key);
