@@ -129,18 +129,33 @@ test("undo restores message batch and accepted suggestion without reapplying it 
   assert.equal(q("SELECT state FROM stern_suggestions WHERE id=?", s.id).state, "pending");
 });
 
-test("calendar sync links, schedules, completes, creates thank-you drafts; cancelled events do not complete chats", async () => {
+test("calendar bookings remain scheduled after expiry; explicit completion alone enables thank-you drafts", async () => {
   reset(); await feed("fx-001");
   const email = fixture("fx-001").expected.people[0].email;
   calendarRows = [{ id: "stub-event", summary: "Coffee chat", start: { dateTime: "2026-09-10T16:00:00-04:00" }, end: { dateTime: "2026-09-10T16:30:00-04:00" }, attendees: [{ email }], location: "Placeholder Cafe" }];
   await calendar.runSternCalendarSync({ source, now: new Date("2026-09-10T18:00:00Z") });
   assert.equal(chatFor("fx-001").state, "scheduled");
+  assert.equal(chatFor("fx-001").calendar_event_id, "stub-event");
+  const bookingTouches = q("SELECT COUNT(*) n FROM people_touchpoints WHERE source='calendar'").n;
+  assert.ok(bookingTouches > 0);
   calendarRows[0].status = "cancelled";
   await calendar.runSternCalendarSync({ source, now: new Date("2026-09-10T22:00:00Z") });
   assert.equal(chatFor("fx-001").state, "scheduled");
   calendarRows[0].status = "confirmed";
   await calendar.runSternCalendarSync({ source, now: new Date("2026-09-10T22:00:00Z") });
-  assert.equal(chatFor("fx-001").state, "done");
+  assert.equal(chatFor("fx-001").state, "scheduled");
+  assert.equal(chatFor("fx-001").occurred_at, "");
+  assert.equal(q("SELECT status FROM people WHERE email=?", email).status, "reached_out");
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE kind='coffee_chat'").n, 0);
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE source='calendar'").n, bookingTouches);
+  assert.equal(q("SELECT COUNT(*) n FROM stern_drafts WHERE kind='thank_you'").n, 0);
+  const coffee = await import("@/lib/stern/coffee");
+  coffee.transition(chatFor("fx-001").id, "done", { at: "2026-09-10T16:24:00-04:00" });
+  coffee.updateCoffeeChat(chatFor("fx-001").id, { location: "Actual meeting location", takeaways: "Owner-recorded takeaway" });
+  const confirmed = chatFor("fx-001");
+  calendarRows[0].location = "Stale calendar location";
+  await calendar.runSternCalendarSync({ source, now: new Date("2026-09-10T22:00:00Z") });
+  assert.deepEqual(chatFor("fx-001"), confirmed, "Calendar must preserve manually recorded completion and details");
   const draft = q("SELECT * FROM stern_drafts WHERE kind='thank_you'"); assert.ok(draft);
   drafts.markDraftCopied(draft.id); assert.equal(q("SELECT state FROM stern_drafts WHERE id=?", draft.id).state, "copied");
   await drafts.regenerateDraft(draft.id); assert.equal(q("SELECT state FROM stern_drafts WHERE id=?", draft.id).state, "generated");
@@ -310,7 +325,11 @@ test("calendar sync preserves completed links and does not claim attendance when
   assert.equal(chatFor("fx-001").state, "no_reply"); // Five-day silence rule still applies.
   calendarRows[0].attendees![1].responseStatus = "accepted";
   await calendar.runSternCalendarSync({ source: sternOnly, now: new Date("2026-09-11T12:00:00Z") });
-  assert.equal(chatFor("fx-001").state, "done");
+  assert.equal(chatFor("fx-001").state, "scheduled");
+  assert.equal(chatFor("fx-001").occurred_at, "");
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE source='calendar'").n, 0, "A first-seen expired booking is not a new interaction");
+  assert.equal(q("SELECT COUNT(*) n FROM people_touchpoints WHERE kind='coffee_chat'").n, 0);
+  assert.equal(q("SELECT status FROM people WHERE email=?", email).status, "reached_out");
   await feed("fx-007");
   const chatId = chatFor("fx-001").id;
   await calendar.runSternCalendarSync({ source: sternOnly, now: new Date("2026-09-11T12:00:00Z") });
@@ -454,7 +473,7 @@ test("scheduling proposals retain times and direction, club results wait for all
   assert.ok(q("SELECT COUNT(*) n FROM stern_tasks").n > before);
 });
 
-test("account discovery uses enabled NYU domains and configured extras; calendar kinds and attendance are audited", async () => {
+test("account discovery uses enabled NYU domains and configured extras; calendar kinds are audited without turning accepted RSVPs into attendance", async () => {
   reset();
   db.prepare("INSERT INTO google_accounts(email,enabled) VALUES ('extra@example.com',1),('ignored@example.com',1),('netid@alumni.nyu.edu',1),('disabled@nyu.edu',0)").run();
   db.prepare("INSERT INTO kv(k,v) VALUES ('stern.extra_accounts',?)").run(JSON.stringify(["extra@example.com"]));
@@ -469,12 +488,18 @@ test("account discovery uses enabled NYU domains and configured extras; calendar
   const result = await calendar.runSternCalendarSync({ source: { ...source, calendar: async (account: string) => account === "netid@stern.nyu.edu" ? calendarRows : [] }, now: new Date("2026-09-10T12:00:00Z") });
   assert.equal(result.failures, 0);
   assert.deepEqual(all("SELECT kind FROM stern_calendar_events ORDER BY id").map(e => e.kind), ["club_meeting", "interview", "class"]);
-  assert.ok(q("SELECT done_at FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0", club.id).done_at);
+  assert.equal(q("SELECT done_at FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0", club.id).done_at, "");
+  assert.equal(q("SELECT COUNT(*) n FROM stern_audit_log WHERE source='auto_calendar' AND entity_type='checklist_item' AND field='done_at'").n, 0);
   const batches = all("SELECT DISTINCT batch_id FROM stern_audit_log WHERE source='auto_calendar'");
   assert.equal(batches.length, 1);
   audit.undoBatch(batches[0].batch_id);
   assert.equal(q("SELECT COUNT(*) n FROM stern_calendar_events").n, 0);
   assert.equal(q("SELECT done_at FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0", club.id).done_at, "");
+  const item = q("SELECT * FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0", club.id);
+  recruiting.toggleChecklist(item.id, true);
+  const confirmed = q("SELECT * FROM stern_checklist_items WHERE id=?", item.id);
+  await calendar.runSternCalendarSync({ source, now: new Date("2026-09-10T12:00:00Z") });
+  assert.deepEqual(q("SELECT * FROM stern_checklist_items WHERE id=?", item.id), confirmed, "Explicit attendance remains intact");
 });
 
 test("notification-sender invites link by attendee identity; outbound CC recipients are retained", async () => {

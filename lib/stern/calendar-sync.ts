@@ -5,8 +5,7 @@ import type { CoffeeChat, RecruitingClub } from "@/lib/stern-types";
 import { newBatchId } from "./audit";
 import { upsertCalendar } from "./apply";
 import { observeCoffeeChat } from "./coffee";
-import { addTouchpoint, observePersonStatus, peopleWrite } from "./people";
-import { toggleChecklist } from "./recruiting";
+import { addTouchpoint, peopleWrite } from "./people";
 import { automationJob, automationSource, accountsToScan, NYU_ACCOUNT, type AutomationSource } from "./automation-source";
 import { runRulesPass } from "./rules-pass";
 export function runSternCalendarSync(options: { source?: AutomationSource; now?: Date; dryRun?: boolean } = {}) {
@@ -16,7 +15,7 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
     const accounts = accountsToScan().filter(email => NYU_ACCOUNT.test(email));
     if (!accounts.length) return counts;
     const db = getDb(), source = options.source || automationSource(), now = options.now || new Date();
-    // Seven days of history lets missed scans complete chats; seven days ahead schedules the coming week.
+    // Recover booking links from missed scans and schedule the coming week; elapsed time is not attendance.
     const from = new Date(now.getTime() - 7 * 86400000).toISOString(), to = new Date(now.getTime() + 7 * 86400000).toISOString();
     const batchId = newBatchId("calendar"), run = `stern-calendar-${crypto.randomUUID()}`;
     const emit = (kind: string, status: string) => recordAgentEvent({ agent: "stern-automation", run, kind, status, summary: `Stern calendar sync ${kind}`, detail: JSON.stringify(counts), triggerType: "scheduler", triggerSource: "Stern calendar sync" });
@@ -48,19 +47,15 @@ export function runSternCalendarSync(options: { source?: AutomationSource; now?:
               const kind = chat ? "coffee_chat" : club && /interview/i.test(title) ? "interview" : club && /general meeting|info session/i.test(title) ? "club_meeting" : course ? "class" : "other";
               const program = kind === "interview" && club ? db.prepare("SELECT id FROM stern_programs WHERE club_id=? AND status='interview_invited' ORDER BY id DESC LIMIT 1").get(club.id) as { id: number } | undefined : undefined;
               upsertCalendar({ account, event_id: event.id, title, start_at: start, end_at: end, location: event.location || "", attendees: JSON.stringify(attendees), kind, person_id: chat?.person_id || 0, coffee_chat_id: chat?.id || 0, program_id: program?.id || 0, synced_at: nowIso() }, audit);
-              if (chat && !["thank_you_sent", "declined"].includes(chat.state) && start.includes("T")) {
-                const done = Date.parse(end) < now.getTime();
-                observeCoffeeChat(chat.id, { state: done ? "done" : "scheduled", scheduled_at: start, location: event.location || "", calendar_event_id: event.id, ...(done ? { occurred_at: end } : {}) }, audit);
-                addTouchpoint(chat.person_id, done ? "coffee_chat" : "calendar", { source: "calendar", occurred_at: done ? end : start, gmail_account: account, gmail_message_id: `calendar:${event.id}:${done ? "done" : "scheduled"}`, summary: title }, audit);
-                if (done) observePersonStatus(chat.person_id, "chatted", audit);
-              }
-              if (kind === "club_meeting" && club && Date.parse(end) < now.getTime()) {
-                const self = event.attendees?.find(a => a.email.toLowerCase() === account);
-                if (self?.responseStatus === "accepted") {
-                  const item = db.prepare("SELECT id FROM stern_checklist_items WHERE club_id=? AND key='general_meeting' AND program_id=0").get(club.id) as { id: number } | undefined;
-                  if (item) toggleChecklist(item.id, true, audit);
+              if (chat && !["done", "thank_you_sent", "declined"].includes(chat.state) && start.includes("T")) {
+                // A booking establishes a schedule, never that the conversation happened.
+                // Keep explicit completion and its recorded time/details untouched.
+                observeCoffeeChat(chat.id, { state: "scheduled", scheduled_at: start, location: event.location || "", calendar_event_id: event.id }, audit);
+                if (Date.parse(end) > now.getTime()) {
+                  addTouchpoint(chat.person_id, "calendar", { source: "calendar", occurred_at: start, gmail_account: account, gmail_message_id: `calendar:${event.id}:scheduled`, summary: title }, audit);
                 }
               }
+              // An accepted club-event invitation is an RSVP, not attendance evidence.
             });
             counts.events++;
           }
