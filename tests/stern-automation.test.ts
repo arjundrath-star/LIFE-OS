@@ -234,7 +234,7 @@ test("Google helpers retain readonly scopes, reject missing write scopes without
   await assert.rejects(google.gmailCreateDraft("netid@stern.nyu.edu", { to: "placeholder@example.com", subject: "Hello", body: "Hi" }), google.ScopeMissing);
   await assert.rejects(google.calendarCreateEvent("netid@stern.nyu.edu", { summary: "Coffee", startIso: "2026-09-05T12:00:00Z", endIso: "2026-09-05T12:30:00Z", attendees: [], location: "", description: "" }), google.ScopeMissing);
   await assert.rejects(google.gmailCreateDraft("netid@stern.nyu.edu", { to: "placeholder@example.com\nBcc: bad@example.com", subject: "Hello", body: "Hi" }), /Invalid draft headers/);
-  assert.equal(google.decodeGmailBody({ parts: [{ mimeType: "text/html", body: { data: Buffer.from("<b>html</b>").toString("base64url") } }, { parts: [{ mimeType: "text/plain", body: { data: Buffer.from("plain").toString("base64url") } }] }] }), "plain");
+  assert.equal(google.decodeGmailBody({ parts: [{ mimeType: "text/html", body: { data: Buffer.from("<b>plain</b>").toString("base64url") } }, { parts: [{ mimeType: "text/plain", body: { data: Buffer.from("plain").toString("base64url") } }] }] }), "plain");
   assert.match(google.decodeGmailBody({ mimeType: "text/html", body: { data: Buffer.from("<style>bad</style><b>safe &amp; text</b>").toString("base64url") } }), /safe & text/);
 });
 

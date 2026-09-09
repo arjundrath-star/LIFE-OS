@@ -624,10 +624,27 @@ export type GmailFullMessage = {
   id: string; threadId: string; from: string; to: string; cc: string; subject: string;
   text: string; labelIds: string[]; internalDate: number; headers: { name: string; value: string }[];
 };
-type MimePart = { mimeType?: string; body?: { data?: string }; parts?: MimePart[] };
+type MimePart = { mimeType?: string; filename?: string; headers?: { name: string; value: string }[]; body?: { data?: string }; parts?: MimePart[] };
+function htmlBodyText(html: string): string {
+  const named: Record<string, string> = { nbsp: " ", lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+  return html
+    .replace(/<(script|style|head)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?(?:p|div|li|tr|h[1-6]|blockquote|section|br|hr)\b[^>]*>/gi, "\n")
+    .replace(/<\/?(?:td|th)\b[^>]*>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|nbsp|lt|gt|amp|quot|apos);/gi, (_, entity: string) => {
+      if (!entity.startsWith("#")) return named[entity.toLowerCase()];
+      const cp = /^#x/i.test(entity) ? parseInt(entity.slice(2), 16) : Number(entity.slice(1));
+      return Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : "";
+    });
+}
 export function decodeGmailBody(payload: MimePart): string {
   const plain: string[] = [], html: string[] = [];
   function visit(part: MimePart) {
+    // Attached documents and forwarded .eml messages are not this message's body.
+    const disposition = part.headers?.find(h => h.name.toLowerCase() === "content-disposition")?.value || "";
+    if (part.filename || /^\s*attachment\b/i.test(disposition) || part.mimeType?.toLowerCase() === "message/rfc822") return;
     if (part.body?.data) {
       const decoded = Buffer.from(part.body.data, "base64url").toString("utf8");
       if (part.mimeType === "text/plain") plain.push(decoded);
@@ -636,7 +653,20 @@ export function decodeGmailBody(payload: MimePart): string {
     part.parts?.forEach(visit);
   }
   visit(payload);
-  return plain.length ? plain.join("\n") : html.join("\n").replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&#(\d+);/g, (_, n) => { const cp = Number(n); return Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : ""; });
+  const text = plain.join("\n"), normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+  const plainNormalized = normalize(text), additions: string[] = [];
+  const plainBlocks = new Set([...text.split(/\r?\n/), ...text.split(/\r?\n\s*\r?\n/)].map(normalize));
+  const seen = new Set<string>();
+  // Some senders put only boilerplate in text/plain and deadlines in an HTML table.
+  // Preserve plain text verbatim, adding only HTML blocks it does not already carry.
+  const extraHtml = html.map(htmlBodyText).filter(body => normalize(body) !== plainNormalized);
+  for (const block of extraHtml.join("\n").split(/\r?\n/)) {
+    const line = normalize(block);
+    // Exact blocks only: "Due Sep 1" is not already present in "Due Sep 15".
+    if (line && !plainBlocks.has(line) && !seen.has(line)) { additions.push(line); seen.add(line); }
+  }
+  if (!additions.length) return text;
+  return plainNormalized ? `${text}\n\n[Additional content from HTML version]\n${additions.join("\n")}` : additions.join("\n");
 }
 async function sternToken(email: string) {
   const token = await accessTokenFor(email);
