@@ -94,7 +94,7 @@ test('Scheduling without a parseable time remains visible; hot scans scope accou
  chat=q('SELECT * FROM coffee_chats');assert.equal(chat.state,'scheduled');assert.equal(chat.scheduling_since,'');assert.equal(chat.hot_until,'');assert.equal(chat.last_thread_check_at,now.toISOString());
 });
 test('Hot scans do not wait for full scans and respect the five minute check window',async()=>{
- await feed(['fx-001']);const now=new Date();db.prepare("UPDATE coffee_chats SET scheduling_since=?,hot_until=?,last_thread_check_at=?").run(now.toISOString(),new Date(+now+30*60000).toISOString(),now.toISOString());
+ await feed(['fx-001']);const now=new Date();db.prepare("UPDATE coffee_chats SET state='requested',scheduling_since=?,hot_until=?,last_thread_check_at=?").run(now.toISOString(),new Date(+now+30*60000).toISOString(),now.toISOString());
  let release!:()=>void,announce!:()=>void;const held=new Promise<void>(r=>release=r),started=new Promise<void>(r=>announce=r);const base=sourceMod.automationSource();
  const full=scan.runSternEmailScan({source:{...base,list:async()=>{announce();await held;return [];}}});await started;
  try {
